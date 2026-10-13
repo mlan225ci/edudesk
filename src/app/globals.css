@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #14284b;
+  --color-desk: #1f4f99;
+  --color-edu: #f2b705;
+  --color-cap: #c81d25;
+  --color-paper: #f6f5f1;
+  --color-card: #ffffff;
+  --color-mission: #e8872a;
+  --color-delay: #c81d25;
+  --color-deleg: #2f6fed;
+  --color-vert: #1f8a5b;
+  --font-sans: var(--font-jakarta), "Segoe UI", system-ui, sans-serif;
+
+  --animate-entree: entree 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-apparition: apparition 0.25s ease-out both;
+  --animate-glisse-droite: glisse-droite 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-glisse-gauche: glisse-gauche 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-zoom: zoom 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pousse: pousse 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-monte: monte 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-secousse: secousse 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  --animate-coche: coche 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-trait: trait 0.35s ease-out both;
+  --animate-chargement: chargement 1.2s ease-in-out infinite;
+
+  @keyframes secousse {
+    0%,
+    100% {
+      transform: none;
+    }
+    20%,
+    60% {
+      transform: translateX(-4px);
+    }
+    40%,
+    80% {
+      transform: translateX(4px);
+    }
+  }
+  @keyframes coche {
+    0% {
+      transform: scale(0.6);
+    }
+    60% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes trait {
+    from {
+      stroke-dashoffset: 24;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes chargement {
+    0% {
+      transform: translateX(-100%) scaleX(0.4);
+    }
+    50% {
+      transform: translateX(30%) scaleX(0.6);
+    }
+    100% {
+      transform: translateX(110%) scaleX(0.4);
+    }
+  }
+
+  @keyframes entree {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes apparition {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes glisse-droite {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes glisse-gauche {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes zoom {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pousse {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes monte {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-edu) 45%, transparent);
+}
+
+@layer components {
+  .champ {
+    @apply w-full rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm text-ink shadow-[0_1px_0_rgba(20,40,75,0.03)] transition outline-none placeholder:text-ink/35 hover:border-ink/20 focus:border-desk/50 focus:ring-4 focus:ring-desk/10 disabled:bg-paper;
+  }
+  select.champ {
+    @apply cursor-pointer pr-8;
+  }
+  .etiquette {
+    @apply grid gap-1.5 text-sm font-medium text-ink/80;
+  }
+  .bouton {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-desk px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-desk/20 transition duration-150 hover:bg-ink hover:shadow-md active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
+  }
+  .bouton-second {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition duration-150 hover:border-ink/20 hover:bg-paper active:scale-[0.97] disabled:opacity-60;
+  }
+  .bouton-fantome {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink/70 transition hover:bg-ink/5 hover:text-ink active:scale-[0.97];
+  }
+  .bouton-danger {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-cap transition hover:bg-cap/10 active:scale-[0.97];
+  }
+  .carte {
+    @apply rounded-2xl border border-ink/[0.06] bg-card p-5 shadow-[0_1px_2px_rgba(20,40,75,0.04),0_4px_16px_-8px_rgba(20,40,75,0.08)];
+  }
+  .carte-lien {
+    @apply transition duration-200 hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-[0_2px_4px_rgba(20,40,75,0.05),0_12px_28px_-12px_rgba(20,40,75,0.18)];
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  }
+  .tableau {
+    @apply w-full text-left text-sm;
+  }
+  .tableau thead th {
+    @apply border-b border-ink/[0.06] px-3 py-3 text-xs font-semibold tracking-wide text-ink/45 uppercase first:pl-0 last:pr-0;
+  }
+  .tableau tbody td {
+    @apply border-b border-ink/[0.04] px-3 py-3.5 first:pl-0 last:pr-0;
+  }
+  .tableau tbody tr {
+    @apply transition-colors hover:bg-paper/70;
+  }
+  .squelette {
+    @apply relative overflow-hidden rounded-xl bg-ink/[0.06];
+  }
+  .squelette::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: brillance 1.4s infinite;
+  }
+}
+
+@keyframes brillance {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+.entree-cascade > * {
+  animation: var(--animate-entree);
+}
+.entree-cascade > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.entree-cascade > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.entree-cascade > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.entree-cascade > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.entree-cascade > *:nth-child(n + 6) {
+  animation-delay: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}

@@ -1,0 +1,557 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CEO
+  ADMINISTRATEUR
+  RESPONSABLE_COMMERCIALE
+  COMMERCIAL
+  ASSISTANTE_ADMINISTRATIVE
+  INFORMATICIEN_VISA
+  INFORMATICIEN_ECOLE
+  COACH
+  COACH_RP
+  TRADUCTEUR
+  COMMUNITY_MANAGER
+  COMPTABLE
+  MOYENS_GENERAUX
+  PARTENAIRE
+}
+
+enum SourceProspect {
+  TERRAIN
+  RESEAUX_SOCIAUX
+  APPEL
+  APPORTEUR
+  PARTENAIRE
+}
+
+enum StatutDossier {
+  ORIENTATION
+  EN_COURS
+  DECISION
+  DEPART_SUIVI
+  RELANCE
+  REORIENTE
+}
+
+enum StatutEtape {
+  A_VENIR
+  EN_COURS
+  CLOTUREE
+}
+
+enum EffetIssue {
+  SUITE
+  RELANCE
+  BOUCLE
+}
+
+enum ModePaiement {
+  ESPECES
+  VIREMENT
+  MOBILE_MONEY
+}
+
+enum TypePaiement {
+  ACOMPTE_DOSSIER
+  ACOMPTE_SCOLARITE
+  FRAIS
+  AUTRE
+}
+
+enum StatutPaiement {
+  ENCAISSE
+  RAPPROCHE
+}
+
+enum TypeNotif {
+  CLIENT
+  PARTENAIRE
+  COLLABORATEUR
+  DIRECTION
+}
+
+enum StatutSms {
+  EN_ATTENTE
+  JOURNAL
+  ENVOYE
+  ECHEC
+}
+
+enum AcompteExige {
+  AUCUN
+  DOSSIER
+  SCOLARITE
+  FRAIS
+}
+
+enum CategorieDepense {
+  LOYER
+  SALAIRES
+  TRANSPORT
+  TELECOM
+  MARKETING
+  FOURNITURES
+  ENTRETIEN
+  FRAIS_CONSULAIRES
+  COMMISSION
+  FRAIS_BANCAIRES
+  IMPOTS
+  AUTRE
+}
+
+enum EtatMateriel {
+  BON
+  USAGE
+  PANNE
+  REFORME
+}
+
+enum TypeConge {
+  CONGE
+  MALADIE
+  PERMISSION
+}
+
+enum StatutConge {
+  DEMANDE
+  VALIDE
+  REFUSE
+}
+
+model User {
+  id             String    @id @default(cuid())
+  prenom         String
+  nom            String
+  email          String    @unique
+  telephone      String    @unique
+  motDePasseHash String
+  role           Role
+  actif          Boolean   @default(true)
+  superieurId    String?
+  superieur      User?     @relation("hierarchie", fields: [superieurId], references: [id])
+  equipe         User[]    @relation("hierarchie")
+  partenaireId   String?
+  partenaire     Partenaire? @relation(fields: [partenaireId], references: [id])
+  creeLe         DateTime  @default(now())
+  notifications  NotificationInterne[]
+  audits         Audit[]
+  materiels      Materiel[]
+  conges         Conge[]
+}
+
+model Partenaire {
+  id         String     @id @default(cuid())
+  nom        String
+  type       String
+  telephone  String
+  email      String?
+  utilisateurs User[]
+  clients    Client[]
+  prospects  Prospect[]
+  depenses   Depense[]
+}
+
+model Prospect {
+  id           String         @id @default(cuid())
+  prenom       String
+  nom          String
+  telephone    String
+  email        String?
+  source       SourceProspect
+  partenaireId String?
+  partenaire   Partenaire?    @relation(fields: [partenaireId], references: [id])
+  notes        String?
+  relanceLe    DateTime?
+  converti     Boolean        @default(false)
+  clientId     String?
+  creeParId    String
+  creeLe       DateTime       @default(now())
+
+  @@index([telephone])
+  @@index([relanceLe])
+}
+
+model Client {
+  id               String      @id @default(cuid())
+  prenom           String
+  nom              String
+  telephone        String
+  email            String?
+  paysVise         String?
+  partenaireId     String?
+  partenaire       Partenaire? @relation(fields: [partenaireId], references: [id])
+  garantNom        String?
+  garantTelephone  String?
+  creeLe           DateTime    @default(now())
+  dossiers         Dossier[]
+  paiements        Paiement[]
+
+  @@index([telephone])
+}
+
+model Procedure {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  nom           String
+  destination   String
+  version       Int           @default(1)
+  actif         Boolean       @default(true)
+  commissionXof Int           @default(0)
+  tarifXof      Int           @default(0)
+  ecoles        Boolean       @default(false)
+  etapes        EtapeModele[]
+  dossiers      Dossier[]
+}
+
+model EtapeModele {
+  id          String         @id @default(cuid())
+  procedureId String
+  procedure   Procedure      @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  rang        Int
+  titre       String
+  delaiHeures Int?
+  roles       String
+  acompte     AcompteExige   @default(AUCUN)
+  jalon       String?
+  choixEcole  Boolean        @default(false)
+  taches      TacheModele[]
+  pieces      PieceModele[]
+  issues      IssueModele[]
+
+  @@unique([procedureId, rang])
+}
+
+model TacheModele {
+  id            String      @id @default(cuid())
+  etapeModeleId String
+  etape         EtapeModele @relation(fields: [etapeModeleId], references: [id], onDelete: Cascade)
+  ordre         Int
+  libelle       String
+  obligatoire   Boolean     @default(true)
+}
+
+model PieceModele {
+  id            String      @id @default(cuid())
+  etapeModeleId String
+  etape         EtapeModele @relation(fields: [etapeModeleId], references: [id], onDelete: Cascade)
+  ordre         Int
+  libelle       String
+  obligatoire   Boolean     @default(true)
+}
+
+model IssueModele {
+  id            String      @id @default(cuid())
+  etapeModeleId String
+  etape         EtapeModele @relation(fields: [etapeModeleId], references: [id], onDelete: Cascade)
+  ordre         Int
+  libelle       String
+  effet         EffetIssue
+}
+
+model Dossier {
+  id                     String         @id @default(cuid())
+  reference              String         @unique
+  codeSuivi              String?        @unique
+  clientId               String
+  client                 Client         @relation(fields: [clientId], references: [id])
+  procedureId            String
+  procedure              Procedure      @relation(fields: [procedureId], references: [id])
+  statut                 StatutDossier
+  ouvertLe               DateTime       @default(now())
+  observation            String?
+  dossierOrigineId       String?
+  alerteSansResponsable  Boolean        @default(false)
+  montantConvenu         Int?
+  etapes                 DossierEtape[]
+  pieces                 PieceDossier[]
+  paiements              Paiement[]
+  factures               Facture[]
+  candidatures           Candidature[]
+
+  @@index([statut])
+}
+
+enum StatutCandidature {
+  PROPOSEE
+  SOUMISE
+  ADMIS
+  REFUSE
+  CHOISIE
+  ABANDONNEE
+}
+
+model Ecole {
+  id            String        @id @default(cuid())
+  nom           String
+  pays          String
+  ville         String?
+  type          String?
+  formations    String?
+  fraisXof      Int?
+  rentrees      String?
+  contactNom    String?
+  telephone     String?
+  email         String?
+  siteWeb       String?
+  partenaire    Boolean       @default(false)
+  commissionXof Int           @default(0)
+  actif         Boolean       @default(true)
+  notes         String?
+  creeLe        DateTime      @default(now())
+  candidatures  Candidature[]
+
+  @@index([pays])
+}
+
+model Candidature {
+  id          String            @id @default(cuid())
+  dossierId   String
+  dossier     Dossier           @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  ecoleId     String
+  ecole       Ecole             @relation(fields: [ecoleId], references: [id])
+  formation   String?
+  statut      StatutCandidature @default(PROPOSEE)
+  soumiseLe   DateTime?
+  reponseLe   DateTime?
+  observation String?
+  creeParId   String
+  creeLe      DateTime          @default(now())
+  majLe       DateTime          @updatedAt
+
+  @@index([dossierId])
+  @@index([ecoleId, statut])
+}
+
+model DossierEtape {
+  id             String         @id @default(cuid())
+  dossierId      String
+  dossier        Dossier        @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  etapeModeleId  String?
+  rang           Int
+  titre          String
+  roles          String
+  acompte        AcompteExige   @default(AUCUN)
+  jalon          String?
+  choixEcole     Boolean        @default(false)
+  delaiHeures    Int?
+  statut         StatutEtape
+  debutLe        DateTime?
+  limiteLe       DateTime?
+  clotureLe      DateTime?
+  responsableId  String?
+  delegation     Boolean        @default(false)
+  observation    String?
+  alerteJ1       Boolean        @default(false)
+  alerteRetard   Boolean        @default(false)
+  taches         TacheDossier[]
+  pieces         PieceDossier[]
+  issues         DossierIssue[]
+
+  @@index([dossierId, rang])
+  @@index([responsableId, statut])
+  @@index([limiteLe])
+}
+
+model DossierIssue {
+  id             String       @id @default(cuid())
+  dossierEtapeId String
+  etape          DossierEtape @relation(fields: [dossierEtapeId], references: [id], onDelete: Cascade)
+  ordre          Int
+  libelle        String
+  effet          EffetIssue
+}
+
+model TacheDossier {
+  id             String       @id @default(cuid())
+  dossierEtapeId String
+  etape          DossierEtape @relation(fields: [dossierEtapeId], references: [id], onDelete: Cascade)
+  ordre          Int
+  libelle        String
+  obligatoire    Boolean
+  faite          Boolean      @default(false)
+  faiteLe        DateTime?
+  faiteParId     String?
+}
+
+model PieceDossier {
+  id             String        @id @default(cuid())
+  dossierId      String
+  dossier        Dossier       @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierEtapeId String?
+  etape          DossierEtape? @relation(fields: [dossierEtapeId], references: [id])
+  ordre          Int           @default(0)
+  libelle        String
+  obligatoire    Boolean       @default(false)
+  recue          Boolean       @default(false)
+  recueLe        DateTime?
+  recueParId     String?
+  fichierNom     String?
+  fichierChemin  String?
+  reportee       Boolean       @default(false)
+}
+
+model Paiement {
+  id                String         @id @default(cuid())
+  numero            String         @unique
+  dossierId         String
+  dossier           Dossier        @relation(fields: [dossierId], references: [id])
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id])
+  type              TypePaiement
+  montant           Int
+  devise            String         @default("XOF")
+  mode              ModePaiement
+  precision         String?
+  referenceExterne  String?
+  dateEncaissement  DateTime
+  saisiParId        String
+  statut            StatutPaiement @default(ENCAISSE)
+  creeLe            DateTime       @default(now())
+  facture           Facture?
+  ecritures         Ecriture[]
+
+  @@index([dateEncaissement])
+}
+
+model Facture {
+  id         String   @id @default(cuid())
+  numero     String   @unique
+  dossierId  String
+  dossier    Dossier  @relation(fields: [dossierId], references: [id])
+  paiementId String   @unique
+  paiement   Paiement @relation(fields: [paiementId], references: [id])
+  clientNom  String
+  libelle    String
+  montant    Int
+  creeLe     DateTime @default(now())
+}
+
+model Ecriture {
+  id         String   @id @default(cuid())
+  date       DateTime
+  journal    String
+  compte     String
+  libelle    String
+  debit      Int      @default(0)
+  credit     Int      @default(0)
+  paiementId String?
+  paiement   Paiement? @relation(fields: [paiementId], references: [id])
+  factureId  String?
+  depenseId  String?
+  depense    Depense?  @relation(fields: [depenseId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([compte])
+}
+
+model Depense {
+  id           String           @id @default(cuid())
+  numero       String           @unique
+  date         DateTime
+  categorie    CategorieDepense
+  libelle      String
+  montant      Int
+  mode         ModePaiement
+  fournisseur  String?
+  reference    String?
+  partenaireId String?
+  partenaire   Partenaire?      @relation(fields: [partenaireId], references: [id])
+  saisiParId   String
+  creeLe       DateTime         @default(now())
+  ecritures    Ecriture[]
+
+  @@index([date])
+  @@index([categorie])
+}
+
+model Materiel {
+  id           String       @id @default(cuid())
+  designation  String
+  categorie    String
+  numeroSerie  String?
+  etat         EtatMateriel @default(BON)
+  valeurXof    Int          @default(0)
+  acquisLe     DateTime?
+  localisation String?
+  affecteAId   String?
+  affecteA     User?        @relation(fields: [affecteAId], references: [id])
+  creeLe       DateTime     @default(now())
+}
+
+model Conge {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  type        TypeConge
+  debut       DateTime
+  fin         DateTime
+  motif       String?
+  statut      StatutConge @default(DEMANDE)
+  traiteParId String?
+  creeLe      DateTime    @default(now())
+
+  @@index([statut])
+  @@index([debut, fin])
+}
+
+model ModeleSms {
+  code    String @id
+  libelle String
+  corps   String
+}
+
+model NotificationSms {
+  id            String     @id @default(cuid())
+  telephone     String
+  type          TypeNotif
+  dossierId     String?
+  texte         String
+  segments      Int
+  statut        StatutSms  @default(EN_ATTENTE)
+  erreur        String?
+  fournisseurId String?
+  creeLe        DateTime   @default(now())
+  envoyeLe      DateTime?
+
+  @@index([creeLe])
+  @@index([dossierId])
+}
+
+model NotificationInterne {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id])
+  titre   String
+  message String
+  lien    String?
+  lue     Boolean  @default(false)
+  creeLe  DateTime @default(now())
+
+  @@index([userId, lue])
+}
+
+model Audit {
+  id       String   @id @default(cuid())
+  userId   String?
+  user     User?    @relation(fields: [userId], references: [id])
+  action   String
+  entite   String
+  entiteId String
+  detail   String?
+  creeLe   DateTime @default(now())
+
+  @@index([entite, entiteId])
+}
+
+model Compteur {
+  cle    String @id
+  valeur Int    @default(0)
+}
