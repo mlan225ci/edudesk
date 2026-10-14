@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/toasts";
+import { apercuMessage } from "@/lib/messages";
 import type { EvenementFlux, MessageFlux } from "@/server/temps-reel";
 
 export type EvenementClient = EvenementFlux | { type: "resync" };
@@ -69,14 +70,21 @@ export function jouerSon(force = false) {
   }
 }
 
-const ContexteMessages = createContext<number | null>(null);
+const ContexteMessages = createContext<{ nonLus: number; enLigne: Set<string>; vuLe: Map<string, string> } | null>(null);
 
 export function useMessagesNonLus() {
-  return useContext(ContexteMessages);
+  return useContext(ContexteMessages)?.nonLus ?? null;
+}
+
+export function usePresence(userId: string) {
+  const contexte = useContext(ContexteMessages);
+  return { enLigne: contexte?.enLigne.has(userId) ?? false, vuLe: contexte?.vuLe.get(userId) ?? null };
 }
 
 export function CentreMessages({ moiId, initial, children }: { moiId: string; initial: number; children: React.ReactNode }) {
   const [nonLus, setNonLus] = useState(initial);
+  const [enLigne, setEnLigne] = useState<Set<string>>(() => new Set());
+  const [vuLe, setVuLe] = useState<Map<string, string>>(() => new Map());
   const toast = useToast();
   const router = useRouter();
   const outils = useRef({ toast, router });
@@ -151,7 +159,7 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
       if (!("Notification" in window) || Notification.permission !== "granted") return;
       try {
         const notification = new Notification(`Nouveau message de ${message.deNom}`, {
-          body: message.texte.slice(0, 160),
+          body: apercuMessage(message).slice(0, 160),
           tag: `edudesk-message-${message.deId}`,
           icon: "/icon.png",
         });
@@ -167,7 +175,8 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
       if (document.visibilityState === "visible") {
         signaler(message.id);
         jouerSon();
-        const extrait = message.texte.length > 90 ? `${message.texte.slice(0, 90)}…` : message.texte;
+        const apercu = apercuMessage(message);
+        const extrait = apercu.length > 90 ? `${apercu.slice(0, 90)}…` : apercu;
         outils.current.toast(`${message.deNom} : ${extrait}`, "message", `/messages?avec=${message.deId}`);
         return;
       }
@@ -183,9 +192,30 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
       );
     };
 
+    let presencesConnues: Set<string> | null = null;
+
     const traiter = (evenement: EvenementClient) => {
       window.dispatchEvent(new CustomEvent<EvenementClient>(EVENEMENT_FLUX, { detail: evenement }));
       if (evenement.type === "compteur") setNonLus(evenement.nonLus);
+      if (evenement.type === "presences") {
+        presencesConnues = new Set(evenement.enLigne);
+        setEnLigne(new Set(evenement.enLigne));
+      }
+      if (evenement.type === "presence") {
+        presencesConnues ??= new Set();
+        if (evenement.enLigne) presencesConnues.add(evenement.userId);
+        else presencesConnues.delete(evenement.userId);
+        setEnLigne((actuels) => {
+          const suivants = new Set(actuels);
+          if (evenement.enLigne) suivants.add(evenement.userId);
+          else suivants.delete(evenement.userId);
+          return suivants;
+        });
+        if (evenement.vuLe) {
+          const quand = evenement.vuLe;
+          setVuLe((actuels) => new Map(actuels).set(evenement.userId, quand));
+        }
+      }
       if (evenement.type !== "message") return;
       const message = evenement.message;
       if (vus.has(message.id)) return;
@@ -199,7 +229,7 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
     const ouvrirFlux = () => {
       let coupe = false;
       source = new EventSource("/api/messages/flux");
-      for (const type of ["message", "lu", "compteur"] as const) {
+      for (const type of ["message", "lu", "compteur", "ecrit", "presence", "presences"] as const) {
         source.addEventListener(type, (event) => {
           const evenement = JSON.parse((event as MessageEvent<string>).data) as EvenementFlux;
           canal?.postMessage(evenement);
@@ -217,7 +247,13 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
       };
     };
 
-    if (canal) canal.onmessage = (event: MessageEvent<EvenementClient>) => traiter(event.data);
+    if (canal) {
+      canal.onmessage = (event: MessageEvent<EvenementClient | { type: "demande" }>) => {
+        if (event.data.type !== "demande") return traiter(event.data);
+        if (source && presencesConnues) canal.postMessage({ type: "presences", enLigne: [...presencesConnues] });
+      };
+      canal.postMessage({ type: "demande" });
+    }
 
     if (canal && navigator.locks) {
       navigator.locks
@@ -244,5 +280,6 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
     };
   }, [moiId]);
 
-  return <ContexteMessages.Provider value={nonLus}>{children}</ContexteMessages.Provider>;
+  const valeur = useMemo(() => ({ nonLus, enLigne, vuLe }), [nonLus, enLigne, vuLe]);
+  return <ContexteMessages.Provider value={valeur}>{children}</ContexteMessages.Provider>;
 }

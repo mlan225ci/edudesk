@@ -141,6 +141,7 @@ model User {
   partenaireId   String?
   partenaire     Partenaire? @relation(fields: [partenaireId], references: [id])
   creeLe         DateTime  @default(now())
+  vuLe           DateTime?
   notifications  NotificationInterne[]
   audits         Audit[]
   materiels      Materiel[]
@@ -600,6 +601,11 @@ model Message {
   texte  String
   lu     Boolean  @default(false)
   creeLe DateTime @default(now())
+  fichierNom    String?
+  fichierChemin String?
+  fichierType   String?
+  fichierTaille Int?
+  duree         Int?
 
   @@index([aId, lu])
   @@index([deId, aId, creeLe])

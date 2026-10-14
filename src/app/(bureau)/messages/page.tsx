@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { MessagesSquare } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { labelRole } from "@/lib/labels";
+import { apercuMessage } from "@/lib/messages";
 import { Conversation, ListeContacts, ReglagesAlertes, type Contact } from "@/components/messagerie";
 import { EnTete, Vide } from "@/components/ui";
 import { requireUser } from "@/server/session";
@@ -20,14 +21,14 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       where: { OR: [{ deId: user.id }, { aId: user.id }] },
       orderBy: { creeLe: "desc" },
       take: 400,
-      select: { deId: true, aId: true, texte: true, creeLe: true },
+      select: { deId: true, aId: true, texte: true, creeLe: true, fichierNom: true, duree: true },
     }),
     prisma.message.groupBy({ by: ["deId"], where: { aId: user.id, lu: false }, _count: true }),
   ]);
   const dernier = new Map<string, { texte: string; creeLe: Date; moi: boolean }>();
   for (const message of recents) {
     const autre = message.deId === user.id ? message.aId : message.deId;
-    if (!dernier.has(autre)) dernier.set(autre, { texte: message.texte, creeLe: message.creeLe, moi: message.deId === user.id });
+    if (!dernier.has(autre)) dernier.set(autre, { texte: apercuMessage(message), creeLe: message.creeLe, moi: message.deId === user.id });
   }
   const nonLusPar = new Map(nonLus.map((ligne) => [ligne.deId, ligne._count]));
   const correspondant = collegues.find((collegue) => collegue.id === avec) ?? null;
@@ -70,7 +71,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <EnTete
         titre="Messagerie"
         icone={MessagesSquare}
-        description="Échangez directement avec vos collègues. Les messages arrivent instantanément, avec un signal sonore quand l'onglet n'est pas affiché."
+        description="Échangez avec vos collègues : messages instantanés, fichiers et notes vocales. Un signal sonore vous prévient quand l'onglet n'est pas affiché."
         actions={<ReglagesAlertes />}
       />
 
@@ -81,7 +82,13 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
           <Conversation
             key={correspondant.id}
             moiId={user.id}
-            correspondant={{ id: correspondant.id, prenom: correspondant.prenom, nom: correspondant.nom, role: labelRole(correspondant.role) }}
+            correspondant={{
+              id: correspondant.id,
+              prenom: correspondant.prenom,
+              nom: correspondant.nom,
+              role: labelRole(correspondant.role),
+              vuLe: correspondant.vuLe?.toISOString() ?? null,
+            }}
             initiaux={fil.reverse().map((message) => versFlux({ ...message, lu: message.deId === correspondant.id ? true : message.lu }))}
           />
         ) : (
