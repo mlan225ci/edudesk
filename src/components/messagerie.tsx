@@ -2,10 +2,40 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { BellRing, Download, FileText, Loader2, Mic, Paperclip, Pause, Play, Reply, RotateCcw, Send, Square, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BellRing,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FileText,
+  Loader2,
+  Mic,
+  Paperclip,
+  Pause,
+  Play,
+  Reply,
+  RotateCcw,
+  Search,
+  Send,
+  Square,
+  Trash2,
+  Upload,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { formatDate } from "@/lib/format";
-import { apercuMessage, dureeTexte, tailleTexte, urlFichierMessage } from "@/lib/messages";
+import {
+  apercuMessage,
+  correspond,
+  decouperSurlignage,
+  dureeTexte,
+  normaliserRecherche,
+  tailleTexte,
+  urlFichierMessage,
+  type ResultatRecherche,
+} from "@/lib/messages";
 import { Avatar } from "@/components/ui";
 import { useToast } from "@/components/toasts";
 import {
@@ -50,6 +80,25 @@ function ecouterFlux(rappel: (evenement: EvenementClient) => void) {
   const surFlux = (event: Event) => rappel((event as CustomEvent<EvenementClient>).detail);
   window.addEventListener(EVENEMENT_FLUX, surFlux);
   return () => window.removeEventListener(EVENEMENT_FLUX, surFlux);
+}
+
+const RECHERCHE_MIN = 2;
+
+function Surligne({ texte, requete }: { texte: string; requete: string }) {
+  if (!requete) return <>{texte}</>;
+  return (
+    <>
+      {decouperSurlignage(texte, requete).map((segment, index) =>
+        segment.trouve ? (
+          <mark key={index} className="rounded-sm bg-edu/70 px-px text-ink">
+            {segment.texte}
+          </mark>
+        ) : (
+          segment.texte
+        ),
+      )}
+    </>
+  );
 }
 
 function nouvelleCle() {
@@ -134,7 +183,7 @@ function LecteurVocal({ src, duree, moi }: { src: string | null; duree: number |
   );
 }
 
-function ContenuFichier({ message, moi }: { message: Ligne; moi: boolean }) {
+function ContenuFichier({ message, moi, requete }: { message: Ligne; moi: boolean; requete: string }) {
   const fichier = message.fichier;
   if (!fichier) return null;
   const url = message.etat ? null : urlFichierMessage(message.id);
@@ -152,7 +201,9 @@ function ContenuFichier({ message, moi }: { message: Ligne; moi: boolean }) {
         <FileText size={17} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{fichier.nom}</span>
+        <span className="block truncate font-medium">
+          <Surligne texte={fichier.nom} requete={requete} />
+        </span>
         <span className={`text-[11px] ${moi ? "text-white/70" : "text-ink/50"}`}>{tailleTexte(fichier.taille)}</span>
       </span>
       {url ? <Download size={16} className="shrink-0 opacity-70" /> : null}
@@ -171,10 +222,14 @@ export function Conversation({
   moiId,
   correspondant,
   initiaux,
+  cible = null,
+  rechercheInitiale = "",
 }: {
   moiId: string;
   correspondant: { id: string; prenom: string; nom: string; role: string; vuLe: string | null };
   initiaux: MessageFlux[];
+  cible?: string | null;
+  rechercheInitiale?: string;
 }) {
   const [messages, setMessages] = useState<Ligne[]>(initiaux);
   const [ecrit, setEcrit] = useState(false);
@@ -195,7 +250,69 @@ export function Conversation({
   const minuteurEcrit = useRef<number | undefined>(undefined);
   const envoisFichiers = useRef(new Map<string, EnvoiFichier>());
   const enregistrement = useRef<{ enregistreur: MediaRecorder; flux: MediaStream; debut: number; annule: boolean } | null>(null);
+  const champRecherche = useRef<HTMLInputElement>(null);
+  const presDuBas = useRef(true);
+  const premierDefilement = useRef(true);
+  const cibleEnCours = useRef<string | null>(cible);
+  const [recherche, setRecherche] = useState<string | null>(null);
+  const [courant, setCourant] = useState<string | null>(null);
   const id = correspondant.id;
+
+  const requete = recherche !== null && normaliserRecherche(recherche).length >= RECHERCHE_MIN ? recherche : "";
+  const resultats = useMemo(
+    () =>
+      requete
+        ? messages.filter((ligne) => !ligne.etat && (correspond(ligne.texte, requete) || (ligne.fichier ? correspond(ligne.fichier.nom, requete) : false))).map((ligne) => ligne.id)
+        : [],
+    [messages, requete],
+  );
+  const trouves = useMemo(() => new Set(resultats), [resultats]);
+  const resultatsCourants = useRef(resultats);
+  resultatsCourants.current = resultats;
+  const indexCourant = courant ? resultats.indexOf(courant) : -1;
+
+  const placer = useCallback((messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (!element) return false;
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    element.classList.add("ring-2", "ring-edu", "ring-offset-2");
+    window.setTimeout(() => element.classList.remove("ring-2", "ring-edu", "ring-offset-2"), 1600);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!cible) return;
+    cibleEnCours.current = cible;
+    setRecherche(rechercheInitiale || null);
+    setCourant(cible);
+    const minuteur = window.setTimeout(() => placer(cible), 150);
+    return () => window.clearTimeout(minuteur);
+  }, [cible, rechercheInitiale, placer]);
+
+  useEffect(() => {
+    if (!requete) {
+      setCourant(null);
+      return;
+    }
+    const ids = resultatsCourants.current;
+    const garde = cibleEnCours.current && ids.includes(cibleEnCours.current) ? cibleEnCours.current : null;
+    const choix = garde ?? ids[ids.length - 1] ?? null;
+    setCourant(choix);
+    if (choix && !garde) placer(choix);
+  }, [requete, placer]);
+
+  const naviguer = (sens: -1 | 1) => {
+    if (resultats.length === 0) return;
+    cibleEnCours.current = null;
+    const suivant = indexCourant === -1 ? resultats.length - 1 : (indexCourant + sens + resultats.length) % resultats.length;
+    setCourant(resultats[suivant]);
+    placer(resultats[suivant]);
+  };
+
+  const fermerRecherche = () => {
+    cibleEnCours.current = null;
+    setRecherche(null);
+  };
 
   useEffect(() => {
     setMessages((actuels) => {
@@ -250,7 +367,12 @@ export function Conversation({
   }, [id, moiId, lire, router]);
 
   useEffect(() => {
-    fil.current?.scrollTo({ top: fil.current.scrollHeight, behavior: "smooth" });
+    const premier = premierDefilement.current;
+    premierDefilement.current = false;
+    if (premier && cibleEnCours.current) return;
+    const dernier = messages[messages.length - 1];
+    const envoiPerso = dernier?.deId === moiId && Boolean(dernier.etat);
+    if (premier || presDuBas.current || envoiPerso) fil.current?.scrollTo({ top: fil.current.scrollHeight, behavior: premier ? "auto" : "smooth" });
   }, [messages.length, ecrit]);
 
   const signalerEcriture = useCallback(() => {
@@ -272,14 +394,7 @@ export function Conversation({
   };
 
   const allerAuMessage = (messageId: string) => {
-    const cible = document.getElementById(`message-${messageId}`);
-    if (!cible) {
-      toast("Ce message est trop ancien pour être affiché ici.", "erreur");
-      return;
-    }
-    cible.scrollIntoView({ behavior: "smooth", block: "center" });
-    cible.classList.add("ring-2", "ring-edu", "ring-offset-2");
-    window.setTimeout(() => cible.classList.remove("ring-2", "ring-edu", "ring-offset-2"), 1600);
+    if (!placer(messageId)) router.push(`/messages?avec=${id}&message=${messageId}`);
   };
 
   const expedier = async (texte: string, cle = nouvelleCle(), cite: ReponseFlux | null = null) => {
@@ -465,14 +580,93 @@ export function Conversation({
             )}
           </p>
         </div>
+        <button
+          type="button"
+          className={`bouton-fantome ml-auto h-9 w-9 shrink-0 justify-center p-0 ${recherche !== null ? "bg-desk/10 text-desk" : ""}`}
+          onClick={() => {
+            if (recherche !== null) fermerRecherche();
+            else {
+              setRecherche("");
+              window.setTimeout(() => champRecherche.current?.focus(), 0);
+            }
+          }}
+          title="Rechercher dans la conversation"
+          aria-label="Rechercher dans la conversation"
+          aria-pressed={recherche !== null}
+        >
+          <Search size={17} />
+        </button>
       </header>
-      <div ref={fil} className="flex h-[58vh] min-h-72 flex-col gap-2 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
+      {recherche !== null ? (
+        <div className="flex items-center gap-2 border-b border-ink/[0.06] bg-paper/60 px-4 py-2">
+          <Search size={15} className="shrink-0 text-ink/40" />
+          <input
+            ref={champRecherche}
+            type="search"
+            value={recherche}
+            autoFocus
+            maxLength={100}
+            placeholder="Rechercher un mot, un nom de fichier…"
+            aria-label="Rechercher dans la conversation"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink/40"
+            onChange={(event) => {
+              cibleEnCours.current = null;
+              setRecherche(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                naviguer(event.shiftKey ? 1 : -1);
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                fermerRecherche();
+                champ.current?.focus();
+              }
+            }}
+          />
+          <span className="shrink-0 text-xs text-ink/50" aria-live="polite">
+            {!requete ? "" : resultats.length === 0 ? "Aucun résultat" : `${indexCourant === -1 ? resultats.length : indexCourant + 1} / ${resultats.length}`}
+          </span>
+          <button
+            type="button"
+            className="bouton-fantome h-8 w-8 justify-center p-0"
+            disabled={resultats.length === 0}
+            onClick={() => naviguer(-1)}
+            title="Résultat précédent (Entrée)"
+            aria-label="Résultat plus ancien"
+          >
+            <ChevronUp size={16} />
+          </button>
+          <button
+            type="button"
+            className="bouton-fantome h-8 w-8 justify-center p-0"
+            disabled={resultats.length === 0}
+            onClick={() => naviguer(1)}
+            title="Résultat suivant (Maj+Entrée)"
+            aria-label="Résultat plus récent"
+          >
+            <ChevronDown size={16} />
+          </button>
+          <button type="button" className="bouton-fantome h-8 w-8 justify-center p-0" onClick={fermerRecherche} title="Fermer la recherche (Échap)" aria-label="Fermer la recherche">
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+      <div
+        ref={fil}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          presDuBas.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+        }}
+        className="flex h-[58vh] min-h-72 flex-col gap-2 overflow-y-auto px-5 py-4 [scrollbar-width:thin]"
+      >
         {messages.length === 0 ? (
           <p className="m-auto text-sm text-ink/45">Aucun message. Écrivez le premier, joignez un fichier ou enregistrez une note vocale.</p>
         ) : (
           messages.map((message) => {
             const moi = message.deId === moiId;
             const cite = message.reponse;
+            const trouve = trouves.has(message.id);
             return (
               <div
                 key={message.cle && message.etat ? message.cle : message.id}
@@ -481,7 +675,7 @@ export function Conversation({
                 <div
                   id={message.etat ? undefined : `message-${message.id}`}
                   onDoubleClick={() => repondre(message)}
-                  className={`grid max-w-[78%] gap-1.5 rounded-2xl px-3.5 py-2 text-sm transition-shadow ${moi ? "rounded-br-md bg-desk text-white" : "rounded-bl-md bg-paper"} ${message.etat === "envoi" ? "opacity-70" : ""} ${message.etat === "echec" ? "bg-cap/90" : ""}`}
+                  className={`grid max-w-[78%] gap-1.5 rounded-2xl px-3.5 py-2 text-sm transition-shadow ${moi ? "rounded-br-md bg-desk text-white" : "rounded-bl-md bg-paper"} ${message.etat === "envoi" ? "opacity-70" : ""} ${message.etat === "echec" ? "bg-cap/90" : ""} ${courant === message.id && trouve ? "outline-2 outline-offset-2 outline-edu" : ""}`}
                 >
                   {cite ? (
                     <button
@@ -495,8 +689,12 @@ export function Conversation({
                       <span className={`line-clamp-2 break-words ${moi ? "text-white/80" : "text-ink/60"}`}>{cite.apercu || "Message"}</span>
                     </button>
                   ) : null}
-                  <ContenuFichier message={message} moi={moi} />
-                  {message.texte ? <p className="whitespace-pre-line break-words">{message.texte}</p> : null}
+                  <ContenuFichier message={message} moi={moi} requete={trouve ? requete : ""} />
+                  {message.texte ? (
+                    <p className="whitespace-pre-line break-words">
+                      <Surligne texte={message.texte} requete={trouve ? requete : ""} />
+                    </p>
+                  ) : null}
                   <p className={`flex items-center justify-end gap-1 text-[11px] ${moi ? "text-white/65" : "text-ink/40"}`} suppressHydrationWarning>
                     {message.etat === "envoi" ? (
                       <>
@@ -650,6 +848,9 @@ function trierContacts(contacts: Contact[]) {
 export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; actifId: string | null; initiaux: Contact[] }) {
   const [contacts, setContacts] = useState(initiaux);
   const [ecrivent, setEcrivent] = useState<Set<string>>(() => new Set());
+  const [filtre, setFiltre] = useState("");
+  const [trouves, setTrouves] = useState<ResultatRecherche[] | null>(null);
+  const [chargement, setChargement] = useState(false);
   const minuteurs = useRef(new Map<string, number>());
 
   useEffect(() => setContacts(initiaux), [initiaux]);
@@ -706,9 +907,60 @@ export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; act
     };
   }, [moiId, actifId]);
 
+  useEffect(() => {
+    if (normaliserRecherche(filtre).length < RECHERCHE_MIN) {
+      setTrouves(null);
+      setChargement(false);
+      return;
+    }
+    const controleur = new AbortController();
+    setChargement(true);
+    const minuteur = window.setTimeout(() => {
+      fetch(`/api/messages/recherche?q=${encodeURIComponent(filtre.trim())}`, { signal: controleur.signal })
+        .then((reponse) => (reponse.ok ? reponse.json() : Promise.reject(new Error("recherche"))))
+        .then((donnees: { resultats: ResultatRecherche[] }) => {
+          setTrouves(donnees.resultats);
+          setChargement(false);
+        })
+        .catch(() => {
+          if (controleur.signal.aborted) return;
+          setTrouves([]);
+          setChargement(false);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(minuteur);
+      controleur.abort();
+    };
+  }, [filtre]);
+
+  const enRecherche = filtre.trim() !== "";
+  const visibles = enRecherche ? contacts.filter((contact) => correspond(`${contact.prenom} ${contact.nom} ${contact.role}`, filtre)) : contacts;
+
   return (
-    <nav className="carte max-h-[70vh] overflow-y-auto p-2 [scrollbar-width:thin]" aria-label="Conversations">
-      {contacts.map((contact) => {
+    <div className="carte flex max-h-[70vh] flex-col p-0">
+      <div className="border-b border-ink/[0.06] p-2">
+        <label className="flex items-center gap-2 rounded-xl bg-paper px-3 py-2 focus-within:ring-2 focus-within:ring-desk/30">
+          <Search size={15} className="shrink-0 text-ink/40" />
+          <input
+            type="search"
+            value={filtre}
+            maxLength={100}
+            onChange={(event) => setFiltre(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setFiltre("");
+            }}
+            placeholder="Rechercher un collègue ou un message"
+            aria-label="Rechercher un collègue ou un message"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink/40"
+          />
+          {chargement ? <Loader2 size={14} className="shrink-0 animate-spin text-ink/40" /> : null}
+        </label>
+      </div>
+    <nav className="overflow-y-auto p-2 [scrollbar-width:thin]" aria-label="Conversations">
+      {enRecherche ? <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Collègues</p> : null}
+      {enRecherche && visibles.length === 0 ? <p className="px-3 pb-2 text-xs text-ink/45">Aucun collègue ne correspond.</p> : null}
+      {visibles.map((contact) => {
         const actif = contact.id === actifId;
         const nombre = actif ? 0 : contact.nonLus;
         const ecriture = ecrivent.has(contact.id);
@@ -722,7 +974,7 @@ export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; act
             <span className="min-w-0 flex-1">
               <span className="flex items-center justify-between gap-2">
                 <span className={`truncate text-sm ${nombre ? "font-bold" : "font-semibold"}`}>
-                  {contact.prenom} {contact.nom}
+                  <Surligne texte={`${contact.prenom} ${contact.nom}`} requete={filtre.trim()} />
                 </span>
                 {nombre ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-desk px-1.5 text-[11px] font-bold text-white">{nombre}</span> : null}
               </span>
@@ -737,7 +989,34 @@ export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; act
           </Link>
         );
       })}
+      {trouves ? (
+        <>
+          <p className="mt-2 border-t border-ink/[0.06] px-3 pt-3 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">
+            Messages{trouves.length ? ` · ${trouves.length}${trouves.length >= 40 ? "+" : ""}` : ""}
+          </p>
+          {trouves.length === 0 && !chargement ? <p className="px-3 pb-2 text-xs text-ink/45">Aucun message ne contient « {filtre.trim()} ».</p> : null}
+          {trouves.map((resultat) => (
+            <Link
+              key={resultat.id}
+              href={`/messages?avec=${resultat.autreId}&message=${resultat.id}&q=${encodeURIComponent(filtre.trim())}`}
+              className="block rounded-xl px-3 py-2 transition hover:bg-paper"
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-semibold">{resultat.autreNom}</span>
+                <span className="shrink-0 text-[11px] text-ink/40" suppressHydrationWarning>
+                  {formatDate(new Date(resultat.creeLe))}
+                </span>
+              </span>
+              <span className="line-clamp-2 text-xs break-words text-ink/60">
+                {resultat.moi ? "Vous : " : ""}
+                <Surligne texte={resultat.extrait} requete={filtre.trim()} />
+              </span>
+            </Link>
+          ))}
+        </>
+      ) : null}
     </nav>
+    </div>
   );
 }
 

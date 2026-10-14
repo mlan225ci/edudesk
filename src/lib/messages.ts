@@ -18,6 +18,75 @@ export function apercuMessage(message: { texte: string; fichierNom?: string | nu
   return "";
 }
 
+export type ResultatRecherche = {
+  id: string;
+  autreId: string;
+  autreNom: string;
+  moi: boolean;
+  extrait: string;
+  creeLe: string;
+};
+
 export function urlFichierMessage(id: string) {
   return `/api/messages/fichier/${id}`;
+}
+
+function replier(caractere: string) {
+  return caractere.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("fr");
+}
+
+/** Texte sans accents ni majuscules, avec pour chaque caractère replié sa position d'origine. */
+function replierAvecPositions(texte: string) {
+  let replie = "";
+  const positions: number[] = [];
+  let index = 0;
+  for (const caractere of texte) {
+    for (const morceau of replier(caractere)) {
+      replie += morceau;
+      positions.push(index);
+    }
+    index += caractere.length;
+  }
+  positions.push(index);
+  return { replie, positions };
+}
+
+export function normaliserRecherche(texte: string) {
+  return [...texte.trim().replace(/\s+/g, " ")].map(replier).join("");
+}
+
+export function correspond(texte: string, requete: string) {
+  const cible = normaliserRecherche(requete);
+  return cible.length > 0 && replierAvecPositions(texte).replie.includes(cible);
+}
+
+/** Découpe le texte en segments, `trouve` marquant chaque occurrence de la recherche (accents et casse ignorés). */
+export function decouperSurlignage(texte: string, requete: string) {
+  const cible = normaliserRecherche(requete);
+  if (!cible) return [{ texte, trouve: false }];
+  const { replie, positions } = replierAvecPositions(texte);
+  const segments: { texte: string; trouve: boolean }[] = [];
+  let curseur = 0;
+  let depart = replie.indexOf(cible);
+  while (depart !== -1) {
+    const debut = positions[depart];
+    const fin = positions[depart + cible.length];
+    if (debut > curseur) segments.push({ texte: texte.slice(curseur, debut), trouve: false });
+    if (fin > debut) segments.push({ texte: texte.slice(debut, fin), trouve: true });
+    curseur = Math.max(curseur, fin);
+    depart = replie.indexOf(cible, depart + cible.length);
+  }
+  if (curseur < texte.length) segments.push({ texte: texte.slice(curseur), trouve: false });
+  return segments;
+}
+
+/** Extrait court centré sur la première occurrence de la recherche. */
+export function extraitRecherche(texte: string, requete: string, avant = 40, longueur = 140) {
+  const plat = texte.replace(/\s+/g, " ").trim();
+  const cible = normaliserRecherche(requete);
+  const { replie, positions } = replierAvecPositions(plat);
+  const trouve = cible ? replie.indexOf(cible) : -1;
+  const debut = trouve > avant ? positions[trouve] - avant : 0;
+  const extrait = plat.slice(debut, debut + longueur);
+  return `${debut > 0 ? "…" : ""}${extrait}${debut + longueur < plat.length ? "…" : ""}`;
 }

@@ -10,10 +10,13 @@ import { diffuser, INCLURE_FLUX, versFlux } from "@/server/temps-reel";
 
 export const metadata = { title: "Messagerie" };
 
-export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string }> }) {
+const FIL_INITIAL = 300;
+const FIL_MAX = 2000;
+
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string; message?: string; q?: string }> }) {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
-  const { avec } = await searchParams;
+  const { avec, message: cibleId, q } = await searchParams;
 
   const [collegues, recents, nonLus] = await Promise.all([
     prisma.user.findMany({ where: { actif: true, role: { not: "PARTENAIRE" }, NOT: { id: user.id } }, orderBy: { prenom: "asc" } }),
@@ -32,17 +35,31 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   }
   const nonLusPar = new Map(nonLus.map((ligne) => [ligne.deId, ligne._count]));
   const correspondant = collegues.find((collegue) => collegue.id === avec) ?? null;
+  const entreNous = correspondant
+    ? {
+        OR: [
+          { deId: user.id, aId: correspondant.id },
+          { deId: correspondant.id, aId: user.id },
+        ],
+      }
+    : null;
 
-  const fil = correspondant
+  let taille = FIL_INITIAL;
+  let cible: string | null = null;
+  if (entreNous && cibleId) {
+    const message = await prisma.message.findFirst({ where: { id: cibleId, ...entreNous }, select: { id: true, creeLe: true } });
+    if (message) {
+      cible = message.id;
+      const plusRecents = await prisma.message.count({ where: { ...entreNous, creeLe: { gt: message.creeLe } } });
+      taille = Math.min(FIL_MAX, Math.max(FIL_INITIAL, plusRecents + 30));
+    }
+  }
+
+  const fil = entreNous
     ? await prisma.message.findMany({
-        where: {
-          OR: [
-            { deId: user.id, aId: correspondant.id },
-            { deId: correspondant.id, aId: user.id },
-          ],
-        },
+        where: entreNous,
         orderBy: { creeLe: "desc" },
-        take: 300,
+        take: taille,
         include: INCLURE_FLUX,
       })
     : [];
@@ -90,6 +107,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
               vuLe: correspondant.vuLe?.toISOString() ?? null,
             }}
             initiaux={fil.reverse().map((message) => versFlux({ ...message, lu: message.deId === correspondant.id ? true : message.lu }))}
+            cible={cible}
+            rechercheInitiale={cible ? (q ?? "").slice(0, 100) : ""}
           />
         ) : (
           <Vide icone={MessagesSquare} titre="Choisissez un collègue" texte="Sélectionnez une personne dans la liste pour ouvrir la conversation." />
