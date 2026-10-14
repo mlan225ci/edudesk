@@ -180,7 +180,7 @@ export async function creerProcedure(_etat: EtatAction, formData: FormData): Pro
   });
 
   rafraichir();
-  redirect(`/procedures/${procedure.id}`);
+  redirect(`/parametres/procedures/${procedure.id}`);
 }
 
 export async function modifierProcedure(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
@@ -239,7 +239,7 @@ export async function supprimerProcedure(formData: FormData) {
   await prisma.procedure.delete({ where: { id } });
   await prisma.audit.create({ data: { userId: user.id, action: "PROCEDURE", entite: "Procedure", entiteId: id, detail: `Suppression de ${procedure.nom}` } });
   rafraichir();
-  redirect("/procedures");
+  redirect("/parametres/procedures");
 }
 
 export async function modifierEtapeModele(_etat: EtatAction, formData: FormData): Promise<EtatAction> {

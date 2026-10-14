@@ -10,7 +10,7 @@ import { basculerActif, creerUtilisateur, reinitialiserMotDePasse } from "@/serv
 import { peutGererEquipe } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
-export const metadata = { title: "Équipe" };
+export const metadata = { title: "Utilisateurs · Paramètres" };
 
 export default async function EquipePage({ searchParams }: { searchParams: Promise<{ nouveau?: string }> }) {
   const user = await requireUser();
@@ -22,8 +22,9 @@ export default async function EquipePage({ searchParams }: { searchParams: Promi
   return (
     <section className="grid gap-6">
       <EnTete
-        titre="Équipe"
+        titre="Utilisateurs"
         icone={UsersRound}
+        surTitre="Paramètres"
         description={`${actifs.length} collaborateurs actifs. Le rôle détermine ce que chacun voit et peut faire.`}
         actions={
           <Tiroir label="Nouveau collaborateur" icone={<UserPlus size={16} />} titre="Nouveau compte" description="La personne pourra se connecter immédiatement." ouvertParDefaut={nouveau === "1"}>

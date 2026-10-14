@@ -32,12 +32,14 @@ function useFermeture<T extends HTMLElement>(ouvert: boolean, fermer: () => void
 
 export function BarreHaute({
   sections,
+  parametres,
   actions,
   nonLues,
   utilisateur,
   accueil,
 }: {
   sections: SectionNavigation[];
+  parametres: Lien[];
   actions: Lien[];
   nonLues: number;
   utilisateur: { nom: string; role: string; initiales: string };
@@ -167,7 +169,7 @@ export function BarreHaute({
         </div>
       ) : null}
 
-      {recherche ? <Recherche sections={sections} fermer={() => setRecherche(false)} /> : null}
+      {recherche ? <Recherche sections={[...sections, { titre: "Paramètres", liens: parametres }]} fermer={() => setRecherche(false)} /> : null}
     </>
   );
 }

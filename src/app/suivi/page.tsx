@@ -7,6 +7,7 @@ import { normaliserCodeSuivi } from "@/lib/suivi";
 import type { StatutCandidature } from "@prisma/client";
 import { Badge, Progression, type Ton } from "@/components/ui";
 import { FormulaireSuivi } from "@/components/formulaire-suivi";
+import { lireEntreprise } from "@/server/parametres";
 import { quitterSuivi } from "@/server/suivi";
 
 export const metadata = { title: "Suivi de dossier", robots: { index: false, follow: false } };
@@ -92,6 +93,8 @@ export default async function SuiviPage() {
     );
   }
 
+  const entreprise = await lireEntreprise();
+  const contact = [entreprise.telephone, entreprise.email].filter(Boolean);
   const numeros = numerosEtapes(dossier.etapes);
   const courante = dossier.etapes.find((etape) => etape.statut === "EN_COURS");
   const cloturees = dossier.etapes.filter((etape) => etape.statut === "CLOTUREE").length;
@@ -269,7 +272,8 @@ export default async function SuiviPage() {
         </section>
 
         <p className="pb-4 text-center text-xs text-ink/45">
-          Vous recevez un SMS à chaque avancée de votre dossier. Une question ? Contactez votre conseiller EduDesk.
+          Vous recevez un SMS à chaque avancée de votre dossier. Une question ? Contactez votre conseiller {entreprise.nom}
+          {contact.length ? ` : ${contact.join(" · ")}` : "."}
         </p>
       </div>
     </main>

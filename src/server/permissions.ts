@@ -95,6 +95,21 @@ export function peutGererEquipe(role: Role) {
   return EQUIPE.has(role);
 }
 
+export function peutParametrer(role: Role) {
+  return role === "CEO" || role === "ADMINISTRATEUR";
+}
+
+export function ongletsParametres(role: Role): Lien[] {
+  if (role === "PARTENAIRE") return [];
+  const onglets: Lien[] = [];
+  if (peutParametrer(role)) onglets.push({ href: "/parametres/entreprise", label: "Entreprise", icone: "entreprise" });
+  if (peutProcedures(role)) onglets.push({ href: "/parametres/procedures", label: "Procédures", icone: "procedures" });
+  if (peutGererEquipe(role)) onglets.push({ href: "/parametres/equipe", label: "Utilisateurs", icone: "equipe" });
+  if (voitDirection(role)) onglets.push({ href: "/parametres/sms", label: "SMS", icone: "sms" });
+  if (voitCompta(role)) onglets.push({ href: "/parametres/comptabilite", label: "Comptabilité", icone: "comptabilite" });
+  return onglets;
+}
+
 export function peutCloturer(user: SessionUser, etape: { responsableId: string | null; roles: string }) {
   if (user.role === "CEO" || user.role === "ADMINISTRATEUR") return true;
   if (etape.responsableId === user.id) return true;
@@ -151,7 +166,6 @@ export function navigation(role: Role): SectionNavigation[] {
     { href: "/dossiers", label: "Dossiers", icone: "dossiers" },
   ];
   operations.push({ href: "/ecoles", label: "Écoles", icone: "ecoles" });
-  if (peutProcedures(role)) operations.push({ href: "/procedures", label: "Procédures", icone: "procedures" });
 
   const finance: Lien[] = [];
   if (peutEncaisser(role)) finance.push({ href: "/caisse", label: "Caisse", icone: "caisse" });
@@ -160,10 +174,11 @@ export function navigation(role: Role): SectionNavigation[] {
   if (voitCompta(role)) finance.push({ href: "/comptabilite", label: "Comptabilité", icone: "comptabilite" });
 
   const ressources: Lien[] = [];
-  if (peutGererEquipe(role)) ressources.push({ href: "/equipe", label: "Équipe", icone: "equipe" });
   ressources.push({ href: "/conges", label: "Congés et absences", icone: "conges" });
   if (peutInventaire(role)) ressources.push({ href: "/inventaire", label: "Inventaire", icone: "inventaire" });
   ressources.push({ href: "/notifications", label: "SMS et alertes", icone: "sms" });
+
+  const administration: Lien[] = ongletsParametres(role).length > 0 ? [{ href: "/parametres", label: "Paramètres", icone: "parametres" }] : [];
 
   return [
     { titre: "Pilotage", liens: pilotage },
@@ -171,5 +186,6 @@ export function navigation(role: Role): SectionNavigation[] {
     { titre: "Opérations", liens: operations },
     { titre: "Finance", liens: finance },
     { titre: "Ressources", liens: ressources },
+    { titre: "Administration", liens: administration },
   ].filter((section) => section.liens.length > 0);
 }

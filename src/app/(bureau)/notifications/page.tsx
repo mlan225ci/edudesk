@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { Bell, BellOff, ChevronRight, MessageSquareText, Pencil } from "lucide-react";
+import { Bell, BellOff, ChevronRight, MessageSquareText, Settings } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { compterSegments, formatDate } from "@/lib/format";
-import { Formulaire } from "@/components/formulaire";
+import { formatDate } from "@/lib/format";
 import { Badge, EnTete, Info, Onglets, Vide } from "@/components/ui";
-import { modifierModele } from "@/server/actions";
 import { voitDirection } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -31,27 +29,35 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     user.role === "PARTENAIRE"
       ? await prisma.dossier.findMany({ where: { client: { partenaireId: user.partenaireId ?? "__aucun__" } }, select: { id: true } })
       : [];
-  const [sms, modeles] = await Promise.all([
+  const sms =
     vue === "sms"
-      ? prisma.notificationSms.findMany({
+      ? await prisma.notificationSms.findMany({
           where: user.role === "PARTENAIRE" ? { type: "PARTENAIRE", dossierId: { in: dossiersPartenaire.map((dossier) => dossier.id) } } : {},
           orderBy: { creeLe: "desc" },
           take: 80,
         })
-      : Promise.resolve([]),
-    direction && vue === "modeles" ? prisma.modeleSms.findMany({ orderBy: { code: "asc" } }) : Promise.resolve([]),
-  ]);
+      : [];
 
   return (
     <section className="grid gap-6">
-      <EnTete titre="Notifications" icone={Bell} description="Ce qui vous concerne, l'historique des SMS envoyés et les modèles de message." />
+      <EnTete
+        titre="Notifications"
+        icone={Bell}
+        description="Ce qui vous concerne et l'historique des SMS envoyés."
+        actions={
+          direction ? (
+            <Link href="/parametres/sms" className="bouton-second">
+              <Settings size={16} /> Modèles et opérateur SMS
+            </Link>
+          ) : null
+        }
+      />
 
       <Onglets
         actif={`/notifications?vue=${vue}`}
         onglets={[
           { href: "/notifications?vue=moi", label: "Pour moi", nombre: internes.filter((note) => !note.lue).length || undefined },
           { href: "/notifications?vue=sms", label: "Journal SMS" },
-          ...(direction ? [{ href: "/notifications?vue=modeles", label: "Modèles SMS" }] : []),
         ]}
       />
 
@@ -86,7 +92,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 
       {vue === "sms" ? (
         <>
-          <Info>Sans opérateur SMS branché (variable SMS_HTTP_URL), les messages sont conservés ici sans être envoyés.</Info>
+          <Info>Sans opérateur SMS branché (Paramètres › SMS), les messages sont conservés ici sans être envoyés.</Info>
           {sms.length === 0 ? (
             <Vide icone={MessageSquareText} titre="Aucun SMS" />
           ) : (
@@ -112,18 +118,6 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         </>
       ) : null}
 
-      {vue === "modeles" && direction ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          {modeles.map((modele) => (
-            <Formulaire key={modele.code} action={modifierModele} submit="Enregistrer" succes="Modèle enregistré" reinitialiser={false} boutonClassName="bouton-second" className="carte grid gap-3">
-              <input type="hidden" name="code" value={modele.code} />
-              <p className="flex items-center gap-2 text-sm font-semibold"><Pencil size={14} className="text-ink/35" /> {modele.libelle}</p>
-              <textarea className="champ" name="corps" rows={3} defaultValue={modele.corps} />
-              <p className="text-xs text-ink/45">{compterSegments(modele.corps)} SMS par envoi avec le texte actuel</p>
-            </Formulaire>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

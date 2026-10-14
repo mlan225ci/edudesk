@@ -6,6 +6,7 @@ import { formatJour, xof } from "@/lib/format";
 import { labelMode } from "@/lib/labels";
 import { BoutonImprimer } from "@/components/bouton-imprimer";
 import { requireUser } from "@/server/session";
+import { lireEntreprise } from "@/server/parametres";
 import { voitFinance } from "@/server/permissions";
 
 export async function generateMetadata({ params }: { params: Promise<{ factureId: string }> }) {
@@ -23,6 +24,9 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
     include: { paiement: true, dossier: { include: { client: true, procedure: true } } },
   });
   if (!facture || facture.dossierId !== id) notFound();
+  const entreprise = await lireEntreprise();
+  const coordonnees = [entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb].filter(Boolean);
+  const mentions = [entreprise.rccm && `RCCM ${entreprise.rccm}`, entreprise.ncc && `NCC ${entreprise.ncc}`].filter(Boolean);
 
   return (
     <section className="mx-auto grid w-full max-w-3xl gap-5">
@@ -36,8 +40,9 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
       <article className="carte overflow-hidden p-0 print:border-0 print:shadow-none">
         <header className="flex flex-wrap items-start justify-between gap-6 bg-ink px-10 py-8 text-white">
           <div>
-            <img src="/logo-edudesk.png" alt="EduDesk" className="h-12" />
-            <p className="mt-3 text-sm text-white/65">Bureau d'éducation à l'international</p>
+            <img src="/logo-edudesk.png" alt={entreprise.nom} className="h-12" />
+            <p className="mt-3 text-sm text-white/65">{entreprise.slogan || entreprise.nom}</p>
+            {coordonnees.length ? <p className="mt-1 max-w-xs text-xs leading-5 text-white/50">{coordonnees.join(" · ")}</p> : null}
           </div>
           <div className="text-right">
             <p className="text-xs font-semibold tracking-[0.2em] text-edu uppercase">Facture</p>
@@ -89,8 +94,9 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
             </p>
           </div>
 
-          <footer className="border-t border-ink/10 pt-5 text-xs text-ink/50">
-            Référence du règlement : {facture.paiement.referenceExterne || "—"} · Merci de votre confiance.
+          <footer className="grid gap-1 border-t border-ink/10 pt-5 text-xs text-ink/50">
+            <p>Référence du règlement : {facture.paiement.referenceExterne || "—"}{entreprise.mentionFacture ? ` · ${entreprise.mentionFacture}` : ""}</p>
+            <p>{[entreprise.nom, ...mentions].join(" · ")}</p>
           </footer>
         </div>
       </article>

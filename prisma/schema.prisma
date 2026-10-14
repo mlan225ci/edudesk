@@ -551,6 +551,12 @@ model Audit {
   @@index([entite, entiteId])
 }
 
+model Parametre {
+  cle    String   @id
+  valeur String
+  majLe  DateTime @updatedAt
+}
+
 model Compteur {
   cle    String @id
   valeur Int    @default(0)

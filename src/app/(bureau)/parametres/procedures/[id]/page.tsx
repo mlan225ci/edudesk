@@ -135,7 +135,7 @@ export default async function ProcedurePage({ params }: { params: Promise<{ id: 
 
   return (
     <section className="grid gap-6">
-      <Link href="/procedures" className="bouton-fantome w-fit -ml-2.5">
+      <Link href="/parametres/procedures" className="bouton-fantome w-fit -ml-2.5">
         <ArrowLeft size={16} /> Procédures
       </Link>
       <EnTete

@@ -14,6 +14,7 @@ import { ajouterHeures, compterSegments, delaiCourt, nomComplet, rendreModele } 
 import { compteCharge, compteTresorerie, labelMode, labelTypePaiement, typePourAcompte } from "../lib/labels";
 import { genererCodeSuivi, lienSuivi } from "../lib/suivi";
 import type { SessionUser } from "./permissions";
+import { urlPublique } from "./parametres";
 import { envoyerSms } from "./sms";
 
 type Tx = Prisma.TransactionClient;
@@ -142,8 +143,12 @@ async function messageOuverture(tx: Tx, dossier: DossierPlein, code: string, bas
   return texteModele(tx, "client_ouverture", {
     ...variablesDossier(dossier, "", ""),
     code,
-    lien: lienSuivi(base),
+    lien: await lienPublic(base),
   });
+}
+
+async function lienPublic(base?: string | null) {
+  return lienSuivi((await urlPublique()) ?? base);
 }
 
 async function ouvrirEtape(
@@ -616,7 +621,7 @@ export async function annoncerAdmission(input: { candidatureId: string; baseUrl?
         ...variablesDossier(dossier, "", ""),
         ecole: candidature.ecole.nom,
         formation: candidature.formation ? ` (${candidature.formation})` : "",
-        lien: lienSuivi(input.baseUrl),
+        lien: await lienPublic(input.baseUrl),
       }),
     });
   });

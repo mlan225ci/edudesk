@@ -18,6 +18,8 @@ import {
   Wallet,
   Workflow,
   ArrowDownCircle,
+  Building2,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,6 +42,8 @@ export const ICONES: Record<string, LucideIcon> = {
   conges: CalendarDays,
   inventaire: Package,
   sms: MessageSquare,
+  parametres: Settings,
+  entreprise: Building2,
   page: FileText,
 };
 

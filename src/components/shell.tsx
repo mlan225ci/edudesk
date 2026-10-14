@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { BarreNavigation } from "@/components/barre-navigation";
 import { nomComplet } from "@/lib/format";
 import { labelRole } from "@/lib/labels";
-import { actionsRapides, navigation, type SessionUser } from "@/server/permissions";
+import { actionsRapides, navigation, ongletsParametres, type SessionUser } from "@/server/permissions";
 import { Navigation } from "@/components/navigation";
 import { BarreHaute } from "@/components/barre-haute";
 import { ToastProvider } from "@/components/toasts";
@@ -45,6 +45,7 @@ export function Shell({
         <div className="flex min-w-0 flex-1 flex-col">
           <BarreHaute
             sections={sections}
+            parametres={ongletsParametres(user.role)}
             actions={actionsRapides(user.role)}
             nonLues={nonLues}
             accueil={accueil}

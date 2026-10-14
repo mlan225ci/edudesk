@@ -14,6 +14,6 @@ export function normaliserCodeSuivi(saisie: string) {
 }
 
 export function lienSuivi(base?: string | null) {
-  const racine = (process.env.URL_PUBLIQUE || base || "http://localhost:3000").replace(/\/+$/, "");
+  const racine = (base || "http://localhost:3000").replace(/\/+$/, "");
   return `${racine}/suivi`;
 }

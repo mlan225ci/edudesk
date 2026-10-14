@@ -66,6 +66,7 @@ export const ACTIONS_AUDIT: Record<string, string> = {
   PROCEDURE: "Procédure",
   ECOLE: "École",
   CANDIDATURE: "Candidature",
+  PARAMETRES: "Paramètres",
 };
 
 export const STATUTS_CANDIDATURE: Record<StatutCandidature, string> = {

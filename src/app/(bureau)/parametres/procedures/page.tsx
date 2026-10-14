@@ -27,6 +27,7 @@ export default async function ProceduresPage() {
       <EnTete
         titre="Procédures"
         icone={Route}
+        surTitre="Paramètres"
         description="Les parcours types : étapes, tâches, pièces, délais, tarif et commission. Cliquez pour paramétrer."
         actions={
           <Tiroir label="Nouvelle procédure" icone={<Plus size={16} />} titre="Nouvelle procédure" description="Elle reste en brouillon jusqu'à sa publication.">
@@ -65,7 +66,7 @@ export default async function ProceduresPage() {
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 entree-cascade">
         {procedures.map((procedure) => (
-          <Link key={procedure.id} href={`/procedures/${procedure.id}`} className="carte carte-lien group grid gap-4">
+          <Link key={procedure.id} href={`/parametres/procedures/${procedure.id}`} className="carte carte-lien group grid gap-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold tracking-wide text-ink/45 uppercase">{procedure.destination}</p>
