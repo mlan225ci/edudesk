@@ -123,6 +123,7 @@ export function ongletsParametres(role: Role): Lien[] {
   if (role === "PARTENAIRE") return [];
   const onglets: Lien[] = [];
   if (peutParametrer(role)) onglets.push({ href: "/parametres/entreprise", label: "Entreprise", icone: "entreprise" });
+  if (peutParametrer(role)) onglets.push({ href: "/parametres/documents", label: "Devis et factures", icone: "facturation" });
   if (peutProcedures(role)) onglets.push({ href: "/parametres/procedures", label: "Procédures", icone: "procedures" });
   if (peutGererEquipe(role)) onglets.push({ href: "/parametres/equipe", label: "Utilisateurs", icone: "equipe" });
   if (voitDirection(role)) onglets.push({ href: "/parametres/sms", label: "SMS", icone: "sms" });

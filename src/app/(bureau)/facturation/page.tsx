@@ -13,6 +13,7 @@ import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
 import { nouveauDevis } from "@/server/devis-actions";
 import { nouvelleFacture } from "@/server/facturation-actions";
+import { lireDocuments } from "@/server/parametres";
 import { peutDevis, peutFacturer, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -40,7 +41,8 @@ export default async function FacturationPage({
   const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
 
   const selectionDossier = { reference: true, client: { select: { prenom: true, nom: true } }, procedure: { select: { nom: true } } } satisfies Prisma.DossierSelect;
-  const [dossiers, devis, factures] = await Promise.all([
+  const [reglages, dossiers, devis, factures] = await Promise.all([
+    lireDocuments(),
     prisma.dossier.findMany({
       select: { id: true, reference: true, client: { select: { prenom: true, nom: true } }, procedure: { select: { nom: true, tarifXof: true } } },
       orderBy: { ouvertLe: "desc" },
@@ -117,10 +119,10 @@ export default async function FacturationPage({
           </Champ>
           <LignesDevis initiales={ligneInitiale} />
           <Champ label="Validité (jours)">
-            <input className="champ" name="validite" inputMode="numeric" defaultValue="30" />
+            <input className="champ" name="validite" inputMode="numeric" defaultValue={reglages.validiteDevis} />
           </Champ>
           <Champ label="Conditions" aide="Acompte, prestations exclues, délais…">
-            <textarea className="champ" name="conditions" rows={3} defaultValue="Acompte de 50 % à la signature du contrat, solde avant le dépôt du dossier." />
+            <textarea className="champ" name="conditions" rows={3} defaultValue={reglages.conditionsDevis} />
           </Champ>
           <label className="flex items-center gap-2 text-sm text-ink/70">
             <input type="checkbox" name="envoyer" className="h-4 w-4 accent-desk" />
@@ -144,10 +146,10 @@ export default async function FacturationPage({
             </Champ>
             <LignesDevis initiales={ligneInitiale} />
             <Champ label="Échéance (jours)" aide="Laissez vide pour une facture payable à réception.">
-              <input className="champ" name="echeance" inputMode="numeric" defaultValue="15" />
+              <input className="champ" name="echeance" inputMode="numeric" defaultValue={reglages.echeanceFacture || ""} />
             </Champ>
             <Champ label="Conditions">
-              <textarea className="champ" name="conditions" rows={2} placeholder="Facultatif" />
+              <textarea className="champ" name="conditions" rows={2} placeholder="Facultatif" defaultValue={reglages.conditionsFacture} />
             </Champ>
           </Formulaire>
         </Tiroir>

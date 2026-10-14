@@ -16,6 +16,7 @@ import { PanneauDevis } from "@/components/panneau-devis";
 import { PanneauTraductions } from "@/components/panneau-traductions";
 import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter } from "@/server/actions";
 import { relancerPieces } from "@/server/communication-actions";
+import { lireDocuments } from "@/server/parametres";
 import { peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -347,6 +348,7 @@ export default async function DossierPage({
               procedure={dossier.procedure}
               emailClient={dossier.client.email}
               peutAgir={peutDevis(user.role)}
+              defauts={await lireDocuments()}
             />
           ) : null}
 

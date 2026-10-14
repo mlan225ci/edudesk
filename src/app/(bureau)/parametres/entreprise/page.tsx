@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, Globe } from "lucide-react";
 import { Formulaire } from "@/components/formulaire";
 import { Champ, EnTete, Info } from "@/components/ui";
-import { lireEntreprise, urlPublique } from "@/server/parametres";
+import { lireDocuments, lireEntreprise, urlPublique } from "@/server/parametres";
 import { modifierApplication, modifierEntreprise } from "@/server/parametres-actions";
 import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -12,7 +13,7 @@ export const metadata = { title: "Entreprise · Paramètres" };
 export default async function EntreprisePage() {
   const user = await requireUser();
   if (!peutParametrer(user.role)) redirect("/parametres");
-  const [entreprise, url] = await Promise.all([lireEntreprise(), urlPublique()]);
+  const [entreprise, documents, url] = await Promise.all([lireEntreprise(), lireDocuments(), urlPublique()]);
   const mentions = [entreprise.rccm && `RCCM ${entreprise.rccm}`, entreprise.ncc && `NCC ${entreprise.ncc}`].filter(Boolean).join(" · ");
   const contact = [entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb].filter(Boolean).join(" · ");
 
@@ -30,7 +31,7 @@ export default async function EntreprisePage() {
           <h2 className="font-semibold">Identité</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Champ label="Raison sociale"><input className="champ" name="nom" defaultValue={entreprise.nom} required /></Champ>
-            <Champ label="Accroche" aide="Sous le logo des factures."><input className="champ" name="slogan" defaultValue={entreprise.slogan} /></Champ>
+            <Champ label="Accroche" aide="Sous le nom, sur les rapports et les documents sans logo."><input className="champ" name="slogan" defaultValue={entreprise.slogan} /></Champ>
           </div>
           <Champ label="Adresse"><input className="champ" name="adresse" defaultValue={entreprise.adresse} placeholder="Ex. Cocody Riviera 2, Abidjan" /></Champ>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -42,25 +43,26 @@ export default async function EntreprisePage() {
             <Champ label="RCCM"><input className="champ" name="rccm" defaultValue={entreprise.rccm} placeholder="CI-ABJ-…" /></Champ>
             <Champ label="Compte contribuable (NCC)"><input className="champ" name="ncc" defaultValue={entreprise.ncc} /></Champ>
           </div>
-          <Champ label="Modalités de paiement" aide="Imprimées sur les devis et les factures : moyens acceptés, numéros Mobile Money, RIB…">
-            <textarea className="champ" name="modalitesPaiement" rows={3} defaultValue={entreprise.modalitesPaiement} />
-          </Champ>
-          <Champ label="Mention en bas de facture" aide="Remerciements, mentions particulières…">
-            <textarea className="champ" name="mentionFacture" rows={2} defaultValue={entreprise.mentionFacture} />
-          </Champ>
+          <Info>
+            Logo, couleurs, modalités de paiement et pied de page des devis et factures :{" "}
+            <Link href="/parametres/documents" className="font-semibold text-desk hover:underline">Paramètres › Devis et factures</Link>.
+          </Info>
         </Formulaire>
 
         <div className="grid gap-6 self-start">
           <article className="carte overflow-hidden p-0">
-            <p className="px-5 pt-4 text-xs font-semibold tracking-wide text-ink/45 uppercase">Aperçu sur les factures</p>
-            <div className="m-4 rounded-xl bg-ink px-5 py-4 text-white">
-              <img src="/logo-edudesk.png" alt={entreprise.nom} className="h-8" />
-              <p className="mt-2 text-xs text-white/65">{entreprise.slogan || entreprise.nom}</p>
+            <p className="px-5 pt-4 text-xs font-semibold tracking-wide text-ink/45 uppercase">Aperçu sur les documents</p>
+            <div className="m-4 rounded-xl border border-ink/[0.08] bg-white px-5 py-4">
+              {documents.logo === "aucun" ? (
+                <p className="text-lg font-bold">{entreprise.nom}</p>
+              ) : (
+                <img src="/api/parametres/logo-documents" alt={entreprise.nom} className="h-12 w-auto" />
+              )}
+              <p className="mt-2 text-xs text-ink/55">{entreprise.slogan || entreprise.nom}</p>
             </div>
             <div className="px-5 pb-4 text-xs leading-5 text-ink/55">
               <p>{contact || "Coordonnées non renseignées"}</p>
               {mentions ? <p>{mentions}</p> : null}
-              {entreprise.mentionFacture ? <p className="mt-1 italic">{entreprise.mentionFacture}</p> : null}
             </div>
           </article>
 

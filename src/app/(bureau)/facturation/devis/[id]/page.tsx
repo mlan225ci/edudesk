@@ -9,6 +9,7 @@ import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Info } from "@/components/ui";
 import { deciderDevis, envoyerDevis } from "@/server/devis-actions";
 import { supprimerDevisEtRevenir, transformerDevis } from "@/server/facturation-actions";
+import { lireDocuments } from "@/server/parametres";
 import { peutDevis, peutFacturer, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -27,7 +28,10 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
     include: { dossier: { include: { client: true, procedure: true } }, facture: { select: { id: true, numero: true, creeLe: true } } },
   });
   if (!devis) notFound();
-  const auteur = await prisma.user.findUnique({ where: { id: devis.creeParId }, select: { prenom: true, nom: true } });
+  const [auteur, reglages] = await Promise.all([
+    prisma.user.findUnique({ where: { id: devis.creeParId }, select: { prenom: true, nom: true } }),
+    lireDocuments(),
+  ]);
   const etat = etatDevis(devis);
   const lignes = lireLignes(devis.lignes);
   const client = devis.dossier.client;
@@ -82,7 +86,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
                     <p className="text-xs text-ink/50">{lignes.length} ligne(s) · {devis.clientNom}</p>
                   </div>
                   <Champ label="Échéance (jours)" aide="Laissez vide pour une facture payable à réception.">
-                    <input className="champ" name="echeance" inputMode="numeric" defaultValue="15" />
+                    <input className="champ" name="echeance" inputMode="numeric" defaultValue={reglages.echeanceFacture || ""} />
                   </Champ>
                   {devis.statut === "EMIS" ? <Info>Le devis sera aussi marqué « accepté » et son total deviendra le montant convenu du dossier.</Info> : null}
                 </Formulaire>

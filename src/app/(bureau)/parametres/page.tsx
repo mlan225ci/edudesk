@@ -5,7 +5,7 @@ import { formatDate, nomComplet } from "@/lib/format";
 import { ACTIONS_AUDIT, COMPTES } from "@/lib/labels";
 import { Icone } from "@/components/icones";
 import { Badge, EnTete, type Ton } from "@/components/ui";
-import { CHAMPS_ENTREPRISE, configMail, configSms, lireEntreprise, urlPublique } from "@/server/parametres";
+import { CHAMPS_ENTREPRISE, configMail, configSms, lireDocuments, lireEntreprise, urlPublique } from "@/server/parametres";
 import { configAutomatisation } from "@/server/automatisation";
 import { ongletsParametres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -17,8 +17,9 @@ type Carte = { href: string; icone: string; titre: string; texte: string; etat: 
 export default async function ParametresPage() {
   const user = await requireUser();
   const onglets = new Set(ongletsParametres(user.role).map((onglet) => onglet.href));
-  const [entreprise, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
+  const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
     lireEntreprise(),
+    lireDocuments(),
     urlPublique(),
     configSms(),
     configMail(),
@@ -43,9 +44,17 @@ export default async function ParametresPage() {
       href: "/parametres/entreprise",
       icone: "entreprise",
       titre: "Entreprise",
-      texte: "Raison sociale, coordonnées, RCCM et mentions affichées sur les factures et le portail client.",
+      texte: "Raison sociale, coordonnées, RCCM et NCC repris sur les devis, les factures et le portail client.",
       etat: `${renseignes}/${CHAMPS_ENTREPRISE.length} informations${url ? "" : " · adresse publique à définir"}`,
       ton: renseignes >= 6 && url ? "vert" : "edu",
+    },
+    {
+      href: "/parametres/documents",
+      icone: "facturation",
+      titre: "Devis et factures",
+      texte: "Logo, couleurs, conditions et modalités de paiement par défaut, signatures et pied de page des PDF.",
+      etat: `${documents.logo === "aucun" ? "Sans logo" : documents.logo ? "Logo importé" : "Logo EduDesk"} · devis valables ${documents.validiteDevis} j`,
+      ton: "desk",
     },
     {
       href: "/parametres/procedures",

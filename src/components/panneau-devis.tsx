@@ -15,12 +15,14 @@ export function PanneauDevis({
   procedure,
   emailClient,
   peutAgir,
+  defauts,
 }: {
   dossierId: string;
   devis: (Devis & { facture: { numero: string } | null })[];
   procedure: { nom: string; tarifXof: number };
   emailClient: string | null;
   peutAgir: boolean;
+  defauts: { validiteDevis: number; conditionsDevis: string };
 }) {
   return (
     <article className="carte" id="devis">
@@ -35,10 +37,10 @@ export function PanneauDevis({
               </Champ>
               <LignesDevis initiales={[{ libelle: `Frais de service – ${procedure.nom}`, quantite: 1, prix: procedure.tarifXof }]} />
               <Champ label="Validité (jours)">
-                <input className="champ" name="validite" inputMode="numeric" defaultValue="30" />
+                <input className="champ" name="validite" inputMode="numeric" defaultValue={defauts.validiteDevis} />
               </Champ>
               <Champ label="Conditions" aide="Modalités de paiement, prestations exclues…">
-                <textarea className="champ" name="conditions" rows={3} defaultValue="Acompte de 50 % à la signature du contrat, solde avant le dépôt du dossier." />
+                <textarea className="champ" name="conditions" rows={3} defaultValue={defauts.conditionsDevis} />
               </Champ>
               <label className="flex items-center gap-2 text-sm text-ink/70">
                 <input type="checkbox" name="envoyer" defaultChecked={Boolean(emailClient)} className="h-4 w-4 accent-desk" />

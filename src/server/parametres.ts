@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "../lib/db";
 
 export const CHAMPS_ENTREPRISE = [
@@ -9,8 +11,6 @@ export const CHAMPS_ENTREPRISE = [
   "siteWeb",
   "rccm",
   "ncc",
-  "mentionFacture",
-  "modalitesPaiement",
 ] as const;
 
 export type Entreprise = Record<(typeof CHAMPS_ENTREPRISE)[number], string>;
@@ -24,9 +24,51 @@ const ENTREPRISE_DEFAUT: Entreprise = {
   siteWeb: "",
   rccm: "",
   ncc: "",
-  mentionFacture: "Merci de votre confiance.",
-  modalitesPaiement: "Règlement en espèces à l'agence, par Mobile Money (Orange Money, MTN, Moov, Wave) ou par virement bancaire.",
 };
+
+export const TAILLES_LOGO = { petit: "Petit", moyen: "Moyen", grand: "Grand" } as const;
+
+export type ParametresDocuments = {
+  /** Vide : logo EduDesk ; « aucun » : nom de l'entreprise en texte ; sinon fichier importé dans storage/parametres. */
+  logo: string;
+  tailleLogo: keyof typeof TAILLES_LOGO;
+  couleurPrincipale: string;
+  couleurAccent: string;
+  afficherCoordonnees: boolean;
+  validiteDevis: number;
+  echeanceFacture: number;
+  conditionsDevis: string;
+  conditionsFacture: string;
+  modalitesPaiement: string;
+  afficherSignatures: boolean;
+  signataire: string;
+  piedDevis: string;
+  piedFacture: string;
+  piedCommun: string;
+  afficherMentionsLegales: boolean;
+};
+
+export const DOCUMENTS_DEFAUT: ParametresDocuments = {
+  logo: "",
+  tailleLogo: "moyen",
+  couleurPrincipale: "#14284b",
+  couleurAccent: "#f2b705",
+  afficherCoordonnees: true,
+  validiteDevis: 30,
+  echeanceFacture: 15,
+  conditionsDevis: "Acompte de 50 % à la signature du contrat, solde avant le dépôt du dossier.",
+  conditionsFacture: "",
+  modalitesPaiement: "Règlement en espèces à l'agence, par Mobile Money (Orange Money, MTN, Moov, Wave) ou par virement bancaire.",
+  afficherSignatures: true,
+  signataire: "",
+  piedDevis: "Ce document n'a pas valeur de facture.",
+  piedFacture: "Merci de votre confiance.",
+  piedCommun: "",
+  afficherMentionsLegales: true,
+};
+
+export const REPERTOIRE_PARAMETRES = path.join(process.cwd(), "storage", "parametres");
+const LOGO_DEFAUT = path.join(process.cwd(), "public", "logo-pdf.png");
 
 async function lire(prefixe: string) {
   const lignes = await prisma.parametre.findMany({ where: { cle: { startsWith: `${prefixe}.` } } });
@@ -46,6 +88,47 @@ export async function ecrireParametres(prefixe: string, valeurs: Record<string, 
 export async function lireEntreprise(): Promise<Entreprise> {
   const valeurs = await lire("entreprise");
   return Object.fromEntries(CHAMPS_ENTREPRISE.map((champ) => [champ, valeurs.get(champ) ?? ENTREPRISE_DEFAUT[champ]])) as Entreprise;
+}
+
+function nombre(valeur: string | undefined, defaut: number) {
+  const n = Number(valeur);
+  return valeur && Number.isInteger(n) && n >= 0 ? n : defaut;
+}
+
+export async function lireDocuments(): Promise<ParametresDocuments> {
+  const [valeurs, entreprise] = await Promise.all([lire("documents"), lire("entreprise")]);
+  const d = DOCUMENTS_DEFAUT;
+  const texte = (cle: keyof ParametresDocuments, ancien?: string) => valeurs.get(cle) ?? (ancien ? entreprise.get(ancien) : undefined) ?? (d[cle] as string);
+  const oui = (cle: keyof ParametresDocuments) => (valeurs.has(cle) ? valeurs.get(cle) === "1" : (d[cle] as boolean));
+  const taille = valeurs.get("tailleLogo");
+  return {
+    logo: valeurs.get("logo") ?? d.logo,
+    tailleLogo: taille && taille in TAILLES_LOGO ? (taille as ParametresDocuments["tailleLogo"]) : d.tailleLogo,
+    couleurPrincipale: texte("couleurPrincipale"),
+    couleurAccent: texte("couleurAccent"),
+    afficherCoordonnees: oui("afficherCoordonnees"),
+    validiteDevis: nombre(valeurs.get("validiteDevis"), d.validiteDevis),
+    echeanceFacture: nombre(valeurs.get("echeanceFacture"), d.echeanceFacture),
+    conditionsDevis: texte("conditionsDevis"),
+    conditionsFacture: texte("conditionsFacture"),
+    modalitesPaiement: texte("modalitesPaiement", "modalitesPaiement"),
+    afficherSignatures: oui("afficherSignatures"),
+    signataire: texte("signataire"),
+    piedDevis: texte("piedDevis"),
+    piedFacture: texte("piedFacture", "mentionFacture"),
+    piedCommun: texte("piedCommun"),
+    afficherMentionsLegales: oui("afficherMentionsLegales"),
+  };
+}
+
+/** Logo imprimé sur les devis et factures, ou null quand l'entreprise a choisi de ne pas en mettre. */
+export async function logoDocuments(reglages?: ParametresDocuments): Promise<{ octets: Buffer; type: "png" | "jpg" } | null> {
+  const { logo } = reglages ?? (await lireDocuments());
+  if (logo === "aucun") return null;
+  const chemin = logo ? path.join(REPERTOIRE_PARAMETRES, path.basename(logo)) : LOGO_DEFAUT;
+  const octets = await readFile(chemin).catch(() => (logo ? readFile(LOGO_DEFAUT).catch(() => null) : null));
+  if (!octets) return null;
+  return { octets, type: octets[0] === 0xff && octets[1] === 0xd8 ? "jpg" : "png" };
 }
 
 export async function urlPublique() {

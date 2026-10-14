@@ -1,12 +1,15 @@
 "use server";
 
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { revalidatePath } from "next/cache";
+import sharp from "sharp";
 import { prisma } from "@/lib/db";
 import { compterSegments, normaliserTelephone, telephoneValide } from "@/lib/format";
 import type { EtatAction } from "@/server/actions";
 import { executerAutomatisation } from "@/server/automatisation";
 import { emailValide, envoyerMailDirect } from "@/server/mail";
-import { CHAMPS_ENTREPRISE, configSms, ecrireParametres, lireEntreprise } from "@/server/parametres";
+import { CHAMPS_ENTREPRISE, REPERTOIRE_PARAMETRES, TAILLES_LOGO, configSms, ecrireParametres, lireDocuments, lireEntreprise } from "@/server/parametres";
 import { peutParametrer, voitDirection } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { envoyerSms } from "@/server/sms";
@@ -35,6 +38,84 @@ export async function modifierEntreprise(_etat: EtatAction, formData: FormData):
   await ecrireParametres("entreprise", valeurs);
   await journaliser(user.id, "Identité de l'entreprise mise à jour");
   return null;
+}
+
+function bloc(formData: FormData, champ: string) {
+  return String(formData.get(champ) ?? "").replace(/\r/g, "").trim();
+}
+
+export async function modifierDocuments(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  const couleurPrincipale = texte(formData, "couleurPrincipale").toLowerCase();
+  const couleurAccent = texte(formData, "couleurAccent").toLowerCase();
+  if (![couleurPrincipale, couleurAccent].every((couleur) => /^#[0-9a-f]{6}$/.test(couleur))) return { error: "Choisissez des couleurs valides." };
+  const tailleLogo = texte(formData, "tailleLogo");
+  if (!(tailleLogo in TAILLES_LOGO)) return { error: "Taille de logo invalide." };
+  const validiteDevis = Number(texte(formData, "validiteDevis"));
+  const echeanceFacture = Number(texte(formData, "echeanceFacture"));
+  if (!Number.isInteger(validiteDevis) || validiteDevis < 1 || validiteDevis > 365) return { error: "La validité des devis doit être comprise entre 1 et 365 jours." };
+  if (!Number.isInteger(echeanceFacture) || echeanceFacture < 0 || echeanceFacture > 365) return { error: "Le délai de paiement doit être compris entre 0 et 365 jours." };
+  const coche = (champ: string) => (formData.get(champ) === "on" ? "1" : "0");
+  await ecrireParametres("documents", {
+    tailleLogo,
+    couleurPrincipale,
+    couleurAccent,
+    afficherCoordonnees: coche("afficherCoordonnees"),
+    validiteDevis: String(validiteDevis),
+    echeanceFacture: String(echeanceFacture),
+    conditionsDevis: bloc(formData, "conditionsDevis"),
+    conditionsFacture: bloc(formData, "conditionsFacture"),
+    modalitesPaiement: bloc(formData, "modalitesPaiement"),
+    afficherSignatures: coche("afficherSignatures"),
+    signataire: texte(formData, "signataire"),
+    piedDevis: texte(formData, "piedDevis"),
+    piedFacture: texte(formData, "piedFacture"),
+    piedCommun: texte(formData, "piedCommun"),
+    afficherMentionsLegales: coche("afficherMentionsLegales"),
+  });
+  await journaliser(user.id, "Présentation des devis et factures mise à jour");
+  return null;
+}
+
+async function supprimerAncienLogo(nouveau: string) {
+  const { logo } = await lireDocuments();
+  if (logo && logo !== "aucun" && logo !== nouveau) await unlink(path.join(REPERTOIRE_PARAMETRES, path.basename(logo))).catch(() => undefined);
+}
+
+export async function importerLogoDocuments(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  const fichier = formData.get("logo");
+  if (!(fichier instanceof File) || fichier.size === 0) return { error: "Choisissez une image." };
+  if (fichier.size > 8 * 1024 * 1024) return { error: "L'image dépasse 8 Mo." };
+  let octets: Buffer;
+  try {
+    octets = await sharp(Buffer.from(await fichier.arrayBuffer()))
+      .trim({ threshold: 4 })
+      .resize({ width: 900, height: 360, fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 9, palette: true, quality: 90 })
+      .toBuffer();
+  } catch {
+    return { error: "Image illisible : utilisez un fichier PNG, JPEG, WebP ou SVG." };
+  }
+  await mkdir(REPERTOIRE_PARAMETRES, { recursive: true });
+  const nom = `logo-documents-${Date.now()}.png`;
+  await writeFile(path.join(REPERTOIRE_PARAMETRES, nom), octets);
+  await supprimerAncienLogo(nom);
+  await ecrireParametres("documents", { logo: nom });
+  await journaliser(user.id, "Nouveau logo des devis et factures");
+  return null;
+}
+
+export async function choisirLogoDocuments(formData: FormData) {
+  const user = await requireUser();
+  if (!peutParametrer(user.role)) return;
+  const choix = String(formData.get("choix") ?? "");
+  if (choix !== "defaut" && choix !== "aucun") return;
+  await supprimerAncienLogo("");
+  await ecrireParametres("documents", { logo: choix === "aucun" ? "aucun" : null });
+  await journaliser(user.id, choix === "aucun" ? "Logo retiré des devis et factures" : "Logo EduDesk rétabli sur les devis et factures");
 }
 
 export async function modifierApplication(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
