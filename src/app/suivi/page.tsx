@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
-import { Award, Check, CircleDot, FileCheck2, FileClock, GraduationCap, Hourglass, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
+import { Award, Check, CircleDot, FileCheck2, FileClock, FileDown, GraduationCap, Hourglass, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { etatFacture } from "@/lib/facturation";
 import { formatJour, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
 import { normaliserCodeSuivi } from "@/lib/suivi";
@@ -35,7 +36,22 @@ async function dossierSuivi() {
           pieces: { orderBy: { ordre: "asc" }, select: { id: true, libelle: true, obligatoire: true, recue: true, deposeLe: true } },
         },
       },
-      paiements: { orderBy: { dateEncaissement: "desc" }, select: { id: true, type: true, montant: true, dateEncaissement: true } },
+      paiements: {
+        orderBy: { dateEncaissement: "desc" },
+        select: {
+          id: true,
+          type: true,
+          montant: true,
+          dateEncaissement: true,
+          facture: { select: { id: true, numero: true, annuleeLe: true } },
+          factureReglee: { select: { id: true, numero: true, annuleeLe: true } },
+        },
+      },
+      factures: {
+        where: { paiementId: null, annuleeLe: null },
+        orderBy: { creeLe: "desc" },
+        select: { id: true, numero: true, libelle: true, montant: true, creeLe: true, echeanceLe: true, annuleeLe: true, reglements: { select: { montant: true } } },
+      },
       candidatures: {
         where: { statut: { not: "ABANDONNEE" } },
         orderBy: { creeLe: "asc" },
@@ -53,6 +69,19 @@ const CANDIDATURE_CLIENT: Record<StatutCandidature, { label: string; ton: Ton }>
   CHOISIE: { label: "Votre école", ton: "mission" },
   ABANDONNEE: { label: "Abandonnée", ton: "gris" },
 };
+
+function BoutonFacture({ id, numero }: { id: string; numero: string }) {
+  return (
+    <a
+      href={`/suivi/factures/${id}?telecharger=1`}
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-ink/[0.08] text-desk transition hover:border-desk/30 hover:bg-desk/[0.06]"
+      title={`Télécharger la facture ${numero}`}
+      aria-label={`Télécharger la facture ${numero}`}
+    >
+      <FileDown size={16} />
+    </a>
+  );
+}
 
 function EnTete({ connecte }: { connecte: boolean }) {
   return (
@@ -111,6 +140,10 @@ export default async function SuiviPage() {
   const paye = dossier.paiements.reduce((somme, paiement) => somme + paiement.montant, 0);
   const reste = Math.max(convenu - paye, 0);
   const retenue = dossier.candidatures.find((candidature) => candidature.statut === "CHOISIE");
+  const factures = dossier.factures.map((facture) => {
+    const regle = facture.reglements.reduce((somme, reglement) => somme + reglement.montant, 0);
+    return { ...facture, reste: Math.max(facture.montant - regle, 0), etat: etatFacture({ ...facture, regle }) };
+  });
 
   return (
     <main className="min-h-screen bg-paper px-5 py-8 sm:py-12">
@@ -287,15 +320,50 @@ export default async function SuiviPage() {
               </p>
             ) : null}
           </div>
+          {factures.length > 0 ? (
+            <>
+              <h3 className="mt-5 mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">Vos factures</h3>
+              <ul className="grid gap-2 text-sm">
+                {factures.map((facture) => (
+                  <li key={facture.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink/[0.06] px-3.5 py-2.5">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{facture.numero}</span>
+                        <Badge ton={facture.etat.ton}>{facture.etat.label}</Badge>
+                      </span>
+                      <span className="block truncate text-xs text-ink/50">
+                        {facture.libelle} · {xof(facture.montant)}
+                        {facture.reste > 0 ? ` · reste ${xof(facture.reste)}` : ""}
+                        {facture.reste > 0 && facture.echeanceLe ? ` avant le ${formatJour(facture.echeanceLe)}` : ""}
+                      </span>
+                    </span>
+                    <BoutonFacture id={facture.id} numero={facture.numero} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
           {dossier.paiements.length > 0 ? (
-            <ul className="mt-3 grid gap-2 text-sm">
-              {dossier.paiements.map((paiement) => (
-                <li key={paiement.id} className="flex items-center justify-between gap-2 rounded-xl border border-ink/[0.06] px-3.5 py-2.5">
-                  <span className="text-ink/65">{labelTypePaiement(paiement.type)} · {formatJour(paiement.dateEncaissement)}</span>
-                  <span className="font-semibold tabular-nums">{xof(paiement.montant)}</span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <h3 className="mt-5 mb-2 text-xs font-semibold tracking-wide text-ink/50 uppercase">Vos règlements</h3>
+              <ul className="grid gap-2 text-sm">
+                {dossier.paiements.map((paiement) => {
+                  const document = [paiement.facture, paiement.factureReglee].find((facture) => facture && !facture.annuleeLe);
+                  return (
+                    <li key={paiement.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink/[0.06] px-3.5 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block text-ink/65">{labelTypePaiement(paiement.type)} · {formatJour(paiement.dateEncaissement)}</span>
+                        {document ? <span className="block text-xs text-ink/45">{paiement.facture ? "Facture acquittée" : "Règlement de la facture"} {document.numero}</span> : null}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="font-semibold tabular-nums">{xof(paiement.montant)}</span>
+                        {document ? <BoutonFacture id={document.id} numero={document.numero} /> : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           ) : null}
         </section>
 

@@ -25,6 +25,8 @@ import {
   MessagesSquare,
   AlarmClock,
   FileSpreadsheet,
+  FileSignature,
+  ReceiptText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +56,8 @@ export const ICONES: Record<string, LucideIcon> = {
   messages: MessagesSquare,
   automatisation: AlarmClock,
   facturation: FileSpreadsheet,
+  devis: FileSignature,
+  facture: ReceiptText,
   page: FileText,
 };
 

@@ -156,6 +156,8 @@ export function actionsRapides(role: Role): Lien[] {
   const actions: Lien[] = [];
   if (peutProspects(role)) actions.push({ href: "/prospects?nouveau=1", label: "Prospect", icone: "prospects" });
   if (peutCreerClient(role)) actions.push({ href: "/clients?nouveau=1", label: "Client et dossier", icone: "clients" });
+  if (peutDevis(role)) actions.push({ href: "/facturation?nouveau=devis", label: "Devis", icone: "devis" });
+  if (peutFacturer(role)) actions.push({ href: "/facturation?vue=factures&nouveau=facture", label: "Facture", icone: "facture" });
   if (peutEncaisser(role)) actions.push({ href: "/caisse", label: "Encaissement", icone: "caisse" });
   if (voitDepenses(role)) actions.push({ href: "/depenses?nouveau=1", label: "Dépense", icone: "depenses" });
   actions.push({ href: "/conges?nouveau=1", label: "Demande d'absence", icone: "conges" });
