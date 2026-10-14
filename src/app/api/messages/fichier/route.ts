@@ -4,8 +4,8 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUser } from "@/server/session";
-import { EXTENSIONS_AUDIO, REPERTOIRE_MESSAGES, TAILLE_MAX_MESSAGE, TYPES_MESSAGES } from "@/server/fichiers-messages";
-import { diffuser, versFlux } from "@/server/temps-reel";
+import { EXTENSIONS_AUDIO, REPERTOIRE_MESSAGES, TAILLE_MAX_MESSAGE, TYPES_MESSAGES, verifierReponse } from "@/server/fichiers-messages";
+import { diffuser, INCLURE_FLUX, versFlux } from "@/server/temps-reel";
 
 export const runtime = "nodejs";
 
@@ -57,8 +57,9 @@ export async function POST(request: Request) {
       fichierType: type,
       fichierTaille: fichier.size,
       duree,
+      reponseAId: await verifierReponse(form.get("reponseAId"), user.id, destinataire.id),
     },
-    include: { de: { select: { prenom: true, nom: true } } },
+    include: INCLURE_FLUX,
   });
   const message = versFlux(cree, cle);
   diffuser(destinataire.id, { type: "message", message });

@@ -1,10 +1,16 @@
 "use server";
 
 import { prisma } from "@/lib/db";
+import { verifierReponse } from "@/server/fichiers-messages";
 import { requireUser } from "@/server/session";
-import { diffuser, versFlux, type MessageFlux } from "@/server/temps-reel";
+import { diffuser, INCLURE_FLUX, versFlux, type MessageFlux } from "@/server/temps-reel";
 
-export async function posterMessage(aId: string, texteBrut: string, cle: string): Promise<{ message: MessageFlux } | { error: string }> {
+export async function posterMessage(
+  aId: string,
+  texteBrut: string,
+  cle: string,
+  reponseAId?: string | null,
+): Promise<{ message: MessageFlux } | { error: string }> {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") return { error: "Messagerie réservée aux collaborateurs." };
   const texte = String(texteBrut ?? "").replace(/\r/g, "").trim();
@@ -16,8 +22,8 @@ export async function posterMessage(aId: string, texteBrut: string, cle: string)
   });
   if (!destinataire || destinataire.id === user.id) return { error: "Destinataire introuvable." };
   const cree = await prisma.message.create({
-    data: { deId: user.id, aId: destinataire.id, texte },
-    include: { de: { select: { prenom: true, nom: true } } },
+    data: { deId: user.id, aId: destinataire.id, texte, reponseAId: await verifierReponse(reponseAId, user.id, destinataire.id) },
+    include: INCLURE_FLUX,
   });
   const message = versFlux(cree, String(cle ?? "").slice(0, 40) || undefined);
   diffuser(destinataire.id, { type: "message", message });

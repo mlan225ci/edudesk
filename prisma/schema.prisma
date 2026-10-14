@@ -606,6 +606,9 @@ model Message {
   fichierType   String?
   fichierTaille Int?
   duree         Int?
+  reponseAId    String?
+  reponseA      Message?  @relation("reponses", fields: [reponseAId], references: [id], onDelete: SetNull)
+  reponses      Message[] @relation("reponses")
 
   @@index([aId, lu])
   @@index([deId, aId, creeLe])

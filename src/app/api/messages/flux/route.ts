@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getUser } from "@/server/session";
-import { connecter, connectesIci, deconnecter, ecouter, versFlux, type EvenementFlux } from "@/server/temps-reel";
+import { connecter, connectesIci, deconnecter, ecouter, INCLURE_FLUX, versFlux, type EvenementFlux } from "@/server/temps-reel";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
               where: { creeLe: { gt: limite }, OR: [{ aId: user.id }, { deId: user.id }] },
               orderBy: { creeLe: "asc" },
               take: 100,
-              include: { de: { select: { prenom: true, nom: true } } },
+              include: INCLURE_FLUX,
             }),
             prisma.message.count({ where: { aId: user.id, lu: false } }),
           ]);

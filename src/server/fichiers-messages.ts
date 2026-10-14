@@ -1,4 +1,22 @@
 import path from "node:path";
+import { prisma } from "@/lib/db";
+
+/** Renvoie l'identifiant du message cité s'il appartient bien à la conversation, sinon null. */
+export async function verifierReponse(reponseAId: unknown, moiId: string, autreId: string) {
+  const id = typeof reponseAId === "string" ? reponseAId.trim() : "";
+  if (!id) return null;
+  const origine = await prisma.message.findFirst({
+    where: {
+      id,
+      OR: [
+        { deId: moiId, aId: autreId },
+        { deId: autreId, aId: moiId },
+      ],
+    },
+    select: { id: true },
+  });
+  return origine?.id ?? null;
+}
 
 export const REPERTOIRE_MESSAGES = path.join(process.cwd(), "storage", "messages");
 export const TAILLE_MAX_MESSAGE = 10 * 1024 * 1024;

@@ -6,7 +6,7 @@ import { apercuMessage } from "@/lib/messages";
 import { Conversation, ListeContacts, ReglagesAlertes, type Contact } from "@/components/messagerie";
 import { EnTete, Vide } from "@/components/ui";
 import { requireUser } from "@/server/session";
-import { diffuser, versFlux } from "@/server/temps-reel";
+import { diffuser, INCLURE_FLUX, versFlux } from "@/server/temps-reel";
 
 export const metadata = { title: "Messagerie" };
 
@@ -43,7 +43,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
         },
         orderBy: { creeLe: "desc" },
         take: 300,
-        include: { de: { select: { prenom: true, nom: true } } },
+        include: INCLURE_FLUX,
       })
     : [];
   if (correspondant && nonLusPar.get(correspondant.id)) {

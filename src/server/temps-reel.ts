@@ -1,6 +1,13 @@
 import { EventEmitter } from "node:events";
+import { apercuMessage } from "@/lib/messages";
 
 export type FichierFlux = { nom: string; type: string; taille: number; duree: number | null };
+export type ReponseFlux = { id: string; deId: string; deNom: string; apercu: string };
+
+export const INCLURE_FLUX = {
+  de: { select: { prenom: true, nom: true } },
+  reponseA: { select: { id: true, deId: true, texte: true, fichierNom: true, duree: true, de: { select: { prenom: true, nom: true } } } },
+} as const;
 
 export type MessageFlux = {
   id: string;
@@ -11,6 +18,7 @@ export type MessageFlux = {
   lu: boolean;
   deNom: string;
   fichier: FichierFlux | null;
+  reponse: ReponseFlux | null;
   cle?: string;
 };
 
@@ -99,9 +107,11 @@ export function versFlux(
     fichierType?: string | null;
     fichierTaille?: number | null;
     duree?: number | null;
+    reponseA?: { id: string; deId: string; texte: string; fichierNom: string | null; duree: number | null; de: { prenom: string; nom: string } } | null;
   },
   cle?: string,
 ): MessageFlux {
+  const origine = message.reponseA;
   return {
     id: message.id,
     deId: message.deId,
@@ -112,6 +122,9 @@ export function versFlux(
     deNom: `${message.de.prenom} ${message.de.nom}`.trim(),
     fichier: message.fichierNom
       ? { nom: message.fichierNom, type: message.fichierType ?? "application/octet-stream", taille: message.fichierTaille ?? 0, duree: message.duree ?? null }
+      : null,
+    reponse: origine
+      ? { id: origine.id, deId: origine.deId, deNom: `${origine.de.prenom} ${origine.de.nom}`.trim(), apercu: apercuMessage(origine).slice(0, 200) }
       : null,
     cle,
   };

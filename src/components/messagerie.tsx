@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellRing, Download, FileText, Loader2, Mic, Paperclip, Pause, Play, RotateCcw, Send, Square, Trash2, Upload, Volume2, VolumeX } from "lucide-react";
+import { BellRing, Download, FileText, Loader2, Mic, Paperclip, Pause, Play, Reply, RotateCcw, Send, Square, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { apercuMessage, dureeTexte, tailleTexte, urlFichierMessage } from "@/lib/messages";
 import { Avatar } from "@/components/ui";
@@ -19,10 +19,14 @@ import {
   type EvenementClient,
 } from "@/components/centre-messages";
 import { marquerLu, posterMessage } from "@/server/messages-actions";
-import type { MessageFlux } from "@/server/temps-reel";
+import type { MessageFlux, ReponseFlux } from "@/server/temps-reel";
 
 type Ligne = MessageFlux & { etat?: "envoi" | "echec" };
-type EnvoiFichier = { fichier: File; texte: string; duree: number | null };
+type EnvoiFichier = { fichier: File; texte: string; duree: number | null; reponse: ReponseFlux | null };
+
+function versReponse(ligne: Ligne): ReponseFlux {
+  return { id: ligne.id, deId: ligne.deId, deNom: ligne.deNom, apercu: apercuMessage(ligne).slice(0, 200) };
+}
 
 const TAILLE_MAX = 10 * 1024 * 1024;
 const DUREE_MAX_VOCAL = 300;
@@ -177,6 +181,9 @@ export function Conversation({
   const [survol, setSurvol] = useState(false);
   const [enregistre, setEnregistre] = useState<number | null>(null);
   const [maintenant, setMaintenant] = useState(0);
+  const [reponse, setReponse] = useState<ReponseFlux | null>(null);
+  const reponseCourante = useRef<ReponseFlux | null>(null);
+  reponseCourante.current = reponse;
   const router = useRouter();
   const toast = useToast();
   const presence = usePresence(correspondant.id);
@@ -258,11 +265,40 @@ export function Conversation({
     toast(erreur, "erreur");
   };
 
-  const expedier = async (texte: string, cle = nouvelleCle()) => {
-    const brouillon: Ligne = { id: `brouillon-${cle}`, cle, deId: moiId, aId: id, texte, creeLe: new Date().toISOString(), lu: false, deNom: "", fichier: null, etat: "envoi" };
+  const repondre = (ligne: Ligne) => {
+    if (ligne.etat) return;
+    setReponse(versReponse(ligne));
+    champ.current?.focus();
+  };
+
+  const allerAuMessage = (messageId: string) => {
+    const cible = document.getElementById(`message-${messageId}`);
+    if (!cible) {
+      toast("Ce message est trop ancien pour être affiché ici.", "erreur");
+      return;
+    }
+    cible.scrollIntoView({ behavior: "smooth", block: "center" });
+    cible.classList.add("ring-2", "ring-edu", "ring-offset-2");
+    window.setTimeout(() => cible.classList.remove("ring-2", "ring-edu", "ring-offset-2"), 1600);
+  };
+
+  const expedier = async (texte: string, cle = nouvelleCle(), cite: ReponseFlux | null = null) => {
+    const brouillon: Ligne = {
+      id: `brouillon-${cle}`,
+      cle,
+      deId: moiId,
+      aId: id,
+      texte,
+      creeLe: new Date().toISOString(),
+      lu: false,
+      deNom: "",
+      fichier: null,
+      reponse: cite,
+      etat: "envoi",
+    };
     setMessages((actuels) => trier([...actuels.filter((ligne) => ligne.cle !== cle), brouillon]));
     dernierSignal.current = 0;
-    const resultat = await posterMessage(id, texte, cle).catch(() => ({ error: "Connexion perdue : message non envoyé." }));
+    const resultat = await posterMessage(id, texte, cle, cite?.id ?? null).catch(() => ({ error: "Connexion perdue : message non envoyé." }));
     if ("error" in resultat) return marquerEchec(cle, resultat.error);
     setMessages((actuels) => integrer(actuels, resultat.message));
   };
@@ -283,6 +319,7 @@ export function Conversation({
       lu: false,
       deNom: "",
       fichier: { nom: envoi.fichier.name, type: envoi.fichier.type, taille: envoi.fichier.size, duree: envoi.duree },
+      reponse: envoi.reponse,
       etat: "envoi",
     };
     setMessages((actuels) => trier([...actuels.filter((ligne) => ligne.cle !== cle), brouillon]));
@@ -292,9 +329,10 @@ export function Conversation({
     formulaire.set("texte", envoi.texte);
     formulaire.set("cle", cle);
     if (envoi.duree != null) formulaire.set("duree", String(envoi.duree));
-    const reponse = await fetch("/api/messages/fichier", { method: "POST", body: formulaire }).catch(() => null);
-    const donnees = reponse ? ((await reponse.json().catch(() => null)) as { message?: MessageFlux; error?: string } | null) : null;
-    if (!reponse?.ok || !donnees?.message) return marquerEchec(cle, donnees?.error ?? "Envoi du fichier impossible. Vérifiez la connexion.");
+    if (envoi.reponse) formulaire.set("reponseAId", envoi.reponse.id);
+    const retour = await fetch("/api/messages/fichier", { method: "POST", body: formulaire }).catch(() => null);
+    const donnees = retour ? ((await retour.json().catch(() => null)) as { message?: MessageFlux; error?: string } | null) : null;
+    if (!retour?.ok || !donnees?.message) return marquerEchec(cle, donnees?.error ?? "Envoi du fichier impossible. Vérifiez la connexion.");
     envoisFichiers.current.delete(cle);
     setMessages((actuels) => integrer(actuels, donnees.message as MessageFlux));
   };
@@ -304,14 +342,19 @@ export function Conversation({
     if (liste.length === 0) return;
     const legende = champ.current?.value.replace(/\r/g, "").trim() ?? "";
     if (champ.current) champ.current.value = "";
-    liste.slice(0, 10).forEach((fichier, index) => void expedierFichier({ fichier, texte: index === 0 ? legende : "", duree: null }));
+    const cite = reponseCourante.current;
+    setReponse(null);
+    liste
+      .slice(0, 10)
+      .forEach((fichier, index) => void expedierFichier({ fichier, texte: index === 0 ? legende : "", duree: null, reponse: index === 0 ? cite : null }));
   };
 
   const envoyer = () => {
     const texte = champ.current?.value.replace(/\r/g, "").trim() ?? "";
     if (!texte) return;
     if (champ.current) champ.current.value = "";
-    void expedier(texte);
+    void expedier(texte, nouvelleCle(), reponseCourante.current);
+    setReponse(null);
     champ.current?.focus();
   };
 
@@ -319,7 +362,7 @@ export function Conversation({
     if (!ligne.cle) return;
     const envoi = envoisFichiers.current.get(ligne.cle);
     if (envoi) void expedierFichier(envoi, ligne.cle);
-    else void expedier(ligne.texte, ligne.cle);
+    else void expedier(ligne.texte, ligne.cle, ligne.reponse);
   };
 
   const arreterEnregistrement = useCallback((annuler: boolean) => {
@@ -364,7 +407,9 @@ export function Conversation({
       const type = enregistreur.mimeType || format?.[0] || "audio/webm";
       const extension = format?.[1] ?? (type.includes("mp4") ? ".m4a" : type.includes("ogg") ? ".ogg" : ".webm");
       const blob = new Blob(morceaux, { type: type.split(";")[0] });
-      void expedierFichier({ fichier: new File([blob], `Note vocale${extension}`, { type: blob.type }), texte: "", duree });
+      const cite = reponseCourante.current;
+      setReponse(null);
+      void expedierFichier({ fichier: new File([blob], `Note vocale${extension}`, { type: blob.type }), texte: "", duree, reponse: cite });
     };
     enregistreur.start(250);
     setMaintenant(debut);
@@ -427,11 +472,29 @@ export function Conversation({
         ) : (
           messages.map((message) => {
             const moi = message.deId === moiId;
+            const cite = message.reponse;
             return (
-              <div key={message.cle && message.etat ? message.cle : message.id} className={`flex ${moi ? "justify-end" : "justify-start"}`}>
+              <div
+                key={message.cle && message.etat ? message.cle : message.id}
+                className={`group flex items-center gap-1.5 ${moi ? "flex-row-reverse" : ""}`}
+              >
                 <div
-                  className={`grid max-w-[78%] gap-1.5 rounded-2xl px-3.5 py-2 text-sm ${moi ? "rounded-br-md bg-desk text-white" : "rounded-bl-md bg-paper"} ${message.etat === "envoi" ? "opacity-70" : ""} ${message.etat === "echec" ? "bg-cap/90" : ""}`}
+                  id={message.etat ? undefined : `message-${message.id}`}
+                  onDoubleClick={() => repondre(message)}
+                  className={`grid max-w-[78%] gap-1.5 rounded-2xl px-3.5 py-2 text-sm transition-shadow ${moi ? "rounded-br-md bg-desk text-white" : "rounded-bl-md bg-paper"} ${message.etat === "envoi" ? "opacity-70" : ""} ${message.etat === "echec" ? "bg-cap/90" : ""}`}
                 >
+                  {cite ? (
+                    <button
+                      type="button"
+                      onClick={() => allerAuMessage(cite.id)}
+                      className={`min-w-0 rounded-lg border-l-[3px] px-2.5 py-1.5 text-left text-xs transition ${moi ? "border-edu bg-white/15 hover:bg-white/20" : "border-desk bg-ink/[0.05] hover:bg-ink/[0.08]"}`}
+                    >
+                      <span className={`block font-semibold ${moi ? "text-white" : "text-desk"}`}>
+                        {cite.deId === moiId ? "Vous" : cite.deNom}
+                      </span>
+                      <span className={`line-clamp-2 break-words ${moi ? "text-white/80" : "text-ink/60"}`}>{cite.apercu || "Message"}</span>
+                    </button>
+                  ) : null}
                   <ContenuFichier message={message} moi={moi} />
                   {message.texte ? <p className="whitespace-pre-line break-words">{message.texte}</p> : null}
                   <p className={`flex items-center justify-end gap-1 text-[11px] ${moi ? "text-white/65" : "text-ink/40"}`} suppressHydrationWarning>
@@ -451,6 +514,17 @@ export function Conversation({
                     )}
                   </p>
                 </div>
+                {message.etat ? null : (
+                  <button
+                    type="button"
+                    onClick={() => repondre(message)}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink/40 opacity-0 transition group-hover:opacity-100 hover:bg-ink/5 hover:text-desk focus-visible:opacity-100"
+                    title="Répondre"
+                    aria-label="Répondre à ce message"
+                  >
+                    <Reply size={16} />
+                  </button>
+                )}
               </div>
             );
           })
@@ -479,8 +553,21 @@ export function Conversation({
           </button>
         </div>
       ) : (
+        <div className="border-t border-ink/[0.06]">
+        {reponse ? (
+          <div className="flex items-center gap-3 px-4 pt-3">
+            <Reply size={16} className="shrink-0 text-desk" />
+            <div className="min-w-0 flex-1 rounded-lg border-l-[3px] border-desk bg-paper px-3 py-1.5 text-xs">
+              <p className="font-semibold text-desk">Réponse à {reponse.deId === moiId ? "vous-même" : reponse.deNom}</p>
+              <p className="truncate text-ink/60">{reponse.apercu || "Message"}</p>
+            </div>
+            <button type="button" onClick={() => setReponse(null)} className="bouton-fantome h-8 w-8 p-0" aria-label="Annuler la réponse" title="Annuler (Échap)">
+              <X size={16} />
+            </button>
+          </div>
+        ) : null}
         <form
-          className="flex items-end gap-2 border-t border-ink/[0.06] px-4 py-3"
+          className="flex items-end gap-2 px-4 py-3"
           onSubmit={(event) => {
             event.preventDefault();
             envoyer();
@@ -515,7 +602,10 @@ export function Conversation({
               envoyerFichiers(event.clipboardData.files);
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              if (event.key === "Escape" && reponse) {
+                event.preventDefault();
+                setReponse(null);
+              } else if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 envoyer();
               }
@@ -528,6 +618,7 @@ export function Conversation({
             <Send size={15} /> <span className="hidden sm:inline">Envoyer</span>
           </button>
         </form>
+        </div>
       )}
 
       {survol ? (
