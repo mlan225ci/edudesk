@@ -7,6 +7,7 @@ import { actionsRapides, navigation, ongletsParametres, type SessionUser } from 
 import { Navigation } from "@/components/navigation";
 import { BarreHaute } from "@/components/barre-haute";
 import { ToastProvider } from "@/components/toasts";
+import { CentreMessages } from "@/components/centre-messages";
 
 export function Shell({
   user,
@@ -21,8 +22,8 @@ export function Shell({
 }) {
   const sections = navigation(user.role);
   const accueil = user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord";
-  return (
-    <ToastProvider>
+  const contenu = (
+    <>
       <Suspense fallback={null}>
         <BarreNavigation />
       </Suspense>
@@ -50,7 +51,7 @@ export function Shell({
             parametres={ongletsParametres(user.role)}
             actions={actionsRapides(user.role)}
             nonLues={nonLues}
-            messagesNonLus={user.role === "PARTENAIRE" ? null : messagesNonLus}
+            messagerie={user.role !== "PARTENAIRE"}
             accueil={accueil}
             utilisateur={{
               nom: nomComplet(user),
@@ -61,6 +62,17 @@ export function Shell({
           <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
         </div>
       </div>
+    </>
+  );
+  return (
+    <ToastProvider>
+      {user.role === "PARTENAIRE" ? (
+        contenu
+      ) : (
+        <CentreMessages moiId={user.id} initial={messagesNonLus}>
+          {contenu}
+        </CentreMessages>
+      )}
     </ToastProvider>
   );
 }

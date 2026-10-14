@@ -9,6 +9,7 @@ import type { Lien, SectionNavigation } from "@/server/permissions";
 import { logout } from "@/server/actions";
 import { Navigation } from "@/components/navigation";
 import { Icone } from "@/components/icones";
+import { useMessagesNonLus } from "@/components/centre-messages";
 
 const Recherche = dynamic(() => import("@/components/recherche"), { ssr: false });
 
@@ -35,7 +36,7 @@ export function BarreHaute({
   parametres,
   actions,
   nonLues,
-  messagesNonLus,
+  messagerie,
   utilisateur,
   accueil,
 }: {
@@ -43,10 +44,11 @@ export function BarreHaute({
   parametres: Lien[];
   actions: Lien[];
   nonLues: number;
-  messagesNonLus: number | null;
+  messagerie: boolean;
   utilisateur: { nom: string; role: string; initiales: string };
   accueil: string;
 }) {
+  const messagesNonLus = useMessagesNonLus() ?? 0;
   const [recherche, setRecherche] = useState(false);
   const [menuMobile, setMenuMobile] = useState(false);
   const [nouveau, setNouveau] = useState(false);
@@ -114,7 +116,7 @@ export function BarreHaute({
             </div>
           ) : null}
 
-          {messagesNonLus != null ? (
+          {messagerie ? (
             <Link href="/messages" className="relative grid h-10 w-10 place-items-center rounded-xl text-ink/60 transition hover:bg-ink/5 hover:text-ink" aria-label="Messagerie">
               <MessagesSquare size={19} />
               {messagesNonLus > 0 ? (

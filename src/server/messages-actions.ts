@@ -1,23 +1,35 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import type { EtatAction } from "@/server/actions";
 import { requireUser } from "@/server/session";
+import { diffuser, versFlux, type MessageFlux } from "@/server/temps-reel";
 
-export async function envoyerMessage(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+export async function posterMessage(aId: string, texteBrut: string, cle: string): Promise<{ message: MessageFlux } | { error: string }> {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") return { error: "Messagerie réservée aux collaborateurs." };
-  const texte = String(formData.get("texte") ?? "").replace(/\r/g, "").trim();
+  const texte = String(texteBrut ?? "").replace(/\r/g, "").trim();
   if (!texte) return { error: "Écrivez un message." };
   if (texte.length > 4000) return { error: "Message trop long (4 000 caractères au plus)." };
   const destinataire = await prisma.user.findFirst({
-    where: { id: String(formData.get("aId") ?? ""), actif: true, role: { not: "PARTENAIRE" } },
+    where: { id: String(aId ?? ""), actif: true, role: { not: "PARTENAIRE" } },
     select: { id: true },
   });
   if (!destinataire || destinataire.id === user.id) return { error: "Destinataire introuvable." };
-  await prisma.message.create({ data: { deId: user.id, aId: destinataire.id, texte } });
-  revalidatePath("/messages");
-  revalidatePath("/", "layout");
-  return null;
+  const cree = await prisma.message.create({
+    data: { deId: user.id, aId: destinataire.id, texte },
+    include: { de: { select: { prenom: true, nom: true } } },
+  });
+  const message = versFlux(cree, String(cle ?? "").slice(0, 40) || undefined);
+  diffuser(destinataire.id, { type: "message", message });
+  diffuser(user.id, { type: "message", message });
+  return { message };
+}
+
+export async function marquerLu(deId: string) {
+  const user = await requireUser();
+  const { count } = await prisma.message.updateMany({ where: { deId: String(deId ?? ""), aId: user.id, lu: false }, data: { lu: true } });
+  if (count > 0) {
+    diffuser(deId, { type: "lu", par: user.id });
+    diffuser(user.id, { type: "compteur", nonLus: await prisma.message.count({ where: { aId: user.id, lu: false } }) });
+  }
 }
