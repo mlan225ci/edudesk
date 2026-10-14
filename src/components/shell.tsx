@@ -11,10 +11,12 @@ import { ToastProvider } from "@/components/toasts";
 export function Shell({
   user,
   nonLues,
+  messagesNonLus,
   children,
 }: {
   user: SessionUser;
   nonLues: number;
+  messagesNonLus: number;
   children: React.ReactNode;
 }) {
   const sections = navigation(user.role);
@@ -48,6 +50,7 @@ export function Shell({
             parametres={ongletsParametres(user.role)}
             actions={actionsRapides(user.role)}
             nonLues={nonLues}
+            messagesNonLus={user.role === "PARTENAIRE" ? null : messagesNonLus}
             accueil={accueil}
             utilisateur={{
               nom: nomComplet(user),

@@ -187,7 +187,16 @@ async function main() {
 
   for (const modele of MODELES_SMS) {
     const existant = await prisma.modeleSms.findUnique({ where: { code: modele.code } });
-    if (existant) continue;
+    if (existant) {
+      if ((modele.sujet && !existant.sujet) || (modele.corpsMail && !existant.corpsMail)) {
+        await prisma.modeleSms.update({
+          where: { code: modele.code },
+          data: { sujet: existant.sujet ?? modele.sujet, corpsMail: existant.corpsMail ?? modele.corpsMail },
+        });
+        console.log(`Modèle e-mail complété : ${modele.libelle}`);
+      }
+      continue;
+    }
     await prisma.modeleSms.create({ data: modele });
     console.log(`Modèle SMS ajouté : ${modele.libelle}`);
   }

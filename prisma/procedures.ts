@@ -614,7 +614,11 @@ export const PROCEDURES: ProcedureDef[] = [
   },
 ];
 
-export const MODELES_SMS: { code: string; libelle: string; corps: string }[] = [
+export type ModeleDef = { code: string; libelle: string; corps: string; sujet?: string; corpsMail?: string };
+
+const SIGNATURE = "\n\nCordialement,\nL'équipe {{entreprise}}";
+
+export const MODELES_SMS: ModeleDef[] = [
   {
     code: "mission",
     libelle: "Mission collaborateur",
@@ -624,36 +628,81 @@ export const MODELES_SMS: { code: string; libelle: string; corps: string }[] = [
     code: "client_ouverture",
     libelle: "Client, ouverture du dossier",
     corps: "EDUDESK: {{prenom}}, votre dossier {{reference}} ({{destination}}) est ouvert. Code de suivi: {{code}}. Suivez-le sur {{lien}}",
+    sujet: "Votre dossier {{reference}} est ouvert",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nNous avons le plaisir de vous confirmer l'ouverture de votre dossier {{reference}} pour la destination {{destination}}.\n\nVotre code de suivi personnel : {{code}}\nVous pouvez suivre l'avancement de votre dossier à tout moment sur {{lien}}\n\nConservez précieusement ce code : il vous sera demandé pour consulter votre dossier." +
+      SIGNATURE,
   },
   {
     code: "client_etape",
     libelle: "Client, étape franchie",
     corps: "EDUDESK: {{prenom}}, votre dossier {{destination}} passe a l'etape \"{{etape}}\".",
+    sujet: "Votre dossier {{reference}} avance : {{etape}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nVotre dossier {{destination}} ({{reference}}) vient de passer à l'étape « {{etape}} ».\n\nNotre équipe reste à votre disposition pour toute question.\n\n{{suivi}}" + SIGNATURE,
   },
   {
     code: "client_admission",
     libelle: "Client, admission obtenue",
     corps: "EDUDESK: {{prenom}}, bonne nouvelle ! Admission obtenue a {{ecole}}{{formation}}. Suivi: {{lien}}",
+    sujet: "Félicitations, admission obtenue à {{ecole}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nExcellente nouvelle : vous êtes admis(e) à {{ecole}}{{formation}} !\n\nNous revenons très vite vers vous pour les prochaines étapes de votre projet. Vous pouvez suivre votre dossier sur {{lien}}" +
+      SIGNATURE,
   },
   {
     code: "client_visa",
     libelle: "Client, visa accepté",
     corps: "EDUDESK: {{prenom}}, visa accepte pour {{destination}}. Consigne visa a suivre.",
+    sujet: "Votre visa pour {{destination}} est accepté",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nNous avons le plaisir de vous annoncer que votre visa pour {{destination}} a été accepté.\n\nNous vous contacterons pour la consigne visa et la préparation de votre départ.\n\n{{suivi}}" +
+      SIGNATURE,
   },
   {
     code: "client_relance",
     libelle: "Client, point à planifier",
     corps: "EDUDESK: {{prenom}}, un point est a planifier sur votre dossier {{destination}}.",
+    sujet: "Un rendez-vous à planifier pour votre dossier {{reference}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nUn point doit être fait avec vous sur votre dossier {{destination}} ({{reference}}). Un conseiller va vous contacter pour fixer un rendez-vous.\n\n{{suivi}}" +
+      SIGNATURE,
   },
   {
     code: "client_reorientation",
     libelle: "Client, réorientation",
     corps: "EDUDESK: {{prenom}}, votre dossier est reoriente vers {{destination}}.",
+    sujet: "Votre dossier est réorienté vers {{destination}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nComme convenu, votre dossier est désormais réorienté vers la destination {{destination}}. Les pièces déjà fournies ont été reprises.\n\n{{suivi}}" +
+      SIGNATURE,
+  },
+  {
+    code: "client_pieces",
+    libelle: "Client, pièces manquantes",
+    corps: "EDUDESK: {{prenom}}, il manque {{nombre}} piece(s) a votre dossier {{reference}}: {{pieces}}. {{depot}}",
+    sujet: "Pièces à fournir pour votre dossier {{reference}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nPour faire avancer votre dossier {{destination}} ({{reference}}), merci de nous transmettre les pièces suivantes :\n\n{{liste}}\n\n{{depot}}" +
+      SIGNATURE,
+  },
+  {
+    code: "client_devis",
+    libelle: "Client, devis",
+    corps: "EDUDESK: {{prenom}}, votre devis {{devis}} ({{montant}}) pour {{destination}} vous a ete envoye par e-mail.",
+    sujet: "Votre devis {{devis}} – {{destination}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nVeuillez trouver ci-joint votre devis {{devis}} d'un montant de {{montant}} pour votre projet {{destination}}.\n\n{{validite}}Pour l'accepter, il vous suffit de nous le retourner signé ou de répondre à cet e-mail." +
+      SIGNATURE,
   },
   {
     code: "partenaire",
     libelle: "Partenaire, avancement",
     corps: "EDUDESK: votre client {{client}} ({{destination}}) est a l'etape \"{{etape}}\".",
+    sujet: "Avancement : {{client}} – {{etape}}",
+    corpsMail:
+      "Bonjour,\n\nNous vous informons que le dossier de votre client {{client}} ({{destination}}, réf. {{reference}}) est passé à l'étape « {{etape}} ».\n\nMerci pour votre confiance." +
+      SIGNATURE,
   },
   {
     code: "j1",
@@ -679,5 +728,10 @@ export const MODELES_SMS: { code: string; libelle: string; corps: string }[] = [
     code: "paiement",
     libelle: "Paiement enregistré",
     corps: "EDUDESK: paiement {{montant}} XOF ({{mode}}) enregistre. Facture {{facture}}.",
+    sujet: "Reçu de paiement – facture {{facture}}",
+    corpsMail:
+      "Bonjour {{prenom}},\n\nNous accusons réception de votre paiement de {{montant}} ({{mode}}) pour votre dossier {{destination}} ({{reference}}).\n\nVous trouverez ci-joint la facture acquittée {{facture}}.\n\n{{suivi}}" +
+      SIGNATURE,
   },
 ];
+

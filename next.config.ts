@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  serverExternalPackages: ["bcryptjs"],
+  serverExternalPackages: ["bcryptjs", "nodemailer", "pdf-lib"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
     serverActions: { bodySizeLimit: "12mb" },

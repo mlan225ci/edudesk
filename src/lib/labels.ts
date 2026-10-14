@@ -8,6 +8,7 @@ import type {
   StatutCandidature,
   StatutConge,
   StatutDossier,
+  StatutTraduction,
   TypeConge,
   TypePaiement,
 } from "@prisma/client";
@@ -67,6 +68,21 @@ export const ACTIONS_AUDIT: Record<string, string> = {
   ECOLE: "École",
   CANDIDATURE: "Candidature",
   PARAMETRES: "Paramètres",
+  PIECES_RELANCE: "Pièces manquantes demandées",
+  PIECE_DEPOSEE_CLIENT: "Pièce déposée par le client",
+  PIECE_REFUSEE: "Pièce refusée",
+  FACTURE_ENVOYEE: "Facture envoyée",
+  DEVIS: "Devis",
+  TRADUCTION: "Traduction",
+  AUTOMATISATION: "Automatisation",
+};
+
+export const LANGUES = ["Français", "Anglais", "Espagnol", "Allemand", "Italien", "Portugais", "Néerlandais", "Arabe", "Chinois", "Russe", "Turc", "Polonais", "Roumain"];
+
+export const STATUTS_TRADUCTION: Record<StatutTraduction, { label: string; ton: "edu" | "desk" | "vert" }> = {
+  A_FAIRE: { label: "À faire", ton: "edu" },
+  EN_COURS: { label: "En cours", ton: "desk" },
+  TERMINEE: { label: "Livrée", ton: "vert" },
 };
 
 export const STATUTS_CANDIDATURE: Record<StatutCandidature, string> = {

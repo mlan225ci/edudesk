@@ -1,6 +1,8 @@
-import { Download, Eye, FileCheck2, FileClock, FileText, FolderOpen } from "lucide-react";
+import { Check, Download, Eye, FileCheck2, FileClock, FileText, FolderOpen, X } from "lucide-react";
 import { formatJour } from "@/lib/format";
+import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { JoindreScan } from "@/components/joindre-scan";
+import { refuserDepot, validerDepot } from "@/server/communication-actions";
 
 export type DocumentVue = {
   id: string;
@@ -11,6 +13,7 @@ export type DocumentVue = {
   etape: string | null;
   reportee?: boolean;
   dossier?: string;
+  aVerifier?: boolean;
 };
 
 export function ListeDocuments({
@@ -29,11 +32,42 @@ export function ListeDocuments({
       </p>
     );
   }
-  const tries = [...documents].sort((a, b) => Number(b.fichier) - Number(a.fichier) || Number(b.recue) - Number(a.recue));
+  const tries = [...documents].sort(
+    (a, b) => Number(Boolean(b.aVerifier)) - Number(Boolean(a.aVerifier)) || Number(b.fichier) - Number(a.fichier) || Number(b.recue) - Number(a.recue),
+  );
   return (
     <ul className="entree-cascade grid gap-2 sm:grid-cols-2">
       {tries.map((document) => {
         const sousTitre = [document.dossier, document.etape, document.reportee ? "repris du dossier précédent" : null].filter(Boolean).join(" · ");
+        if (document.aVerifier) {
+          return (
+            <li key={document.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-mission/30 bg-mission/[0.05] px-3.5 py-3 sm:col-span-2">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-mission/15 text-mission">
+                <FileClock size={17} />
+              </span>
+              <a href={`/api/pieces/${document.id}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold hover:text-desk">
+                  {document.libelle} <span className="font-medium text-desk">(consulter)</span>
+                </p>
+                <p className="truncate text-xs text-ink/55">Déposé par le client, à vérifier{sousTitre ? ` · ${sousTitre}` : ""}</p>
+              </a>
+              {peutJoindre ? (
+                <div className="flex items-center gap-1.5">
+                  <FormAction action={validerDepot.bind(null, document.id)} succes={`${document.libelle} : pièce validée`}>
+                    <BoutonEnvoi className="bouton py-1.5 text-xs">
+                      <Check size={14} /> Valider
+                    </BoutonEnvoi>
+                  </FormAction>
+                  <FormAction action={refuserDepot.bind(null, document.id)} succes="Dépôt refusé, le client est prévenu" confirmer={`Refuser le fichier déposé pour « ${document.libelle} » ? Le client sera invité à le déposer à nouveau.`}>
+                    <BoutonEnvoi className="bouton-second py-1.5 text-xs">
+                      <X size={14} /> Refuser
+                    </BoutonEnvoi>
+                  </FormAction>
+                </div>
+              ) : null}
+            </li>
+          );
+        }
         if (document.fichier) {
           return (
             <li key={document.id} className="group flex items-center gap-3 rounded-xl border border-ink/[0.07] bg-white px-3.5 py-3 transition hover:border-desk/30 hover:shadow-sm">

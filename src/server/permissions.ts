@@ -99,6 +99,18 @@ export function peutParametrer(role: Role) {
   return role === "CEO" || role === "ADMINISTRATEUR";
 }
 
+export function peutDevis(role: Role) {
+  return FINANCE.has(role) || PROSPECTS.has(role);
+}
+
+export function voitTraductions(role: Role) {
+  return role === "TRADUCTEUR" || role === "CEO" || role === "ADMINISTRATEUR" || role === "ASSISTANTE_ADMINISTRATIVE" || role === "RESPONSABLE_COMMERCIALE";
+}
+
+export function peutTraduire(role: Role) {
+  return role === "TRADUCTEUR" || role === "CEO" || role === "ADMINISTRATEUR";
+}
+
 export function ongletsParametres(role: Role): Lien[] {
   if (role === "PARTENAIRE") return [];
   const onglets: Lien[] = [];
@@ -106,6 +118,8 @@ export function ongletsParametres(role: Role): Lien[] {
   if (peutProcedures(role)) onglets.push({ href: "/parametres/procedures", label: "Procédures", icone: "procedures" });
   if (peutGererEquipe(role)) onglets.push({ href: "/parametres/equipe", label: "Utilisateurs", icone: "equipe" });
   if (voitDirection(role)) onglets.push({ href: "/parametres/sms", label: "SMS", icone: "sms" });
+  if (voitDirection(role)) onglets.push({ href: "/parametres/email", label: "E-mail", icone: "email" });
+  if (voitDirection(role)) onglets.push({ href: "/parametres/automatisation", label: "Automatisation", icone: "automatisation" });
   if (voitCompta(role)) onglets.push({ href: "/parametres/comptabilite", label: "Comptabilité", icone: "comptabilite" });
   return onglets;
 }
@@ -166,6 +180,7 @@ export function navigation(role: Role): SectionNavigation[] {
     { href: "/dossiers", label: "Dossiers", icone: "dossiers" },
   ];
   operations.push({ href: "/ecoles", label: "Écoles", icone: "ecoles" });
+  if (voitTraductions(role)) operations.push({ href: "/traductions", label: "Traductions", icone: "traductions" });
 
   const finance: Lien[] = [];
   if (peutEncaisser(role)) finance.push({ href: "/caisse", label: "Caisse", icone: "caisse" });
@@ -174,6 +189,7 @@ export function navigation(role: Role): SectionNavigation[] {
   if (voitCompta(role)) finance.push({ href: "/comptabilite", label: "Comptabilité", icone: "comptabilite" });
 
   const ressources: Lien[] = [];
+  ressources.push({ href: "/messages", label: "Messagerie", icone: "messages" });
   ressources.push({ href: "/conges", label: "Congés et absences", icone: "conges" });
   if (peutInventaire(role)) ressources.push({ href: "/inventaire", label: "Inventaire", icone: "inventaire" });
   ressources.push({ href: "/notifications", label: "SMS et alertes", icone: "sms" });

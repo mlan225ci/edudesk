@@ -20,6 +20,10 @@ import {
   ArrowDownCircle,
   Building2,
   Settings,
+  Mail,
+  Languages,
+  MessagesSquare,
+  AlarmClock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,6 +48,10 @@ export const ICONES: Record<string, LucideIcon> = {
   sms: MessageSquare,
   parametres: Settings,
   entreprise: Building2,
+  email: Mail,
+  traductions: Languages,
+  messages: MessagesSquare,
+  automatisation: AlarmClock,
   page: FileText,
 };
 

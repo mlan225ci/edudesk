@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, UserRound, Wallet } from "lucide-react";
+import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
 import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRole, labelRoles, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
@@ -11,8 +11,11 @@ import { Tiroir } from "@/components/tiroir";
 import { EtapeCourante } from "@/components/etape-courante";
 import { ListeDocuments, type DocumentVue } from "@/components/documents";
 import { PanneauCandidatures } from "@/components/candidatures";
+import { PanneauDevis } from "@/components/panneau-devis";
+import { PanneauTraductions } from "@/components/panneau-traductions";
 import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter } from "@/server/actions";
-import { peutCandidatures, peutCloturer, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, voitFinance } from "@/server/permissions";
+import { relancerPieces } from "@/server/communication-actions";
+import { peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 const ACTIONS = ACTIONS_AUDIT;
@@ -104,6 +107,11 @@ export default async function DossierPage({
       },
       paiements: { include: { facture: true }, orderBy: { creeLe: "desc" } },
       candidatures: { include: { ecole: true }, orderBy: { creeLe: "asc" } },
+      devis: { orderBy: { creeLe: "desc" } },
+      traductions: {
+        include: { piece: { select: { libelle: true } }, traducteur: { select: { prenom: true, nom: true } } },
+        orderBy: { creeLe: "desc" },
+      },
     },
   });
   if (!dossier) notFound();
@@ -153,6 +161,7 @@ export default async function DossierPage({
           fichier: Boolean(piece.fichierChemin),
           recueLe: piece.recueLe,
           etape: etape.titre,
+          aVerifier: !piece.recue && Boolean(piece.fichierChemin),
         })),
       ),
     ...reportees.map((piece) => ({
@@ -165,6 +174,9 @@ export default async function DossierPage({
       reportee: true,
     })),
   ];
+  const manquantes = documents.filter((document) => !document.recue && !document.fichier).length;
+  const aVerifier = documents.filter((document) => document.aVerifier).length;
+  const traducteurs = utilisateurs.filter((item) => item.role === "TRADUCTEUR");
 
   return (
     <section className="grid gap-6">
@@ -294,13 +306,46 @@ export default async function DossierPage({
           {!lectureSeule ? (
             <article className="carte" id="documents">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="flex items-center gap-2 font-semibold"><FolderOpen size={18} className="text-ink/40" /> Documents du dossier</h2>
-                <span className="text-xs text-ink/50">
-                  {documents.filter((document) => document.fichier).length} fichier(s) · {documents.filter((document) => !document.recue).length} manquant(s)
-                </span>
+                <div>
+                  <h2 className="flex items-center gap-2 font-semibold"><FolderOpen size={18} className="text-ink/40" /> Documents du dossier</h2>
+                  <p className="mt-0.5 text-xs text-ink/50">
+                    {documents.filter((document) => document.fichier).length} fichier(s) · {manquantes} manquant(s)
+                    {aVerifier ? <span className="font-semibold text-mission"> · {aVerifier} déposé(s) par le client à vérifier</span> : null}
+                  </p>
+                </div>
+                {manquantes > 0 ? (
+                  <Formulaire
+                    action={relancerPieces}
+                    submit={`Demander les ${manquantes} pièce(s) au client`}
+                    succes="Liste des pièces envoyée au client"
+                    boutonClassName="bouton-second"
+                    icone={<Send size={15} />}
+                  >
+                    <input type="hidden" name="dossierId" value={dossier.id} />
+                  </Formulaire>
+                ) : null}
               </div>
               <ListeDocuments documents={documents} vide="Aucun document attendu pour l'instant." peutJoindre />
             </article>
+          ) : null}
+
+          {!lectureSeule && (dossier.traductions.length > 0 || documents.some((document) => document.fichier)) ? (
+            <PanneauTraductions
+              traductions={dossier.traductions}
+              pieces={documents.filter((document) => document.fichier).map((document) => ({ id: document.id, libelle: document.libelle }))}
+              traducteurs={traducteurs}
+              peutDemander
+            />
+          ) : null}
+
+          {!lectureSeule && (peutDevis(user.role) || dossier.devis.length > 0) ? (
+            <PanneauDevis
+              dossierId={dossier.id}
+              devis={dossier.devis}
+              procedure={dossier.procedure}
+              emailClient={dossier.client.email}
+              peutAgir={peutDevis(user.role)}
+            />
           ) : null}
 
           <article className="carte">

@@ -4,6 +4,7 @@ import { cleMois, moisDepuisCle, nomComplet } from "@/lib/format";
 import { STATUTS, labelCategorie, labelMode, labelSource, labelTypePaiement } from "@/lib/labels";
 import { voitCompta, voitDepenses, voitFinance, voitRapports } from "@/server/permissions";
 import { getUser } from "@/server/session";
+import { lirePeriode } from "@/server/statistiques";
 
 type Ligne = (string | number | null | undefined)[];
 
@@ -21,9 +22,11 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
   const user = await getUser();
   if (!user || user.role === "PARTENAIRE") return new NextResponse("Non autorise", { status: 401 });
   const { type } = await context.params;
-  const debut = moisDepuisCle(new URL(request.url).searchParams.get("mois") ?? undefined);
-  const fin = new Date(Date.UTC(debut.getUTCFullYear(), debut.getUTCMonth() + 1, 1));
-  const periode = { gte: debut, lt: fin };
+  const parametres = new URL(request.url).searchParams;
+  const bornes = parametres.get("periode")
+    ? lirePeriode(parametres.get("periode") ?? undefined, parametres.get("cle") ?? undefined)
+    : lirePeriode("mois", cleMois(moisDepuisCle(parametres.get("mois") ?? undefined)));
+  const periode = { gte: bornes.debut, lt: bornes.fin };
   let contenu: string;
 
   if (type === "paiements") {
@@ -92,7 +95,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
   return new NextResponse(contenu, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="edudesk-${type}-${cleMois(debut)}.csv"`,
+      "Content-Disposition": `attachment; filename="edudesk-${type}-${bornes.cle}.csv"`,
     },
   });
 }

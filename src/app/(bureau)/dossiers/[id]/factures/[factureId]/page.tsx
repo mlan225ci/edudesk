@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileDown, Mail, Send } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatJour, xof } from "@/lib/format";
 import { labelMode } from "@/lib/labels";
 import { BoutonImprimer } from "@/components/bouton-imprimer";
+import { Formulaire } from "@/components/formulaire";
+import { Tiroir } from "@/components/tiroir";
+import { Champ } from "@/components/ui";
+import { envoyerFactureParMail } from "@/server/communication-actions";
 import { requireUser } from "@/server/session";
 import { lireEntreprise } from "@/server/parametres";
 import { voitFinance } from "@/server/permissions";
@@ -34,7 +38,20 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
         <Link href={`/dossiers/${id}`} className="bouton-fantome -ml-2.5">
           <ArrowLeft size={16} /> Retour au dossier
         </Link>
-        <BoutonImprimer />
+        <div className="flex flex-wrap items-center gap-2">
+          <a href={`/api/pdf/facture/${facture.id}?telecharger=1`} className="bouton-second">
+            <FileDown size={16} /> PDF
+          </a>
+          <Tiroir label="Envoyer par e-mail" variante="second" icone={<Mail size={16} />} titre={`Envoyer la facture ${facture.numero}`} description="La facture part en PDF, en pièce jointe.">
+            <Formulaire action={envoyerFactureParMail} submit="Envoyer" succes="Facture envoyée par e-mail" icone={<Send size={15} />}>
+              <input type="hidden" name="factureId" value={facture.id} />
+              <Champ label="Adresse du destinataire" aide={facture.dossier.client.email ? "Adresse de la fiche client." : "Aucune adresse sur la fiche client."}>
+                <input className="champ" type="email" name="email" defaultValue={facture.dossier.client.email ?? ""} required />
+              </Champ>
+            </Formulaire>
+          </Tiroir>
+          <BoutonImprimer />
+        </div>
       </div>
 
       <article className="carte overflow-hidden p-0 print:border-0 print:shadow-none">

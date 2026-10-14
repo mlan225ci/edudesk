@@ -1,9 +1,9 @@
-import { scannerAlertes } from "@/server/engine";
+import { executerAutomatisation } from "@/server/automatisation";
 
 export async function GET(request: Request) {
-  if (request.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
+  if (!process.env.CRON_SECRET || request.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return new Response("Non autorise", { status: 401 });
   }
-  const resultat = await scannerAlertes();
-  return Response.json(resultat);
+  const resultat = await executerAutomatisation("cron", true);
+  return Response.json(resultat ?? { alertes: 0, repris: 0, resultat: "Passage déjà effectué il y a moins de 30 secondes" });
 }

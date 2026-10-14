@@ -10,11 +10,12 @@ import type {
   TypePaiement,
 } from "@prisma/client";
 import { prisma } from "../lib/db";
-import { ajouterHeures, compterSegments, delaiCourt, nomComplet, rendreModele } from "../lib/format";
+import { ajouterHeures, compterSegments, delaiCourt, nomComplet, rendreModele, xof } from "../lib/format";
 import { compteCharge, compteTresorerie, labelMode, labelTypePaiement, typePourAcompte } from "../lib/labels";
 import { genererCodeSuivi, lienSuivi } from "../lib/suivi";
 import type { SessionUser } from "./permissions";
-import { urlPublique } from "./parametres";
+import { emailValide, expedierMail } from "./mail";
+import { lireEntreprise, urlPublique } from "./parametres";
 import { envoyerSms } from "./sms";
 
 type Tx = Prisma.TransactionClient;
@@ -66,6 +67,46 @@ async function texteModele(tx: Tx, code: string, variables: Record<string, strin
   return rendreModele(corps, variables).slice(0, 480);
 }
 
+type MailPrevu = { a?: string | null; code: string; vars: Record<string, string>; pieceJointe?: string };
+
+async function mailModele(tx: Tx, code: string, variables: Record<string, string>, dossierId?: string) {
+  const modele = await tx.modeleSms.findUnique({ where: { code } });
+  const entreprise = await lireEntreprise();
+  const vars: Record<string, string> = { entreprise: entreprise.nom, suivi: "", ...variables };
+  if (dossierId && !variables.suivi) {
+    const dossier = await tx.dossier.findUnique({ where: { id: dossierId }, select: { codeSuivi: true } });
+    if (dossier?.codeSuivi) {
+      vars.code ||= dossier.codeSuivi;
+      vars.lien ||= await lienPublic(null);
+      vars.suivi = `Suivez votre dossier à tout moment sur ${vars.lien} avec le code ${vars.code}.`;
+    }
+  }
+  return {
+    sujet: rendreModele(modele?.sujet || "Votre dossier {{reference}}", vars).slice(0, 200),
+    corps: rendreModele(modele?.corpsMail || modele?.corps || code, vars).replace(/\n{3,}/g, "\n\n").trim(),
+  };
+}
+
+export async function enfilerMail(
+  tx: Tx,
+  outbox: string[],
+  input: { a: string; type: TypeNotif; dossierId?: string; sujet: string; corps: string; pieceJointe?: string },
+) {
+  if (!emailValide(input.a)) return null;
+  const row = await tx.notificationMail.create({
+    data: {
+      destinataire: input.a.trim(),
+      type: input.type,
+      dossierId: input.dossierId,
+      sujet: input.sujet,
+      corps: input.corps,
+      pieceJointe: input.pieceJointe,
+    },
+  });
+  outbox.push(`mail:${row.id}`);
+  return row;
+}
+
 async function planifier(
   tx: Tx,
   outbox: string[],
@@ -77,8 +118,19 @@ async function planifier(
     userId?: string;
     titre?: string;
     lien?: string;
+    mail?: MailPrevu;
   },
 ) {
+  if (input.mail?.a && emailValide(input.mail.a)) {
+    const contenu = await mailModele(tx, input.mail.code, input.mail.vars, input.dossierId);
+    await enfilerMail(tx, outbox, {
+      a: input.mail.a,
+      type: input.type,
+      dossierId: input.dossierId,
+      ...contenu,
+      pieceJointe: input.mail.pieceJointe,
+    });
+  }
   if (!input.telephone) return;
   const row = await tx.notificationSms.create({
     data: {
@@ -151,6 +203,15 @@ async function lienPublic(base?: string | null) {
   return lienSuivi((await urlPublique()) ?? base);
 }
 
+async function mailOuverture(dossier: DossierPlein, code: string, base?: string | null): Promise<MailPrevu> {
+  const lien = await lienPublic(base);
+  return {
+    a: dossier.client.email,
+    code: "client_ouverture",
+    vars: { ...variablesDossier(dossier, "", ""), code, lien, suivi: "" },
+  };
+}
+
 async function ouvrirEtape(
   tx: Tx,
   outbox: string[],
@@ -207,6 +268,10 @@ async function ouvrirEtape(
 
 export async function flushSms(ids: string[]) {
   for (const id of ids) {
+    if (id.startsWith("mail:")) {
+      await expedierMail(id.slice(5));
+      continue;
+    }
     const row = await prisma.notificationSms.findUnique({ where: { id } });
     if (!row || row.statut !== "EN_ATTENTE") continue;
     try {
@@ -449,6 +514,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        mail: { a: dossier.client.email, code: "client_etape", vars: { ...vars, etape: etape.titre } },
       });
       return { ok: true as const, dossierId: dossier.id };
     }
@@ -488,6 +554,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        mail: { a: dossier.client.email, code: "client_relance", vars },
       });
       await tx.audit.create({
         data: {
@@ -528,6 +595,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: await messageOuverture(tx, dossier, codeSuivi, input.baseUrl),
+        mail: await mailOuverture(dossier, codeSuivi, input.baseUrl),
       });
       await tx.audit.create({
         data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi envoyé par SMS" },
@@ -550,6 +618,7 @@ export async function cloturerEtape(input: {
           type: "CLIENT",
           dossierId: dossier.id,
           texte: texteClient,
+          mail: { a: frais.client.email, code: codeClient, vars: varsSuite },
         });
       }
       if (frais.client.partenaire) {
@@ -559,6 +628,7 @@ export async function cloturerEtape(input: {
           type: "PARTENAIRE",
           dossierId: dossier.id,
           texte,
+          mail: { a: frais.client.partenaire.email, code: "partenaire", vars: { ...varsSuite, partenaire: frais.client.partenaire.nom, suivi: "" } },
         });
         const compte = await tx.user.findFirst({
           where: { partenaireId: frais.client.partenaire.id, actif: true },
@@ -576,6 +646,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        mail: { a: dossier.client.email, code: "client_etape", vars: { ...vars, etape: "Départ et suivi" } },
       });
     }
 
@@ -597,6 +668,7 @@ export async function envoyerCodeSuivi(input: { dossierId: string; actor: Sessio
       type: "CLIENT",
       dossierId: dossier.id,
       texte: await messageOuverture(tx, dossier, code, input.baseUrl),
+      mail: await mailOuverture(dossier, code, input.baseUrl),
     });
     await tx.audit.create({
       data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi renvoyé par SMS" },
@@ -607,22 +679,181 @@ export async function envoyerCodeSuivi(input: { dossierId: string; actor: Sessio
   return resultat;
 }
 
+export async function creerDevis(input: {
+  dossierId: string;
+  objet: string;
+  lignes: { libelle: string; quantite: number; prixUnitaire: number }[];
+  validiteJours: number | null;
+  conditions: string | null;
+  actor: SessionUser;
+}): Promise<Resultat & { devisId?: string }> {
+  const lignes = input.lignes.filter((ligne) => ligne.libelle.trim());
+  if (lignes.length === 0) return { ok: false, error: "Ajoutez au moins une prestation." };
+  if (lignes.some((ligne) => !Number.isInteger(ligne.quantite) || ligne.quantite <= 0 || !Number.isInteger(ligne.prixUnitaire) || ligne.prixUnitaire < 0)) {
+    return { ok: false, error: "Quantités et prix doivent être des nombres entiers positifs." };
+  }
+  const total = lignes.reduce((somme, ligne) => somme + ligne.quantite * ligne.prixUnitaire, 0);
+  return prisma.$transaction(async (tx) => {
+    const dossier = await tx.dossier.findUnique({ where: { id: input.dossierId }, include: { client: true } });
+    if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
+    const numero = await prochainNumero(tx, "DEV", "DEV");
+    const devis = await tx.devis.create({
+      data: {
+        numero,
+        dossierId: dossier.id,
+        clientNom: nomComplet(dossier.client),
+        objet: input.objet,
+        lignes,
+        total,
+        validiteLe: input.validiteJours ? ajouterHeures(new Date(), input.validiteJours * 24) : null,
+        conditions: input.conditions,
+        creeParId: input.actor.id,
+      },
+    });
+    await tx.audit.create({
+      data: { userId: input.actor.id, action: "DEVIS", entite: "Dossier", entiteId: dossier.id, detail: `${numero} établi · ${xof(total)}` },
+    });
+    return { ok: true as const, dossierId: dossier.id, devisId: devis.id };
+  });
+}
+
+export async function envoyerDevisClient(input: { devisId: string; email?: string | null; actor: SessionUser }): Promise<Resultat> {
+  const outbox: string[] = [];
+  const resultat = await prisma.$transaction(async (tx) => {
+    const devis = await tx.devis.findUnique({ where: { id: input.devisId } });
+    if (!devis) return { ok: false as const, error: "Devis introuvable." };
+    const dossier = await tx.dossier.findUniqueOrThrow({ where: { id: devis.dossierId }, include: dossierInclude });
+    const destinataire = input.email?.trim() || dossier.client.email;
+    if (!emailValide(destinataire)) return { ok: false as const, error: "Le client n'a pas d'adresse e-mail valide : indiquez-en une." };
+    const vars = {
+      ...variablesDossier(dossier, "", ""),
+      devis: devis.numero,
+      montant: xof(devis.total),
+      validite: devis.validiteLe ? `Ce devis est valable jusqu'au ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Africa/Abidjan" }).format(devis.validiteLe)}.\n\n` : "",
+    };
+    await planifier(tx, outbox, {
+      telephone: dossier.client.telephone,
+      type: "CLIENT",
+      dossierId: dossier.id,
+      texte: await texteModele(tx, "client_devis", { ...vars, montant: `${devis.total} XOF` }),
+      mail: { a: destinataire, code: "client_devis", vars: { ...vars, suivi: "" }, pieceJointe: `devis:${devis.id}` },
+    });
+    await tx.devis.update({ where: { id: devis.id }, data: { envoyeLe: new Date() } });
+    await tx.audit.create({
+      data: { userId: input.actor.id, action: "DEVIS", entite: "Dossier", entiteId: dossier.id, detail: `${devis.numero} envoyé à ${destinataire}` },
+    });
+    return { ok: true as const, dossierId: dossier.id };
+  });
+  if (resultat.ok) await flushSms(outbox);
+  return resultat;
+}
+
+export async function envoyerPiecesManquantes(input: { dossierId: string; actor: SessionUser; baseUrl?: string | null }): Promise<Resultat & { nombre?: number }> {
+  const outbox: string[] = [];
+  const resultat = await prisma.$transaction(async (tx) => {
+    const dossier = await tx.dossier.findUnique({ where: { id: input.dossierId }, include: dossierInclude });
+    if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
+    const manquantes = await tx.pieceDossier.findMany({
+      where: { dossierId: dossier.id, recue: false, fichierChemin: null, etape: { statut: { not: "A_VENIR" } } },
+      orderBy: [{ obligatoire: "desc" }, { ordre: "asc" }],
+    });
+    if (manquantes.length === 0) return { ok: false as const, error: "Aucune pièce manquante sur ce dossier." };
+    const lien = await lienPublic(input.baseUrl);
+    const code = dossier.codeSuivi;
+    const vars = {
+      ...variablesDossier(dossier, "", ""),
+      nombre: String(manquantes.length),
+      pieces: manquantes.map((piece) => piece.libelle).join(", "),
+      code: code ?? "",
+      lien,
+    };
+    const liste = manquantes.map((piece) => `• ${piece.libelle}${piece.obligatoire ? "" : " (facultatif)"}`).join("\n");
+    await planifier(tx, outbox, {
+      telephone: dossier.client.telephone,
+      type: "CLIENT",
+      dossierId: dossier.id,
+      texte: await texteModele(tx, "client_pieces", {
+        ...vars,
+        depot: code ? `Deposez-les sur ${lien} (code ${code}).` : "Merci de les apporter a l'agence.",
+      }),
+      mail: {
+        a: dossier.client.email,
+        code: "client_pieces",
+        vars: {
+          ...vars,
+          liste,
+          suivi: "",
+          depot: code
+            ? `Vous pouvez les déposer directement en ligne sur ${lien} avec votre code de suivi ${code}, ou les apporter à l'agence.`
+            : "Merci de les apporter à l'agence ou de les transmettre à votre conseiller.",
+        },
+      },
+    });
+    await tx.audit.create({
+      data: {
+        userId: input.actor.id,
+        action: "PIECES_RELANCE",
+        entite: "Dossier",
+        entiteId: dossier.id,
+        detail: `${manquantes.length} pièce(s) : ${vars.pieces}`.slice(0, 300),
+      },
+    });
+    return { ok: true as const, dossierId: dossier.id, nombre: manquantes.length };
+  });
+  if (resultat.ok) await flushSms(outbox);
+  return resultat;
+}
+
+export async function refuserDepotClient(input: { pieceId: string; actor: SessionUser }) {
+  const outbox: string[] = [];
+  const fait = await prisma.$transaction(async (tx) => {
+    const piece = await tx.pieceDossier.findUnique({ where: { id: input.pieceId }, include: { dossier: { include: dossierInclude } } });
+    if (!piece || piece.recue || !piece.fichierChemin) return null;
+    await tx.pieceDossier.update({ where: { id: piece.id }, data: { fichierNom: null, fichierChemin: null, deposeLe: null } });
+    await tx.audit.create({
+      data: { userId: input.actor.id, action: "PIECE_REFUSEE", entite: "Dossier", entiteId: piece.dossierId, detail: piece.libelle },
+    });
+    const dossier = piece.dossier;
+    const entreprise = await lireEntreprise();
+    await planifier(tx, outbox, {
+      telephone: dossier.client.telephone,
+      type: "CLIENT",
+      dossierId: dossier.id,
+      texte: `EDUDESK: ${dossier.client.prenom}, le document "${piece.libelle}" depose n'a pas pu etre accepte. Merci de le deposer a nouveau.`,
+    });
+    if (dossier.client.email) {
+      await enfilerMail(tx, outbox, {
+        a: dossier.client.email,
+        type: "CLIENT",
+        dossierId: dossier.id,
+        sujet: `Document à déposer à nouveau : ${piece.libelle}`,
+        corps: `Bonjour ${dossier.client.prenom},\n\nLe document « ${piece.libelle} » que vous avez déposé pour votre dossier ${dossier.reference} n'a pas pu être accepté (illisible, incomplet ou non conforme).\n\nMerci de le déposer à nouveau sur ${await lienPublic(null)} avec votre code de suivi, ou de l'apporter à l'agence.\n\nCordialement,\nL'équipe ${entreprise.nom}`,
+      });
+    }
+    return piece.fichierChemin;
+  });
+  if (fait) await flushSms(outbox);
+  return fait;
+}
+
 export async function annoncerAdmission(input: { candidatureId: string; baseUrl?: string | null }) {
   const outbox: string[] = [];
   await prisma.$transaction(async (tx) => {
     const candidature = await tx.candidature.findUnique({ where: { id: input.candidatureId }, include: { ecole: true } });
     if (!candidature) return;
     const dossier = await tx.dossier.findUniqueOrThrow({ where: { id: candidature.dossierId }, include: dossierInclude });
+    const vars = {
+      ...variablesDossier(dossier, "", ""),
+      ecole: candidature.ecole.nom,
+      formation: candidature.formation ? ` (${candidature.formation})` : "",
+      lien: await lienPublic(input.baseUrl),
+    };
     await planifier(tx, outbox, {
       telephone: dossier.client.telephone,
       type: "CLIENT",
       dossierId: dossier.id,
-      texte: await texteModele(tx, "client_admission", {
-        ...variablesDossier(dossier, "", ""),
-        ecole: candidature.ecole.nom,
-        formation: candidature.formation ? ` (${candidature.formation})` : "",
-        lien: await lienPublic(input.baseUrl),
-      }),
+      texte: await texteModele(tx, "client_admission", vars),
+      mail: { a: dossier.client.email, code: "client_admission", vars },
     });
   });
   await flushSms(outbox);
@@ -677,19 +908,21 @@ export async function reorienterDossier(input: {
   const outbox: string[] = [];
   await prisma.$transaction(async (tx) => {
     const procedure = await tx.procedure.findUniqueOrThrow({ where: { id: input.procedureId } });
-    const texte = await texteModele(tx, "client_reorientation", {
+    const vars = {
       prenom: source.client.prenom,
       destination: procedure.destination,
       client: nomComplet(source.client),
       etape: "",
       delai: "",
       reference: source.reference,
-    });
+    };
+    const texte = await texteModele(tx, "client_reorientation", vars);
     await planifier(tx, outbox, {
       telephone: source.client.telephone,
       type: "CLIENT",
       dossierId: cree.dossierId,
       texte,
+      mail: { a: source.client.email, code: "client_reorientation", vars },
     });
   });
   await flushSms(outbox);
@@ -797,7 +1030,7 @@ export async function enregistrerPaiement(input: {
       },
     });
 
-    const texte = await texteModele(tx, "paiement", {
+    const varsPaiement = {
       prenom: dossier.client.prenom,
       montant: String(input.montant),
       mode: labelMode(input.mode),
@@ -807,12 +1040,19 @@ export async function enregistrerPaiement(input: {
       etape: "",
       delai: "",
       reference: dossier.reference,
-    });
+    };
+    const texte = await texteModele(tx, "paiement", varsPaiement);
     await planifier(tx, outbox, {
       telephone: dossier.client.telephone,
       type: "CLIENT",
       dossierId: dossier.id,
       texte,
+      mail: {
+        a: dossier.client.email,
+        code: "paiement",
+        vars: { ...varsPaiement, montant: xof(input.montant) },
+        pieceJointe: `facture:${facture.id}`,
+      },
     });
     const comptables = await tx.user.findMany({ where: { role: "COMPTABLE", actif: true } });
     for (const user of comptables) {

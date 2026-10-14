@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, LogOut, Menu, Plus, Search, UserCog, X } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, MessagesSquare, Plus, Search, UserCog, X } from "lucide-react";
 import type { Lien, SectionNavigation } from "@/server/permissions";
 import { logout } from "@/server/actions";
 import { Navigation } from "@/components/navigation";
@@ -35,6 +35,7 @@ export function BarreHaute({
   parametres,
   actions,
   nonLues,
+  messagesNonLus,
   utilisateur,
   accueil,
 }: {
@@ -42,6 +43,7 @@ export function BarreHaute({
   parametres: Lien[];
   actions: Lien[];
   nonLues: number;
+  messagesNonLus: number | null;
   utilisateur: { nom: string; role: string; initiales: string };
   accueil: string;
 }) {
@@ -110,6 +112,17 @@ export function BarreHaute({
                 </div>
               ) : null}
             </div>
+          ) : null}
+
+          {messagesNonLus != null ? (
+            <Link href="/messages" className="relative grid h-10 w-10 place-items-center rounded-xl text-ink/60 transition hover:bg-ink/5 hover:text-ink" aria-label="Messagerie">
+              <MessagesSquare size={19} />
+              {messagesNonLus > 0 ? (
+                <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-desk px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                  {messagesNonLus > 9 ? "9+" : messagesNonLus}
+                </span>
+              ) : null}
+            </Link>
           ) : null}
 
           <Link href="/notifications" className="relative grid h-10 w-10 place-items-center rounded-xl text-ink/60 transition hover:bg-ink/5 hover:text-ink" aria-label="Notifications">

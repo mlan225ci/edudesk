@@ -60,3 +60,52 @@ export async function configSms(): Promise<ConfigSms> {
   if (process.env.SMS_HTTP_URL) return { url: process.env.SMS_HTTP_URL, token: process.env.SMS_HTTP_TOKEN ?? null, expediteur, source: "serveur" };
   return { url: null, token: null, expediteur, source: "aucune" };
 }
+
+export type ConfigMail = {
+  hote: string | null;
+  port: number;
+  securise: boolean;
+  utilisateur: string | null;
+  motDePasse: string | null;
+  expediteur: string | null;
+  nomExpediteur: string;
+  source: "parametres" | "serveur" | "aucune";
+};
+
+export async function configMail(): Promise<ConfigMail> {
+  const valeurs = await lire("mail");
+  const entreprise = await lireEntreprise();
+  const nomExpediteur = valeurs.get("nomExpediteur") || entreprise.nom;
+  if (valeurs.get("hote")) {
+    const port = Number(valeurs.get("port") || 587);
+    return {
+      hote: valeurs.get("hote")!,
+      port,
+      securise: valeurs.get("securise") === "1" || port === 465,
+      utilisateur: valeurs.get("utilisateur") || null,
+      motDePasse: valeurs.get("motDePasse") || null,
+      expediteur: valeurs.get("expediteur") || valeurs.get("utilisateur") || entreprise.email || null,
+      nomExpediteur,
+      source: "parametres",
+    };
+  }
+  if (process.env.SMTP_HOST) {
+    const port = Number(process.env.SMTP_PORT || 587);
+    return {
+      hote: process.env.SMTP_HOST,
+      port,
+      securise: process.env.SMTP_SECURE === "1" || port === 465,
+      utilisateur: process.env.SMTP_USER || null,
+      motDePasse: process.env.SMTP_PASSWORD || null,
+      expediteur: process.env.SMTP_FROM || process.env.SMTP_USER || entreprise.email || null,
+      nomExpediteur,
+      source: "serveur",
+    };
+  }
+  return { hote: null, port: 587, securise: false, utilisateur: null, motDePasse: null, expediteur: null, nomExpediteur, source: "aucune" };
+}
+
+export async function lireParametre(cle: string) {
+  const ligne = await prisma.parametre.findUnique({ where: { cle } });
+  return ligne?.valeur ?? null;
+}

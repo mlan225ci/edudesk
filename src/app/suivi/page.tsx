@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
-import { Award, Check, CircleDot, FileCheck2, FileClock, GraduationCap, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
+import { Award, Check, CircleDot, FileCheck2, FileClock, GraduationCap, Hourglass, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatJour, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
 import { normaliserCodeSuivi } from "@/lib/suivi";
 import type { StatutCandidature } from "@prisma/client";
 import { Badge, Progression, type Ton } from "@/components/ui";
+import { DepotClient } from "@/components/depot-client";
 import { FormulaireSuivi } from "@/components/formulaire-suivi";
 import { lireEntreprise } from "@/server/parametres";
 import { quitterSuivi } from "@/server/suivi";
@@ -31,7 +32,7 @@ async function dossierSuivi() {
           statut: true,
           debutLe: true,
           clotureLe: true,
-          pieces: { orderBy: { ordre: "asc" }, select: { id: true, libelle: true, obligatoire: true, recue: true } },
+          pieces: { orderBy: { ordre: "asc" }, select: { id: true, libelle: true, obligatoire: true, recue: true, deposeLe: true } },
         },
       },
       paiements: { orderBy: { dateEncaissement: "desc" }, select: { id: true, type: true, montant: true, dateEncaissement: true } },
@@ -102,7 +103,9 @@ export default async function SuiviPage() {
   const typeRequis = courante ? typePourAcompte(courante.acompte) : null;
   const paiementAttendu = typeRequis && !dossier.paiements.some((paiement) => paiement.type === typeRequis) ? labelTypePaiement(typeRequis) : null;
   const pieces = dossier.etapes.filter((etape) => etape.statut !== "A_VENIR").flatMap((etape) => etape.pieces);
-  const aFournir = pieces.filter((piece) => piece.obligatoire && !piece.recue);
+  const aFournir = pieces.filter((piece) => piece.obligatoire && !piece.recue && !piece.deposeLe);
+  const enVerification = pieces.filter((piece) => !piece.recue && piece.deposeLe);
+  const facultatives = pieces.filter((piece) => !piece.obligatoire && !piece.recue && !piece.deposeLe);
   const recues = pieces.filter((piece) => piece.recue);
   const convenu = dossier.montantConvenu ?? dossier.procedure.tarifXof;
   const paye = dossier.paiements.reduce((somme, paiement) => somme + paiement.montant, 0);
@@ -157,7 +160,7 @@ export default async function SuiviPage() {
               <p className="mt-3 flex items-start gap-2 rounded-xl bg-cap/[0.07] px-3.5 py-3 text-sm">
                 <FileClock size={16} className="mt-0.5 shrink-0 text-cap" />
                 <span>
-                  <span className="font-semibold">{aFournir.length} document(s) à fournir</span> pour continuer, détail plus bas.
+                  <span className="font-semibold">{aFournir.length} document(s) à fournir</span> pour continuer. Vous pouvez les déposer plus bas.
                 </span>
               </p>
             ) : null}
@@ -232,15 +235,40 @@ export default async function SuiviPage() {
 
         {pieces.length > 0 ? (
           <section className="carte animate-entree">
-            <h2 className="mb-4 font-semibold">Vos documents</h2>
+            <h2 className="font-semibold">Vos documents</h2>
+            <p className="mt-0.5 mb-4 text-xs text-ink/50">Déposez un scan lisible (PDF, JPG ou PNG, 10 Mo au plus). Votre conseiller le vérifie avant de le valider.</p>
             <ul className="grid gap-2">
-              {[...aFournir, ...recues].map((piece) => (
+              {[...aFournir, ...facultatives].map((piece) => (
+                <li key={piece.id} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-cap/25 bg-cap/[0.03] px-3.5 py-2.5 text-sm">
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <CircleDot size={17} className="shrink-0 text-cap" />
+                    <span className="min-w-0">
+                      <span className="block truncate">{piece.libelle}</span>
+                      <span className="block text-xs text-ink/45">{piece.obligatoire ? "À fournir" : "Facultatif"}</span>
+                    </span>
+                  </span>
+                  <DepotClient pieceId={piece.id} libelle={piece.libelle} />
+                </li>
+              ))}
+              {enVerification.map((piece) => (
+                <li key={piece.id} className="flex items-center justify-between gap-3 rounded-xl border border-mission/25 bg-mission/[0.05] px-3.5 py-2.5 text-sm">
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <Hourglass size={17} className="shrink-0 text-mission" />
+                    <span className="min-w-0">
+                      <span className="block truncate">{piece.libelle}</span>
+                      <span className="block text-xs text-ink/45">Déposé le {formatJour(piece.deposeLe)} · en cours de vérification</span>
+                    </span>
+                  </span>
+                  <DepotClient pieceId={piece.id} libelle={piece.libelle} remplacer />
+                </li>
+              ))}
+              {recues.map((piece) => (
                 <li key={piece.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink/[0.06] px-3.5 py-2.5 text-sm">
                   <span className="flex min-w-0 items-center gap-2.5">
-                    {piece.recue ? <FileCheck2 size={17} className="shrink-0 text-vert" /> : <CircleDot size={17} className="shrink-0 text-cap" />}
+                    <FileCheck2 size={17} className="shrink-0 text-vert" />
                     <span className="truncate">{piece.libelle}</span>
                   </span>
-                  <Badge ton={piece.recue ? "vert" : "cap"}>{piece.recue ? "Reçu" : "À fournir"}</Badge>
+                  <Badge ton="vert">Reçu</Badge>
                 </li>
               ))}
             </ul>
@@ -272,7 +300,7 @@ export default async function SuiviPage() {
         </section>
 
         <p className="pb-4 text-center text-xs text-ink/45">
-          Vous recevez un SMS à chaque avancée de votre dossier. Une question ? Contactez votre conseiller {entreprise.nom}
+          Vous recevez un SMS (et un e-mail si nous avons votre adresse) à chaque avancée de votre dossier. Une question ? Contactez votre conseiller {entreprise.nom}
           {contact.length ? ` : ${contact.join(" · ")}` : "."}
         </p>
       </div>

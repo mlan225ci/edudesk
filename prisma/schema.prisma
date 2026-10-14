@@ -145,6 +145,9 @@ model User {
   audits         Audit[]
   materiels      Materiel[]
   conges         Conge[]
+  messagesEnvoyes Message[] @relation("messagesEnvoyes")
+  messagesRecus   Message[] @relation("messagesRecus")
+  traductions     Traduction[] @relation("traductions")
 }
 
 model Partenaire {
@@ -275,6 +278,8 @@ model Dossier {
   paiements              Paiement[]
   factures               Facture[]
   candidatures           Candidature[]
+  devis                  Devis[]
+  traductions            Traduction[]
 
   @@index([statut])
 }
@@ -396,6 +401,8 @@ model PieceDossier {
   fichierNom     String?
   fichierChemin  String?
   reportee       Boolean       @default(false)
+  deposeLe       DateTime?
+  traductions    Traduction[]
 }
 
 model Paiement {
@@ -503,9 +510,99 @@ model Conge {
 }
 
 model ModeleSms {
-  code    String @id
-  libelle String
-  corps   String
+  code      String  @id
+  libelle   String
+  corps     String
+  sujet     String?
+  corpsMail String?
+}
+
+model NotificationMail {
+  id           String    @id @default(cuid())
+  destinataire String
+  type         TypeNotif
+  dossierId    String?
+  sujet        String
+  corps        String
+  pieceJointe  String?
+  statut       StatutSms @default(EN_ATTENTE)
+  erreur       String?
+  creeLe       DateTime  @default(now())
+  envoyeLe     DateTime?
+
+  @@index([creeLe])
+  @@index([dossierId])
+}
+
+enum StatutDevis {
+  EMIS
+  ACCEPTE
+  REFUSE
+}
+
+model Devis {
+  id         String      @id @default(cuid())
+  numero     String      @unique
+  dossierId  String
+  dossier    Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  clientNom  String
+  objet      String
+  lignes     Json
+  total      Int
+  validiteLe DateTime?
+  conditions String?
+  statut     StatutDevis @default(EMIS)
+  envoyeLe   DateTime?
+  decideLe   DateTime?
+  creeParId  String
+  creeLe     DateTime    @default(now())
+
+  @@index([dossierId])
+}
+
+enum StatutTraduction {
+  A_FAIRE
+  EN_COURS
+  TERMINEE
+}
+
+model Traduction {
+  id             String           @id @default(cuid())
+  dossierId      String
+  dossier        Dossier          @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  pieceId        String
+  piece          PieceDossier     @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  langueSource   String
+  langueCible    String
+  certifiee      Boolean          @default(true)
+  statut         StatutTraduction @default(A_FAIRE)
+  traducteurId   String?
+  traducteur     User?            @relation("traductions", fields: [traducteurId], references: [id])
+  echeanceLe     DateTime?
+  fichierNom     String?
+  fichierChemin  String?
+  observation    String?
+  demandeParId   String
+  creeLe         DateTime         @default(now())
+  termineLe      DateTime?
+
+  @@index([statut])
+  @@index([traducteurId, statut])
+  @@index([pieceId])
+}
+
+model Message {
+  id     String   @id @default(cuid())
+  deId   String
+  de     User     @relation("messagesEnvoyes", fields: [deId], references: [id])
+  aId    String
+  a      User     @relation("messagesRecus", fields: [aId], references: [id])
+  texte  String
+  lu     Boolean  @default(false)
+  creeLe DateTime @default(now())
+
+  @@index([aId, lu])
+  @@index([deId, aId, creeLe])
 }
 
 model NotificationSms {

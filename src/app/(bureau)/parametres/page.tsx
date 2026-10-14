@@ -5,7 +5,8 @@ import { formatDate, nomComplet } from "@/lib/format";
 import { ACTIONS_AUDIT, COMPTES } from "@/lib/labels";
 import { Icone } from "@/components/icones";
 import { Badge, EnTete, type Ton } from "@/components/ui";
-import { CHAMPS_ENTREPRISE, configSms, lireEntreprise, urlPublique } from "@/server/parametres";
+import { CHAMPS_ENTREPRISE, configMail, configSms, lireEntreprise, urlPublique } from "@/server/parametres";
+import { configAutomatisation } from "@/server/automatisation";
 import { ongletsParametres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -16,10 +17,12 @@ type Carte = { href: string; icone: string; titre: string; texte: string; etat: 
 export default async function ParametresPage() {
   const user = await requireUser();
   const onglets = new Set(ongletsParametres(user.role).map((onglet) => onglet.href));
-  const [entreprise, url, sms, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
+  const [entreprise, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
     lireEntreprise(),
     urlPublique(),
     configSms(),
+    configMail(),
+    configAutomatisation(),
     prisma.procedure.groupBy({ by: ["actif"], _count: true }),
     prisma.user.count({ where: { actif: true } }),
     prisma.modeleSms.count(),
@@ -67,6 +70,22 @@ export default async function ParametresPage() {
       texte: "Opérateur d'envoi, nom d'expéditeur, modèles de messages et envoi de test.",
       etat: sms.url ? `Opérateur branché · ${modeles} modèles` : `Aucun opérateur : SMS journalisés · ${modeles} modèles`,
       ton: sms.url ? "vert" : "cap",
+    },
+    {
+      href: "/parametres/email",
+      icone: "email",
+      titre: "E-mail",
+      texte: "Serveur d'envoi, e-mails aux clients et partenaires, factures et devis en pièce jointe.",
+      etat: mail.hote ? `Serveur branché · ${mail.expediteur}` : "Aucun serveur : e-mails journalisés",
+      ton: mail.hote ? "vert" : "cap",
+    },
+    {
+      href: "/parametres/automatisation",
+      icone: "automatisation",
+      titre: "Automatisation",
+      texte: "Vérification automatique des échéances : alertes la veille et en cas de retard, renvoi des messages en attente.",
+      etat: automatisation.actif ? `Toutes les ${automatisation.minutes} min${automatisation.derniere ? ` · dernier passage ${formatDate(automatisation.derniere)}` : ""}` : "Suspendue",
+      ton: automatisation.actif ? "vert" : "cap",
     },
     {
       href: "/parametres/comptabilite",

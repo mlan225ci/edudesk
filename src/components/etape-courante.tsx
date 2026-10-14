@@ -122,7 +122,11 @@ export function EtapeCourante({
   };
 
   const retirer = (piece: PieceVue) => {
-    if (!window.confirm(`Marquer « ${piece.libelle} » comme manquante ?`)) return;
+    const depotClient = !recues[piece.id] && piece.fichier;
+    const question = depotClient
+      ? `Refuser le fichier déposé pour « ${piece.libelle} » ? Le client sera invité à le déposer à nouveau.`
+      : `Marquer « ${piece.libelle} » comme manquante ?`;
+    if (!window.confirm(question)) return;
     setRecues((etat) => ({ ...etat, [piece.id]: false }));
     occupe(piece.id, true);
     const data = new FormData();
@@ -311,6 +315,32 @@ function LignePiece({
   onRetirer: () => void;
 }) {
   const champ = useRef<HTMLInputElement>(null);
+  if (!recue && piece.fichier) {
+    return (
+      <li className="flex flex-wrap items-center gap-3 rounded-xl border border-mission/30 bg-mission/[0.05] px-4 py-3 text-sm">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-mission/15 text-mission">
+          {occupe ? <Loader2 size={17} className="animate-spin" /> : <FileText size={17} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{piece.libelle}</p>
+          <p className="text-xs text-ink/55">Déposée par le client · à vérifier</p>
+        </div>
+        <a href={`/api/pieces/${piece.id}`} target="_blank" rel="noreferrer" className="bouton-fantome text-desk">
+          <Eye size={15} /> Consulter
+        </a>
+        {peutAgir ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button type="button" className="bouton py-2" disabled={occupe} onClick={onSansFichier}>
+              <Check size={14} /> Valider
+            </button>
+            <button type="button" className="bouton-second py-2" disabled={occupe} onClick={onRetirer}>
+              <RotateCcw size={14} /> Refuser
+            </button>
+          </div>
+        ) : null}
+      </li>
+    );
+  }
   return (
     <li
       className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors duration-200 ${

@@ -1,6 +1,6 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -35,6 +35,7 @@ import {
   enregistrerPaiement,
   envoyerCodeSuivi,
   flushSms,
+  refuserDepotClient,
   reorienterDossier,
   scannerAlertes,
 } from "@/server/engine";
@@ -378,6 +379,12 @@ export async function retirerPiece(formData: FormData) {
   if (user.role === "PARTENAIRE") return;
   const piece = await prisma.pieceDossier.findUnique({ where: { id: String(formData.get("pieceId") ?? "") } });
   if (!piece) return;
+  if (!piece.recue && piece.fichierChemin) {
+    const chemin = await refuserDepotClient({ pieceId: piece.id, actor: user });
+    if (chemin) await unlink(path.join(process.cwd(), "storage", "pieces", path.basename(chemin))).catch(() => undefined);
+    rafraichir();
+    return;
+  }
   await prisma.pieceDossier.update({
     where: { id: piece.id },
     data: { recue: false, recueLe: null, recueParId: null },
