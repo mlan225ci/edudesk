@@ -4,14 +4,15 @@ import type { Prisma } from "@prisma/client";
 import { AlarmClock, FilePlus2, FileSignature, FileSpreadsheet, Hourglass, ReceiptText, Search, SearchX, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { ETATS_DEVIS, ETATS_FACTURE, etatDevis, etatFacture } from "@/lib/facturation";
-import { formatJour, nomComplet, xof } from "@/lib/format";
+import { formatJour, xof } from "@/lib/format";
+import { EnteteDocument } from "@/components/choix-dossier";
 import { Filtres } from "@/components/filtres";
 import { Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
-import { LignesDevis } from "@/components/lignes-devis";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
 import { nouveauDevis } from "@/server/devis-actions";
+import { CHAMPS_DOSSIER_FACTURABLE, versDossierFacturable } from "@/server/dossiers-facturables";
 import { nouvelleFacture } from "@/server/facturation-actions";
 import { lireDocuments } from "@/server/parametres";
 import { peutDevis, peutFacturer, voitFinance } from "@/server/permissions";
@@ -41,13 +42,9 @@ export default async function FacturationPage({
   const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
 
   const selectionDossier = { reference: true, client: { select: { prenom: true, nom: true } }, procedure: { select: { nom: true } } } satisfies Prisma.DossierSelect;
-  const [reglages, dossiers, devis, factures] = await Promise.all([
+  const [reglages, dossierChoisi, devis, factures] = await Promise.all([
     lireDocuments(),
-    prisma.dossier.findMany({
-      select: { id: true, reference: true, client: { select: { prenom: true, nom: true } }, procedure: { select: { nom: true, tarifXof: true } } },
-      orderBy: { ouvertLe: "desc" },
-      take: 500,
-    }),
+    filtres.dossier ? prisma.dossier.findUnique({ where: { id: filtres.dossier }, select: CHAMPS_DOSSIER_FACTURABLE }) : null,
     prisma.devis.findMany({
       include: { dossier: { select: selectionDossier }, facture: { select: { id: true, numero: true } } },
       orderBy: { creeLe: "desc" },
@@ -87,20 +84,7 @@ export default async function FacturationPage({
       correspond(filtres.q, item.numero, item.clientNom, item.libelle, item.dossier.reference, item.devis?.numero),
   );
 
-  const dossierChoisi = dossiers.find((dossier) => dossier.id === filtres.dossier);
-  const choixDossier = (
-    <Champ label="Dossier">
-      <select className="champ" name="dossierId" required defaultValue={dossierChoisi?.id ?? ""}>
-        <option value="" disabled>Choisir le client…</option>
-        {dossiers.map((dossier) => (
-          <option key={dossier.id} value={dossier.id}>
-            {nomComplet(dossier.client)} · {dossier.reference} · {dossier.procedure.nom}
-          </option>
-        ))}
-      </select>
-    </Champ>
-  );
-  const ligneInitiale = dossierChoisi ? [{ libelle: `Frais de service – ${dossierChoisi.procedure.nom}`, quantite: 1, prix: dossierChoisi.procedure.tarifXof }] : [];
+  const dossierInitial = dossierChoisi ? versDossierFacturable(dossierChoisi) : null;
 
   const actions = (
     <>
@@ -113,11 +97,7 @@ export default async function FacturationPage({
         ouvertParDefaut={filtres.nouveau === "devis"}
       >
         <Formulaire action={nouveauDevis} submit="Établir le devis" succes="Devis établi" className="grid gap-4">
-          {choixDossier}
-          <Champ label="Objet">
-            <input className="champ" name="objet" placeholder="Accompagnement admission Canada…" defaultValue={dossierChoisi ? `Accompagnement ${dossierChoisi.procedure.nom}` : ""} required />
-          </Champ>
-          <LignesDevis initiales={ligneInitiale} />
+          <EnteteDocument initial={dossierInitial} placeholderObjet="Accompagnement admission Canada…" />
           <Champ label="Validité (jours)">
             <input className="champ" name="validite" inputMode="numeric" defaultValue={reglages.validiteDevis} />
           </Champ>
@@ -140,11 +120,7 @@ export default async function FacturationPage({
           ouvertParDefaut={filtres.nouveau === "facture"}
         >
           <Formulaire action={nouvelleFacture} submit="Émettre la facture" succes="Facture émise" className="grid gap-4">
-            {choixDossier}
-            <Champ label="Objet">
-              <input className="champ" name="objet" placeholder="Frais de procédure…" defaultValue={dossierChoisi ? `Accompagnement ${dossierChoisi.procedure.nom}` : ""} required />
-            </Champ>
-            <LignesDevis initiales={ligneInitiale} />
+            <EnteteDocument initial={dossierInitial} placeholderObjet="Frais de procédure…" />
             <Champ label="Échéance (jours)" aide="Laissez vide pour une facture payable à réception.">
               <input className="champ" name="echeance" inputMode="numeric" defaultValue={reglages.echeanceFacture || ""} />
             </Champ>

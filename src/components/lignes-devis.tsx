@@ -10,15 +10,26 @@ function nombre(valeur: string) {
   return Number(valeur.replace(/[\s\u00a0\u202f]/g, "")) || 0;
 }
 
-export function LignesDevis({ initiales }: { initiales: { libelle: string; quantite: number; prix: number }[] }) {
-  const [lignes, setLignes] = useState<Ligne[]>(() =>
-    (initiales.length ? initiales : [{ libelle: "", quantite: 1, prix: 0 }]).map((ligne, index) => ({
-      cle: index,
-      libelle: ligne.libelle,
-      quantite: String(ligne.quantite),
-      prix: ligne.prix ? String(ligne.prix) : "",
-    })),
-  );
+type LigneProposee = { libelle: string; quantite: number; prix: number };
+
+function versLignes(lignes: LigneProposee[]): Ligne[] {
+  return (lignes.length ? lignes : [{ libelle: "", quantite: 1, prix: 0 }]).map((ligne, index) => ({
+    cle: index,
+    libelle: ligne.libelle,
+    quantite: String(ligne.quantite),
+    prix: ligne.prix ? String(ligne.prix) : "",
+  }));
+}
+
+export function LignesDevis({ initiales, proposition }: { initiales: LigneProposee[]; proposition?: LigneProposee | null }) {
+  const [lignes, setLignes] = useState<Ligne[]>(() => versLignes(initiales));
+  const [proposee, setProposee] = useState(proposition);
+  if (proposition !== proposee) {
+    setProposee(proposition);
+    const vierges = lignes.every((ligne) => !ligne.libelle.trim() && !nombre(ligne.prix));
+    const automatiques = proposee && lignes.length === 1 && lignes[0].libelle === proposee.libelle && nombre(lignes[0].prix) === proposee.prix;
+    if (proposition && (vierges || automatiques)) setLignes(versLignes([proposition]));
+  }
   const modifier = (cle: number, champ: keyof Omit<Ligne, "cle">, valeur: string) =>
     setLignes((avant) => avant.map((ligne) => (ligne.cle === cle ? { ...ligne, [champ]: valeur } : ligne)));
   const total = lignes.reduce((somme, ligne) => somme + nombre(ligne.quantite) * nombre(ligne.prix), 0);
