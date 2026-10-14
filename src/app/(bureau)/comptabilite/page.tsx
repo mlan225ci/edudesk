@@ -20,15 +20,15 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
   if (!voitCompta(user.role)) redirect("/missions");
   const { periode = "jour" } = await searchParams;
   const depuis = periode === "mois" ? debutMois(0) : debutJourAbidjan();
-  const [ecritures, factures, aRapprocher, tresorerie] = await Promise.all([
+  const [ecritures, reglements, aRapprocher, tresorerie] = await Promise.all([
     prisma.ecriture.findMany({ where: { date: { gte: depuis } }, orderBy: [{ date: "desc" }, { id: "asc" }], take: 300 }),
-    prisma.facture.aggregate({ where: { creeLe: { gte: depuis } }, _sum: { montant: true } }),
+    prisma.paiement.aggregate({ where: { dateEncaissement: { gte: depuis } }, _sum: { montant: true } }),
     prisma.paiement.findMany({ where: { statut: "ENCAISSE" }, orderBy: { creeLe: "desc" }, take: 30, include: { client: true } }),
     prisma.ecriture.groupBy({ by: ["compte"], where: { compte: { in: ["571", "521", "558"] } }, _sum: { debit: true, credit: true } }),
   ]);
   const produit = ecritures.filter((ecriture) => ecriture.compte === "706").reduce((somme, ecriture) => somme + ecriture.credit, 0);
-  const totalFactures = factures._sum.montant ?? 0;
-  const equilibre = produit === totalFactures;
+  const totalReglements = reglements._sum.montant ?? 0;
+  const equilibre = produit === totalReglements;
   const totalDebit = ecritures.reduce((somme, ecriture) => somme + ecriture.debit, 0);
   const totalCredit = ecritures.reduce((somme, ecriture) => somme + ecriture.credit, 0);
   const soldes = (["571", "521", "558"] as const).map((compte) => {
@@ -60,7 +60,7 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
         {equilibre ? <CheckCircle2 className="text-vert" size={20} /> : <TriangleAlert className="text-cap" size={20} />}
         <p>
           <span className="font-semibold">{equilibre ? "Contrôle équilibré" : "Écart détecté"}</span>
-          <span className="text-ink/60"> · factures émises {xof(totalFactures)} · produits (706) {xof(produit)} · débit {xof(totalDebit)} / crédit {xof(totalCredit)}</span>
+          <span className="text-ink/60"> · règlements encaissés {xof(totalReglements)} · produits (706) {xof(produit)} · débit {xof(totalDebit)} / crédit {xof(totalCredit)}</span>
         </p>
       </div>
 

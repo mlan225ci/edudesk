@@ -423,23 +423,37 @@ model Paiement {
   saisiParId        String
   statut            StatutPaiement @default(ENCAISSE)
   creeLe            DateTime       @default(now())
-  facture           Facture?
+  facture           Facture?       @relation("recu")
+  factureRegleeId   String?
+  factureReglee     Facture?       @relation("reglements", fields: [factureRegleeId], references: [id])
   ecritures         Ecriture[]
 
   @@index([dateEncaissement])
 }
 
 model Facture {
-  id         String   @id @default(cuid())
-  numero     String   @unique
-  dossierId  String
-  dossier    Dossier  @relation(fields: [dossierId], references: [id])
-  paiementId String   @unique
-  paiement   Paiement @relation(fields: [paiementId], references: [id])
-  clientNom  String
-  libelle    String
-  montant    Int
-  creeLe     DateTime @default(now())
+  id              String     @id @default(cuid())
+  numero          String     @unique
+  dossierId       String
+  dossier         Dossier    @relation(fields: [dossierId], references: [id])
+  paiementId      String?    @unique
+  paiement        Paiement?  @relation("recu", fields: [paiementId], references: [id])
+  devisId         String?    @unique
+  devis           Devis?     @relation(fields: [devisId], references: [id])
+  clientNom       String
+  libelle         String
+  lignes          Json?
+  montant         Int
+  echeanceLe      DateTime?
+  conditions      String?
+  annuleeLe       DateTime?
+  motifAnnulation String?
+  envoyeeLe       DateTime?
+  creeParId       String?
+  reglements      Paiement[] @relation("reglements")
+  creeLe          DateTime   @default(now())
+
+  @@index([creeLe])
 }
 
 model Ecriture {
@@ -557,6 +571,7 @@ model Devis {
   decideLe   DateTime?
   creeParId  String
   creeLe     DateTime    @default(now())
+  facture    Facture?
 
   @@index([dossierId])
 }

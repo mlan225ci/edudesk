@@ -103,6 +103,14 @@ export function peutDevis(role: Role) {
   return FINANCE.has(role) || PROSPECTS.has(role);
 }
 
+export function peutFacturer(role: Role) {
+  return FINANCE.has(role);
+}
+
+export function peutAnnulerFacture(role: Role) {
+  return role === "CEO" || role === "ADMINISTRATEUR" || role === "COMPTABLE";
+}
+
 export function voitTraductions(role: Role) {
   return role === "TRADUCTEUR" || role === "CEO" || role === "ADMINISTRATEUR" || role === "ASSISTANTE_ADMINISTRATIVE" || role === "RESPONSABLE_COMMERCIALE";
 }
@@ -183,6 +191,7 @@ export function navigation(role: Role): SectionNavigation[] {
   if (voitTraductions(role)) operations.push({ href: "/traductions", label: "Traductions", icone: "traductions" });
 
   const finance: Lien[] = [];
+  if (peutDevis(role)) finance.push({ href: "/facturation", label: "Devis et factures", icone: "facturation" });
   if (peutEncaisser(role)) finance.push({ href: "/caisse", label: "Caisse", icone: "caisse" });
   if (voitFinance(role)) finance.push({ href: "/creances", label: "Créances", icone: "creances" });
   if (voitDepenses(role)) finance.push({ href: "/depenses", label: "Dépenses", icone: "depenses" });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { etatFacture } from "@/lib/facturation";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
 import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRole, labelRoles, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
 import { FriseEtapes } from "@/components/frise";
@@ -105,9 +106,10 @@ export default async function DossierPage({
           issues: { orderBy: { ordre: "asc" } },
         },
       },
-      paiements: { include: { facture: true }, orderBy: { creeLe: "desc" } },
+      paiements: { include: { facture: { select: { id: true } }, factureReglee: { select: { id: true } } }, orderBy: { creeLe: "desc" } },
       candidatures: { include: { ecole: true }, orderBy: { creeLe: "asc" } },
-      devis: { orderBy: { creeLe: "desc" } },
+      devis: { include: { facture: { select: { numero: true } } }, orderBy: { creeLe: "desc" } },
+      factures: { where: { paiementId: null }, include: { reglements: { select: { montant: true } } }, orderBy: { creeLe: "desc" } },
       traductions: {
         include: { piece: { select: { libelle: true } }, traducteur: { select: { prenom: true, nom: true } } },
         orderBy: { creeLe: "desc" },
@@ -476,6 +478,25 @@ export default async function DossierPage({
                   </Tiroir>
                 ) : null}
               </div>
+              {dossier.factures.length ? (
+                <ul className="mt-4 grid gap-2 text-sm">
+                  {dossier.factures.map((facture) => {
+                    const regle = facture.reglements.reduce((somme, reglement) => somme + reglement.montant, 0);
+                    const etat = etatFacture({ montant: facture.montant, regle, annuleeLe: facture.annuleeLe, echeanceLe: facture.echeanceLe });
+                    return (
+                      <li key={facture.id}>
+                        <Link href={`/facturation/factures/${facture.id}`} className="flex items-center justify-between gap-2 rounded-xl bg-paper px-3 py-2.5 hover:bg-desk/[0.06]">
+                          <span className="min-w-0">
+                            <span className="block font-semibold">{facture.numero}</span>
+                            <span className="block truncate text-xs text-ink/50">{xof(facture.montant)}{regle && !facture.annuleeLe ? ` · réglé ${xof(regle)}` : ""}</span>
+                          </span>
+                          <Badge ton={etat.ton}>{etat.label}</Badge>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
               <ul className="mt-4 grid gap-2 text-sm">
                 {dossier.paiements.map((paiement) => (
                   <li key={paiement.id} className="flex items-center justify-between gap-2 rounded-xl border border-ink/[0.06] px-3 py-2.5">
@@ -483,8 +504,8 @@ export default async function DossierPage({
                       <p className="font-semibold tabular-nums">{xof(paiement.montant)}</p>
                       <p className="truncate text-xs text-ink/50">{labelTypePaiement(paiement.type)} · {labelMode(paiement.mode)} · {formatJour(paiement.dateEncaissement)}</p>
                     </div>
-                    {paiement.facture ? (
-                      <Link className="bouton-fantome shrink-0 text-desk" href={`/dossiers/${dossier.id}/factures/${paiement.facture.id}`} title="Voir la facture">
+                    {paiement.facture || paiement.factureReglee ? (
+                      <Link className="bouton-fantome shrink-0 text-desk" href={`/facturation/factures/${(paiement.facture ?? paiement.factureReglee)!.id}`} title="Voir la facture">
                         <Receipt size={15} />
                       </Link>
                     ) : null}

@@ -42,7 +42,10 @@ export default async function EntreprisePage() {
             <Champ label="RCCM"><input className="champ" name="rccm" defaultValue={entreprise.rccm} placeholder="CI-ABJ-…" /></Champ>
             <Champ label="Compte contribuable (NCC)"><input className="champ" name="ncc" defaultValue={entreprise.ncc} /></Champ>
           </div>
-          <Champ label="Mention en bas de facture" aide="Conditions, coordonnées bancaires, remerciements…">
+          <Champ label="Modalités de paiement" aide="Imprimées sur les devis et les factures : moyens acceptés, numéros Mobile Money, RIB…">
+            <textarea className="champ" name="modalitesPaiement" rows={3} defaultValue={entreprise.modalitesPaiement} />
+          </Champ>
+          <Champ label="Mention en bas de facture" aide="Remerciements, mentions particulières…">
             <textarea className="champ" name="mentionFacture" rows={2} defaultValue={entreprise.mentionFacture} />
           </Champ>
         </Formulaire>

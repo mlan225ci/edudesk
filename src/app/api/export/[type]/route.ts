@@ -33,13 +33,13 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
     if (!voitFinance(user.role)) return new NextResponse("Non autorise", { status: 403 });
     const paiements = await prisma.paiement.findMany({
       where: { dateEncaissement: periode },
-      include: { client: true, dossier: true, facture: true },
+      include: { client: true, dossier: true, facture: true, factureReglee: true },
       orderBy: { dateEncaissement: "asc" },
     });
     contenu = csv(
       ["Date", "Numéro", "Facture", "Client", "Dossier", "Type", "Moyen", "Précision", "Référence", "Montant XOF"],
       paiements.map((p) => [
-        jour(p.dateEncaissement), p.numero, p.facture?.numero, nomComplet(p.client), p.dossier.reference,
+        jour(p.dateEncaissement), p.numero, (p.facture ?? p.factureReglee)?.numero, nomComplet(p.client), p.dossier.reference,
         labelTypePaiement(p.type), labelMode(p.mode), p.precision, p.referenceExterne, p.montant,
       ]),
     );

@@ -10,6 +10,7 @@ import type {
   TypePaiement,
 } from "@prisma/client";
 import { prisma } from "../lib/db";
+import { lireLignes, type LigneDocument } from "../lib/facturation";
 import { ajouterHeures, compterSegments, delaiCourt, nomComplet, rendreModele, xof } from "../lib/format";
 import { compteCharge, compteTresorerie, labelMode, labelTypePaiement, typePourAcompte } from "../lib/labels";
 import { genererCodeSuivi, lienSuivi } from "../lib/suivi";
@@ -748,6 +749,110 @@ export async function envoyerDevisClient(input: { devisId: string; email?: strin
   return resultat;
 }
 
+function verifierLignes(saisies: LigneDocument[]) {
+  const lignes = saisies.map((ligne) => ({ ...ligne, libelle: ligne.libelle.trim() })).filter((ligne) => ligne.libelle);
+  if (lignes.length === 0) return { ok: false as const, error: "Ajoutez au moins une prestation." };
+  if (lignes.some((ligne) => !Number.isInteger(ligne.quantite) || ligne.quantite <= 0 || !Number.isInteger(ligne.prixUnitaire) || ligne.prixUnitaire < 0)) {
+    return { ok: false as const, error: "Quantités et prix doivent être des nombres entiers positifs." };
+  }
+  const total = lignes.reduce((somme, ligne) => somme + ligne.quantite * ligne.prixUnitaire, 0);
+  if (total <= 0) return { ok: false as const, error: "Le total de la facture doit être supérieur à zéro." };
+  return { ok: true as const, lignes, total };
+}
+
+function echeance(jours: number | null) {
+  return jours ? ajouterHeures(new Date(), jours * 24) : null;
+}
+
+export async function creerFacture(input: {
+  dossierId: string;
+  objet: string;
+  lignes: LigneDocument[];
+  echeanceJours: number | null;
+  conditions: string | null;
+  actor: SessionUser;
+}): Promise<Resultat & { factureId?: string }> {
+  const verification = verifierLignes(input.lignes);
+  if (!verification.ok) return verification;
+  return prisma.$transaction(async (tx) => {
+    const dossier = await tx.dossier.findUnique({ where: { id: input.dossierId }, include: { client: true } });
+    if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
+    const numero = await prochainNumero(tx, "FAC", "FAC");
+    const facture = await tx.facture.create({
+      data: {
+        numero,
+        dossierId: dossier.id,
+        clientNom: nomComplet(dossier.client),
+        libelle: input.objet,
+        lignes: verification.lignes,
+        montant: verification.total,
+        echeanceLe: echeance(input.echeanceJours),
+        conditions: input.conditions,
+        creeParId: input.actor.id,
+      },
+    });
+    await tx.audit.create({
+      data: { userId: input.actor.id, action: "FACTURE", entite: "Dossier", entiteId: dossier.id, detail: `${numero} émise · ${xof(verification.total)}` },
+    });
+    return { ok: true as const, dossierId: dossier.id, factureId: facture.id };
+  });
+}
+
+export async function facturerDevis(input: { devisId: string; echeanceJours: number | null; actor: SessionUser }): Promise<Resultat & { factureId?: string; numero?: string }> {
+  return prisma.$transaction(async (tx) => {
+    const devis = await tx.devis.findUnique({ where: { id: input.devisId }, include: { facture: { select: { numero: true } } } });
+    if (!devis) return { ok: false as const, error: "Devis introuvable." };
+    if (devis.facture) return { ok: false as const, error: `Ce devis a déjà été transformé en facture (${devis.facture.numero}).` };
+    if (devis.statut === "REFUSE") return { ok: false as const, error: "Un devis refusé ne peut pas être facturé." };
+    const verification = verifierLignes(lireLignes(devis.lignes));
+    if (!verification.ok) return verification;
+    const numero = await prochainNumero(tx, "FAC", "FAC");
+    const facture = await tx.facture.create({
+      data: {
+        numero,
+        dossierId: devis.dossierId,
+        devisId: devis.id,
+        clientNom: devis.clientNom,
+        libelle: devis.objet,
+        lignes: verification.lignes,
+        montant: verification.total,
+        echeanceLe: echeance(input.echeanceJours),
+        conditions: devis.conditions,
+        creeParId: input.actor.id,
+      },
+    });
+    if (devis.statut === "EMIS") {
+      await tx.devis.update({ where: { id: devis.id }, data: { statut: "ACCEPTE", decideLe: new Date() } });
+      await tx.dossier.update({ where: { id: devis.dossierId }, data: { montantConvenu: devis.total } });
+    }
+    await tx.audit.create({
+      data: {
+        userId: input.actor.id,
+        action: "FACTURE",
+        entite: "Dossier",
+        entiteId: devis.dossierId,
+        detail: `${devis.numero} transformé en facture ${numero} · ${xof(verification.total)}`,
+      },
+    });
+    return { ok: true as const, dossierId: devis.dossierId, factureId: facture.id, numero };
+  });
+}
+
+export async function annulerFacture(input: { factureId: string; motif: string; actor: SessionUser }): Promise<Resultat> {
+  return prisma.$transaction(async (tx) => {
+    const facture = await tx.facture.findUnique({ where: { id: input.factureId }, include: { _count: { select: { reglements: true } } } });
+    if (!facture) return { ok: false as const, error: "Facture introuvable." };
+    if (facture.paiementId) return { ok: false as const, error: "Une facture acquittée à l'encaissement ne peut pas être annulée." };
+    if (facture.annuleeLe) return { ok: false as const, error: "Cette facture est déjà annulée." };
+    if (facture._count.reglements > 0) return { ok: false as const, error: "Des règlements sont déjà enregistrés sur cette facture : elle ne peut plus être annulée." };
+    await tx.facture.update({ where: { id: facture.id }, data: { annuleeLe: new Date(), motifAnnulation: input.motif || null } });
+    await tx.audit.create({
+      data: { userId: input.actor.id, action: "FACTURE", entite: "Dossier", entiteId: facture.dossierId, detail: `${facture.numero} annulée${input.motif ? ` · ${input.motif}` : ""}` },
+    });
+    return { ok: true as const, dossierId: facture.dossierId };
+  });
+}
+
 export async function envoyerPiecesManquantes(input: { dossierId: string; actor: SessionUser; baseUrl?: string | null }): Promise<Resultat & { nombre?: number }> {
   const outbox: string[] = [];
   const resultat = await prisma.$transaction(async (tx) => {
@@ -937,6 +1042,7 @@ export async function enregistrerPaiement(input: {
   precision?: string;
   referenceExterne?: string;
   dateEncaissement: Date;
+  factureId?: string | null;
   actor: SessionUser;
 }): Promise<Resultat> {
   if (!Number.isInteger(input.montant) || input.montant <= 0) {
@@ -951,10 +1057,21 @@ export async function enregistrerPaiement(input: {
     });
     if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
 
+    const factureReglee = input.factureId
+      ? await tx.facture.findUnique({ where: { id: input.factureId }, include: { reglements: { select: { montant: true } } } })
+      : null;
+    if (input.factureId) {
+      if (!factureReglee || factureReglee.dossierId !== dossier.id || factureReglee.paiementId) return { ok: false as const, error: "Facture introuvable pour ce dossier." };
+      if (factureReglee.annuleeLe) return { ok: false as const, error: "Cette facture est annulée." };
+      const reste = factureReglee.montant - factureReglee.reglements.reduce((somme, reglement) => somme + reglement.montant, 0);
+      if (reste <= 0) return { ok: false as const, error: "Cette facture est déjà entièrement réglée." };
+      if (input.montant > reste) return { ok: false as const, error: `Le montant dépasse le reste à payer de la facture (${xof(reste)}).` };
+    }
+
     const numero = await prochainNumero(tx, "PAY", "PAY");
-    const factureNumero = await prochainNumero(tx, "FAC", "FAC");
+    const factureNumero = factureReglee ? factureReglee.numero : await prochainNumero(tx, "FAC", "FAC");
     const compte = compteTresorerie(input.mode);
-    const libelle = `${labelTypePaiement(input.type)} ${dossier.reference}`;
+    const libelle = factureReglee ? `Règlement ${factureReglee.numero} ${dossier.reference}` : `${labelTypePaiement(input.type)} ${dossier.reference}`;
 
     const paiement = await tx.paiement.create({
       data: {
@@ -968,18 +1085,21 @@ export async function enregistrerPaiement(input: {
         referenceExterne: input.referenceExterne || null,
         dateEncaissement: input.dateEncaissement,
         saisiParId: input.actor.id,
+        factureRegleeId: factureReglee?.id ?? null,
       },
     });
-    const facture = await tx.facture.create({
-      data: {
-        numero: factureNumero,
-        dossierId: dossier.id,
-        paiementId: paiement.id,
-        clientNom: nomComplet(dossier.client),
-        libelle,
-        montant: input.montant,
-      },
-    });
+    const facture =
+      factureReglee ??
+      (await tx.facture.create({
+        data: {
+          numero: factureNumero,
+          dossierId: dossier.id,
+          paiementId: paiement.id,
+          clientNom: nomComplet(dossier.client),
+          libelle,
+          montant: input.montant,
+        },
+      }));
     await tx.ecriture.createMany({
       data: [
         {

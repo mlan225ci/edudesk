@@ -1,9 +1,6 @@
-import { readFile } from "node:fs/promises";
+﻿import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
-import { prisma } from "../lib/db";
-import { formatJour, xof } from "../lib/format";
-import { labelMode } from "../lib/labels";
 import { lireEntreprise, type Entreprise } from "./parametres";
 
 const ENCRE = rgb(0x14 / 255, 0x28 / 255, 0x4b / 255);
@@ -48,7 +45,7 @@ export class DocumentPdf {
     const doc = await PDFDocument.create();
     const normal = await doc.embedFont(StandardFonts.Helvetica);
     const gras = await doc.embedFont(StandardFonts.HelveticaBold);
-    const octets = await readFile(path.join(process.cwd(), "public", "logo-edudesk.png")).catch(() => null);
+    const octets = await readFile(path.join(process.cwd(), "public", "logo-pdf.png")).catch(() => null);
     const logo = octets ? await doc.embedPng(octets).catch(() => null) : null;
     const entreprise = await lireEntreprise();
     doc.setProducer(entreprise.nom);
@@ -250,83 +247,3 @@ export class DocumentPdf {
 }
 
 export type FichierPdf = { nom: string; octets: Buffer };
-
-export async function pdfFacture(factureId: string): Promise<FichierPdf | null> {
-  const facture = await prisma.facture.findUnique({
-    where: { id: factureId },
-    include: { paiement: true, dossier: { include: { client: true, procedure: true } } },
-  });
-  if (!facture) return null;
-  const pdf = await DocumentPdf.creer();
-  pdf.doc.setTitle(`Facture ${facture.numero}`);
-  pdf.entete("Facture", facture.numero, `Émise le ${formatJour(facture.creeLe)}`);
-  pdf.deuxBlocs(
-    { titre: "Facturé à", lignes: [facture.clientNom, facture.dossier.client.telephone, facture.dossier.client.email ?? ""].filter(Boolean) },
-    { titre: "Dossier", lignes: [facture.dossier.reference, facture.dossier.procedure.nom, `Paiement ${facture.paiement.numero}`] },
-  );
-  pdf.tableau(
-    [
-      { titre: "Désignation", largeur: 5 },
-      { titre: "Règlement", largeur: 3 },
-      { titre: "Montant", largeur: 2.2, droite: true },
-    ],
-    [[facture.libelle, `${labelMode(facture.paiement.mode)}${facture.paiement.precision ? ` · ${facture.paiement.precision}` : ""}`, xof(facture.montant)]],
-  );
-  pdf.encadreTotal("Total payé", xof(facture.montant), { texte: `Acquittée le ${formatJour(facture.paiement.dateEncaissement)}`, vert: true });
-  const premiere = `Référence du règlement : ${facture.paiement.referenceExterne || "—"}${pdf.entreprise.mentionFacture ? ` · ${pdf.entreprise.mentionFacture}` : ""}`;
-  return { nom: `Facture-${facture.numero}.pdf`, octets: await pdf.terminer(pdf.mentionsLegales(premiere)) };
-}
-
-export type LigneDevis = { libelle: string; quantite: number; prixUnitaire: number };
-
-export function lignesDevis(valeur: unknown): LigneDevis[] {
-  if (!Array.isArray(valeur)) return [];
-  return valeur
-    .map((ligne) => ligne as Partial<LigneDevis>)
-    .filter((ligne) => typeof ligne.libelle === "string")
-    .map((ligne) => ({ libelle: ligne.libelle!, quantite: Number(ligne.quantite) || 1, prixUnitaire: Number(ligne.prixUnitaire) || 0 }));
-}
-
-export async function pdfDevis(devisId: string): Promise<FichierPdf | null> {
-  const devis = await prisma.devis.findUnique({
-    where: { id: devisId },
-    include: { dossier: { include: { client: true, procedure: true } } },
-  });
-  if (!devis) return null;
-  const pdf = await DocumentPdf.creer();
-  pdf.doc.setTitle(`Devis ${devis.numero}`);
-  pdf.entete("Devis", devis.numero, `Établi le ${formatJour(devis.creeLe)}`);
-  pdf.deuxBlocs(
-    { titre: "Client", lignes: [devis.clientNom, devis.dossier.client.telephone, devis.dossier.client.email ?? ""].filter(Boolean) },
-    {
-      titre: "Dossier",
-      lignes: [devis.dossier.reference, devis.dossier.procedure.nom, devis.validiteLe ? `Valable jusqu'au ${formatJour(devis.validiteLe)}` : ""].filter(Boolean),
-    },
-  );
-  pdf.paragraphe(`Objet : ${devis.objet}`, { taille: 10.5 });
-  pdf.tableau(
-    [
-      { titre: "Prestation", largeur: 5.4 },
-      { titre: "Qté", largeur: 0.9, droite: true },
-      { titre: "Prix unitaire", largeur: 2.1, droite: true },
-      { titre: "Montant", largeur: 2.2, droite: true },
-    ],
-    lignesDevis(devis.lignes).map((ligne) => [ligne.libelle, String(ligne.quantite), xof(ligne.prixUnitaire), xof(ligne.quantite * ligne.prixUnitaire)]),
-  );
-  const statut = devis.statut === "ACCEPTE" ? { texte: `Accepté le ${formatJour(devis.decideLe)}`, vert: true } : devis.statut === "REFUSE" ? { texte: "Refusé" } : undefined;
-  pdf.encadreTotal("Total", xof(devis.total), statut);
-  if (devis.conditions) {
-    pdf.titreSection("Conditions");
-    pdf.paragraphe(devis.conditions, { couleur: GRIS });
-  }
-  pdf.paragraphe("Bon pour accord — date et signature du client :", { taille: 9.5 });
-  return { nom: `Devis-${devis.numero}.pdf`, octets: await pdf.terminer(pdf.mentionsLegales("Devis sans valeur de facture.")) };
-}
-
-export async function pieceJointe(reference: string | null | undefined): Promise<FichierPdf | null> {
-  if (!reference) return null;
-  const [type, id] = reference.split(":");
-  if (type === "facture" && id) return pdfFacture(id);
-  if (type === "devis" && id) return pdfDevis(id);
-  return null;
-}

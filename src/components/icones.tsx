@@ -24,6 +24,7 @@ import {
   Languages,
   MessagesSquare,
   AlarmClock,
+  FileSpreadsheet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -52,6 +53,7 @@ export const ICONES: Record<string, LucideIcon> = {
   traductions: Languages,
   messages: MessagesSquare,
   automatisation: AlarmClock,
+  facturation: FileSpreadsheet,
   page: FileText,
 };
 

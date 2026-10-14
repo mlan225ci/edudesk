@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pdfDevis, pdfFacture } from "@/server/pdf";
+import { pdfDevis, pdfFacture } from "@/server/pdf-commercial";
 import { voitFinance } from "@/server/permissions";
 import { getUser } from "@/server/session";
 

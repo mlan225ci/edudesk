@@ -35,23 +35,32 @@ export async function envoyerFactureParMail(_etat: EtatAction, formData: FormDat
   if (!voitFinance(user.role)) return { error: "Réservé à la finance et à la direction." };
   const facture = await prisma.facture.findUnique({
     where: { id: String(formData.get("factureId") ?? "") },
-    include: { paiement: true, dossier: { include: { client: true, procedure: true } } },
+    include: { paiement: true, reglements: { select: { montant: true } }, dossier: { include: { client: true, procedure: true } } },
   });
   if (!facture) return { error: "Facture introuvable." };
+  if (facture.annuleeLe) return { error: "Cette facture est annulée : elle ne peut plus être envoyée." };
   const destinataire = String(formData.get("email") ?? "").trim() || facture.dossier.client.email;
   if (!emailValide(destinataire)) return { error: "Indiquez une adresse e-mail valide." };
   const entreprise = await lireEntreprise();
+  const regle = facture.paiement ? facture.montant : facture.reglements.reduce((somme, reglement) => somme + reglement.montant, 0);
+  const reste = Math.max(facture.montant - regle, 0);
+  const situation = facture.paiement
+    ? `acquittée le ${formatJour(facture.paiement.dateEncaissement)}`
+    : reste === 0
+      ? "entièrement réglée"
+      : `dont il reste ${xof(reste)} à régler${facture.echeanceLe ? ` avant le ${formatJour(facture.echeanceLe)}` : ""}`;
   const ligne = await prisma.notificationMail.create({
     data: {
       destinataire: destinataire!.trim(),
       type: "CLIENT",
       dossierId: facture.dossierId,
       sujet: `Facture ${facture.numero} – ${entreprise.nom}`,
-      corps: `Bonjour ${facture.dossier.client.prenom},\n\nVeuillez trouver ci-joint la facture ${facture.numero} d'un montant de ${xof(facture.montant)}, acquittée le ${formatJour(facture.paiement.dateEncaissement)}, pour votre dossier ${facture.dossier.procedure.destination} (${facture.dossier.reference}).\n\nCordialement,\nL'équipe ${entreprise.nom}`,
+      corps: `Bonjour ${facture.dossier.client.prenom},\n\nVeuillez trouver ci-joint la facture ${facture.numero} d'un montant de ${xof(facture.montant)}, ${situation}, pour votre dossier ${facture.dossier.procedure.destination} (${facture.dossier.reference}).\n\nCordialement,\nL'équipe ${entreprise.nom}`,
       pieceJointe: `facture:${facture.id}`,
     },
   });
   await expedierMail(ligne.id);
+  await prisma.facture.update({ where: { id: facture.id }, data: { envoyeeLe: new Date() } });
   await prisma.audit.create({
     data: { userId: user.id, action: "FACTURE_ENVOYEE", entite: "Dossier", entiteId: facture.dossierId, detail: `${facture.numero} → ${destinataire}` },
   });

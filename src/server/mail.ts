@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../lib/db";
 import { configMail, lireEntreprise, type Entreprise } from "./parametres";
-import { pieceJointe, type FichierPdf } from "./pdf";
+import type { FichierPdf } from "./pdf";
+import { pieceJointe } from "./pdf-commercial";
 
 function echapper(texte: string) {
   return texte.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

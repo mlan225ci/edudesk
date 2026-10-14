@@ -10,6 +10,7 @@ export const CHAMPS_ENTREPRISE = [
   "rccm",
   "ncc",
   "mentionFacture",
+  "modalitesPaiement",
 ] as const;
 
 export type Entreprise = Record<(typeof CHAMPS_ENTREPRISE)[number], string>;
@@ -24,6 +25,7 @@ const ENTREPRISE_DEFAUT: Entreprise = {
   rccm: "",
   ncc: "",
   mentionFacture: "Merci de votre confiance.",
+  modalitesPaiement: "Règlement en espèces à l'agence, par Mobile Money (Orange Money, MTN, Moov, Wave) ou par virement bancaire.",
 };
 
 async function lire(prefixe: string) {

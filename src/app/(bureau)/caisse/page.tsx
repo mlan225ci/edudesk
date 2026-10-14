@@ -23,7 +23,7 @@ export default async function CaissePage({ searchParams }: { searchParams: Promi
     situationDossiers(),
     prisma.paiement.findMany({
       where: { creeLe: { gte: depuis } },
-      include: { facture: true, client: true },
+      include: { facture: true, factureReglee: true, client: true },
       orderBy: { creeLe: "desc" },
     }),
   ]);
@@ -89,26 +89,29 @@ export default async function CaissePage({ searchParams }: { searchParams: Promi
             <Vide icone={Receipt} titre="Aucun encaissement aujourd'hui" texte="Les paiements enregistrés s'afficheront ici avec leur facture." />
           ) : (
             <div className="grid gap-2 entree-cascade">
-              {paiements.map((paiement) => (
-                <article key={paiement.id} className="carte flex items-center gap-4 py-4">
-                  <Avatar prenom={paiement.client.prenom} nom={paiement.client.nom} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{nomComplet(paiement.client)}</p>
-                    <p className="truncate text-xs text-ink/50">
-                      {labelTypePaiement(paiement.type)} · {paiement.numero} · {formatDate(paiement.creeLe)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold tabular-nums text-vert">+{xof(paiement.montant)}</p>
-                    <Badge ton="gris">{labelMode(paiement.mode)}{paiement.precision ? ` · ${paiement.precision}` : ""}</Badge>
-                  </div>
-                  {paiement.facture ? (
-                    <Link className="bouton-second px-3" href={`/dossiers/${paiement.dossierId}/factures/${paiement.facture.id}`} title={`Facture ${paiement.facture.numero}`}>
-                      <Receipt size={16} />
-                    </Link>
-                  ) : null}
-                </article>
-              ))}
+              {paiements.map((paiement) => {
+                const facture = paiement.facture ?? paiement.factureReglee;
+                return (
+                  <article key={paiement.id} className="carte flex items-center gap-4 py-4">
+                    <Avatar prenom={paiement.client.prenom} nom={paiement.client.nom} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{nomComplet(paiement.client)}</p>
+                      <p className="truncate text-xs text-ink/50">
+                        {labelTypePaiement(paiement.type)} · {paiement.numero} · {formatDate(paiement.creeLe)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold tabular-nums text-vert">+{xof(paiement.montant)}</p>
+                      <Badge ton="gris">{labelMode(paiement.mode)}{paiement.precision ? ` · ${paiement.precision}` : ""}</Badge>
+                    </div>
+                    {facture ? (
+                      <Link className="bouton-second px-3" href={`/facturation/factures/${facture.id}`} title={`Facture ${facture.numero}`}>
+                        <Receipt size={16} />
+                      </Link>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           )}
           <Info>Astuce : depuis un dossier, le bouton « Encaisser » pré-remplit le client et le reste à payer.</Info>
