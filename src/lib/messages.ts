@@ -27,6 +27,35 @@ export type ResultatRecherche = {
   creeLe: string;
 };
 
+export type DossierMention = {
+  id: string;
+  reference: string;
+  client: string;
+  destination: string;
+  statut: string;
+};
+
+export const REFERENCE_DOSSIER = /^DOS-\d{4}-\d{5,}$/;
+
+/** Découpe le texte en segments de texte libre et en mentions `@DOS-AAAA-NNNNN`. */
+export function decouperMentions(texte: string) {
+  const segments: ({ type: "texte"; texte: string } | { type: "dossier"; reference: string })[] = [];
+  const motif = /(^|[^\p{L}\p{N}_])@(DOS-\d{4}-\d{5,})(?![\p{L}\p{N}])/gu;
+  let curseur = 0;
+  for (const trouve of texte.matchAll(motif)) {
+    const debut = (trouve.index ?? 0) + trouve[1].length;
+    if (debut > curseur) segments.push({ type: "texte", texte: texte.slice(curseur, debut) });
+    segments.push({ type: "dossier", reference: trouve[2] });
+    curseur = debut + 1 + trouve[2].length;
+  }
+  if (curseur < texte.length) segments.push({ type: "texte", texte: texte.slice(curseur) });
+  return segments;
+}
+
+export function referencesMentionnees(texte: string) {
+  return decouperMentions(texte).flatMap((segment) => (segment.type === "dossier" ? [segment.reference] : []));
+}
+
 export function urlFichierMessage(id: string) {
   return `/api/messages/fichier/${id}`;
 }

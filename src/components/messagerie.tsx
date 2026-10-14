@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Download,
   FileText,
+  FolderOpen,
   Loader2,
   Mic,
   Paperclip,
@@ -29,11 +30,14 @@ import { formatDate } from "@/lib/format";
 import {
   apercuMessage,
   correspond,
+  decouperMentions,
   decouperSurlignage,
   dureeTexte,
   normaliserRecherche,
+  referencesMentionnees,
   tailleTexte,
   urlFichierMessage,
+  type DossierMention,
   type ResultatRecherche,
 } from "@/lib/messages";
 import { Avatar } from "@/components/ui";
@@ -95,6 +99,49 @@ function Surligne({ texte, requete }: { texte: string; requete: string }) {
           </mark>
         ) : (
           segment.texte
+        ),
+      )}
+    </>
+  );
+}
+
+type Dossiers = Map<string, DossierMention | null>;
+
+function MentionDossier({ reference, dossier, requete, moi }: { reference: string; dossier: DossierMention | null | undefined; requete: string; moi: boolean }) {
+  const style = `mx-px inline-flex max-w-full items-center gap-1 rounded-md px-1.5 align-baseline font-medium transition ${
+    moi ? "bg-white/20 text-white hover:bg-white/30" : "bg-desk/10 text-desk hover:bg-desk/15"
+  } ${dossier === null ? "line-through opacity-70" : ""}`;
+  const contenu = (
+    <>
+      <FolderOpen size={12} className="shrink-0" />
+      <span className="truncate">
+        <Surligne texte={reference} requete={requete} />
+        {dossier ? <span className="font-normal opacity-80"> · {dossier.client}</span> : null}
+      </span>
+    </>
+  );
+  if (!dossier) {
+    return (
+      <span className={style} title={dossier === null ? "Dossier introuvable" : reference}>
+        {contenu}
+      </span>
+    );
+  }
+  return (
+    <Link href={`/dossiers/${dossier.id}`} className={style} title={`${dossier.reference} · ${dossier.client} · ${dossier.destination} · ${dossier.statut}`}>
+      {contenu}
+    </Link>
+  );
+}
+
+function TexteMessage({ texte, requete, dossiers, moi }: { texte: string; requete: string; dossiers: Dossiers; moi: boolean }) {
+  return (
+    <>
+      {decouperMentions(texte).map((segment, index) =>
+        segment.type === "texte" ? (
+          <Surligne key={index} texte={segment.texte} requete={requete} />
+        ) : (
+          <MentionDossier key={index} reference={segment.reference} dossier={dossiers.get(segment.reference)} requete={requete} moi={moi} />
         ),
       )}
     </>
@@ -256,7 +303,91 @@ export function Conversation({
   const cibleEnCours = useRef<string | null>(cible);
   const [recherche, setRecherche] = useState<string | null>(null);
   const [courant, setCourant] = useState<string | null>(null);
+  const [dossiers, setDossiers] = useState<Dossiers>(() => new Map());
+  const dossiersConnus = useRef(dossiers);
+  dossiersConnus.current = dossiers;
+  const [mention, setMention] = useState<{ debut: number; requete: string } | null>(null);
+  const [suggestions, setSuggestions] = useState<DossierMention[] | null>(null);
+  const [choix, setChoix] = useState(0);
   const id = correspondant.id;
+
+  const references = useMemo(() => [...new Set(messages.flatMap((ligne) => referencesMentionnees(ligne.texte)))].sort().join(","), [messages]);
+
+  useEffect(() => {
+    const manquantes = references ? references.split(",").filter((reference) => !dossiersConnus.current.has(reference)) : [];
+    if (manquantes.length === 0) return;
+    const paquets: string[][] = [];
+    for (let index = 0; index < manquantes.length; index += 50) paquets.push(manquantes.slice(index, index + 50));
+    Promise.all(
+      paquets.map((paquet) =>
+        fetch(`/api/messages/dossiers?refs=${encodeURIComponent(paquet.join(","))}`)
+          .then((reponse) => (reponse.ok ? reponse.json() : Promise.reject(new Error("dossiers"))))
+          .then((donnees: { dossiers: DossierMention[] }) => donnees.dossiers),
+      ),
+    )
+      .then((listes) => {
+        const trouves = new Map(listes.flat().map((dossier) => [dossier.reference, dossier]));
+        setDossiers((actuels) => {
+          const suite = new Map(actuels);
+          for (const reference of manquantes) suite.set(reference, trouves.get(reference) ?? null);
+          return suite;
+        });
+      })
+      .catch(() => undefined);
+  }, [references]);
+
+  const requeteMention = mention?.requete ?? null;
+  useEffect(() => {
+    if (requeteMention === null) {
+      setSuggestions(null);
+      return;
+    }
+    const controleur = new AbortController();
+    const minuteur = window.setTimeout(() => {
+      fetch(`/api/messages/dossiers?q=${encodeURIComponent(requeteMention)}`, { signal: controleur.signal })
+        .then((reponse) => (reponse.ok ? reponse.json() : Promise.reject(new Error("dossiers"))))
+        .then((donnees: { dossiers: DossierMention[] }) => {
+          setSuggestions(donnees.dossiers);
+          setChoix(0);
+        })
+        .catch(() => {
+          if (!controleur.signal.aborted) setSuggestions([]);
+        });
+    }, 150);
+    return () => {
+      window.clearTimeout(minuteur);
+      controleur.abort();
+    };
+  }, [requeteMention]);
+
+  const detecterMention = () => {
+    const zone = champ.current;
+    if (!zone || zone.selectionStart !== zone.selectionEnd) {
+      setMention(null);
+      return;
+    }
+    const trouve = /(^|\s)@([^\s@]{0,30})$/.exec(zone.value.slice(0, zone.selectionStart));
+    if (!trouve) {
+      setMention(null);
+      return;
+    }
+    const debut = zone.selectionStart - trouve[2].length - 1;
+    setMention((actuelle) => (actuelle && actuelle.debut === debut && actuelle.requete === trouve[2] ? actuelle : { debut, requete: trouve[2] }));
+  };
+
+  const insererMention = (dossier: DossierMention) => {
+    const zone = champ.current;
+    if (!zone || !mention) return;
+    const fin = mention.debut + 1 + mention.requete.length;
+    const suite = zone.value.slice(fin);
+    const insertion = `@${dossier.reference}${suite.startsWith(" ") ? "" : " "}`;
+    zone.value = zone.value.slice(0, mention.debut) + insertion + suite;
+    const position = mention.debut + insertion.length + (suite.startsWith(" ") ? 1 : 0);
+    zone.focus();
+    zone.setSelectionRange(position, position);
+    setDossiers((actuels) => new Map(actuels).set(dossier.reference, dossier));
+    setMention(null);
+  };
 
   const requete = recherche !== null && normaliserRecherche(recherche).length >= RECHERCHE_MIN ? recherche : "";
   const resultats = useMemo(
@@ -470,6 +601,7 @@ export function Conversation({
     if (champ.current) champ.current.value = "";
     void expedier(texte, nouvelleCle(), reponseCourante.current);
     setReponse(null);
+    setMention(null);
     champ.current?.focus();
   };
 
@@ -692,7 +824,7 @@ export function Conversation({
                   <ContenuFichier message={message} moi={moi} requete={trouve ? requete : ""} />
                   {message.texte ? (
                     <p className="whitespace-pre-line break-words">
-                      <Surligne texte={message.texte} requete={trouve ? requete : ""} />
+                      <TexteMessage texte={message.texte} requete={trouve ? requete : ""} dossiers={dossiers} moi={moi} />
                     </p>
                   ) : null}
                   <p className={`flex items-center justify-end gap-1 text-[11px] ${moi ? "text-white/65" : "text-ink/40"}`} suppressHydrationWarning>
@@ -751,7 +883,46 @@ export function Conversation({
           </button>
         </div>
       ) : (
-        <div className="border-t border-ink/[0.06]">
+        <div className="relative border-t border-ink/[0.06]">
+        {mention ? (
+          <div className="carte absolute right-4 bottom-full left-4 z-20 mb-2 p-1.5 shadow-lg sm:right-auto sm:w-[26rem]">
+            <p className="flex items-center gap-1.5 px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">
+              <FolderOpen size={12} /> Mentionner un dossier
+              {suggestions === null ? <Loader2 size={12} className="ml-auto animate-spin" /> : null}
+            </p>
+            {suggestions && suggestions.length === 0 ? (
+              <p className="px-2.5 pb-2 text-xs text-ink/50">Aucun dossier ne correspond à « {mention.requete} ».</p>
+            ) : null}
+            <ul id="suggestions-dossiers" role="listbox" aria-label="Dossiers" className="grid gap-0.5">
+              {(suggestions ?? []).map((dossier, index) => (
+                <li
+                  key={dossier.id}
+                  role="option"
+                  aria-selected={index === choix}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    insererMention(dossier);
+                  }}
+                  onMouseEnter={() => setChoix(index)}
+                  className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm ${index === choix ? "bg-desk/[0.08]" : ""}`}
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-desk/10 text-desk">
+                    <FolderOpen size={15} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      <span className="font-semibold">{dossier.reference}</span> · {dossier.client}
+                    </span>
+                    <span className="block truncate text-xs text-ink/50">
+                      {dossier.destination} · {dossier.statut}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="px-2.5 pt-1.5 text-[11px] text-ink/40">↑ ↓ pour choisir · Entrée pour insérer · Échap pour fermer</p>
+          </div>
+        ) : null}
         {reponse ? (
           <div className="flex items-center gap-3 px-4 pt-3">
             <Reply size={16} className="shrink-0 text-desk" />
@@ -790,16 +961,45 @@ export function Conversation({
             className="champ min-h-11 flex-1 resize-none"
             rows={2}
             maxLength={4000}
-            placeholder="Écrire un message… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"
+            placeholder="Écrire un message… (@ pour mentionner un dossier, Maj+Entrée pour aller à la ligne)"
             aria-label="Message"
+            aria-autocomplete="list"
+            aria-controls={mention ? "suggestions-dossiers" : undefined}
+            aria-expanded={mention !== null}
             autoFocus
-            onInput={signalerEcriture}
+            onInput={() => {
+              signalerEcriture();
+              detecterMention();
+            }}
+            onKeyUp={(event) => {
+              if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) detecterMention();
+            }}
+            onClick={detecterMention}
+            onBlur={() => setMention(null)}
             onPaste={(event) => {
               if (event.clipboardData.files.length === 0) return;
               event.preventDefault();
               envoyerFichiers(event.clipboardData.files);
             }}
             onKeyDown={(event) => {
+              if (mention) {
+                const liste = suggestions ?? [];
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setMention(null);
+                  return;
+                }
+                if (liste.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                  event.preventDefault();
+                  setChoix((actuel) => (actuel + (event.key === "ArrowDown" ? 1 : liste.length - 1)) % liste.length);
+                  return;
+                }
+                if (liste.length > 0 && (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing))) {
+                  event.preventDefault();
+                  insererMention(liste[Math.min(choix, liste.length - 1)]);
+                  return;
+                }
+              }
               if (event.key === "Escape" && reponse) {
                 event.preventDefault();
                 setReponse(null);
