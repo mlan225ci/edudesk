@@ -10,7 +10,8 @@ import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, Choix, EnTete, Info, Progression } from "@/components/ui";
 import { envoyerFactureParMail } from "@/server/communication-actions";
 import { annulerFactureAction, reglerFacture } from "@/server/facturation-actions";
-import { peutAnnulerFacture, peutEncaisser, voitFinance } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { peutAnnulerFacture, peutEncaisser } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function FacturePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!voitFinance(user.role)) notFound();
+  if (!(await aLeDroit(user, "factures"))) notFound();
   const { id } = await params;
   const facture = await prisma.facture.findUnique({
     where: { id },

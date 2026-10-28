@@ -14,7 +14,7 @@ export default async function EntreprisePage() {
   const user = await requireUser();
   if (!peutParametrer(user.role)) redirect("/parametres");
   const [entreprise, documents, url] = await Promise.all([lireEntreprise(), lireDocuments(), urlPublique()]);
-  const mentions = [entreprise.rccm && `RCCM ${entreprise.rccm}`, entreprise.ncc && `NCC ${entreprise.ncc}`].filter(Boolean).join(" · ");
+  const mentions = [entreprise.rccm && `N° RC ${entreprise.rccm}`, entreprise.ncc && `N° CC ${entreprise.ncc}`].filter(Boolean).join(" · ");
   const contact = [entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb].filter(Boolean).join(" · ");
 
   return (
@@ -40,8 +40,23 @@ export default async function EntreprisePage() {
             <Champ label="Site web"><input className="champ" name="siteWeb" defaultValue={entreprise.siteWeb} placeholder="www.…" /></Champ>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Champ label="RCCM"><input className="champ" name="rccm" defaultValue={entreprise.rccm} placeholder="CI-ABJ-…" /></Champ>
-            <Champ label="Compte contribuable (NCC)"><input className="champ" name="ncc" defaultValue={entreprise.ncc} /></Champ>
+            <Champ label="N° RC"><input className="champ" name="rccm" defaultValue={entreprise.rccm} placeholder="CI-ABJ-…" /></Champ>
+            <Champ label="N° CC"><input className="champ" name="ncc" defaultValue={entreprise.ncc} /></Champ>
+          </div>
+          <h2 className="font-semibold">Coordonnées bancaires</h2>
+          <p className="text-sm text-ink/55">Reprises en bas de chaque facture, comme sur le modèle HD SERVICES.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Champ label="Raison sociale bancaire"><input className="champ" name="banque" defaultValue={entreprise.banque} /></Champ>
+            <Champ label="Ordre de virement"><input className="champ" name="ordreVirement" defaultValue={entreprise.ordreVirement} /></Champ>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Champ label="Guichet"><input className="champ" name="codeGuichet" defaultValue={entreprise.codeGuichet} /></Champ>
+            <Champ label="Compte"><input className="champ" name="numeroCompte" defaultValue={entreprise.numeroCompte} /></Champ>
+            <Champ label="Clé RIB"><input className="champ" name="cleRib" defaultValue={entreprise.cleRib} /></Champ>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Champ label="IBAN"><input className="champ" name="iban" defaultValue={entreprise.iban} /></Champ>
+            <Champ label="SWIFT"><input className="champ" name="swift" defaultValue={entreprise.swift} /></Champ>
           </div>
           <Info>
             Logo, couleurs, modalités de paiement et pied de page des devis et factures :{" "}

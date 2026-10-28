@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { AcompteExige, EffetIssue, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ROLES } from "@/lib/labels";
-import { peutProcedures } from "@/server/permissions";
+import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import type { EtatAction } from "@/server/actions";
 
@@ -47,7 +47,7 @@ const PARCOURS_DE_BASE = [
 
 async function autoriser() {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) throw new Error("Modification non autorisée.");
+  if (!peutParametrer(user.role)) throw new Error("Modification non autorisée.");
   return user;
 }
 

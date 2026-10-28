@@ -41,7 +41,7 @@ export async function consulterSuivi(_etat: EtatSuivi, formData: FormData): Prom
   (await cookies()).set(COOKIE, code, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "0" ? false : process.env.NODE_ENV === "production",
     path: "/suivi",
     maxAge: 60 * 60 * 24 * 30,
   });

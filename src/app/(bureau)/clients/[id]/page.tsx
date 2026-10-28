@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, FileStack, FolderOpen, FolderPlus, Globe2, Handshake, Mail, Pencil, Phone, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileStack, FolderOpen, FolderPlus, Globe2, Handshake, Mail, MessagesSquare, Pencil, Phone, ScrollText, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatJour, nomComplet, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { modifierClient, ouvrirDossier } from "@/server/actions";
-import { peutCreerClient, voitFinance } from "@/server/permissions";
+import { Journal } from "@/components/journal";
+import { lireJournal } from "@/server/historique";
+import { lireModules } from "@/server/modules";
+import { ouvrirGroupeClient } from "@/server/groupes-actions";
+import { peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { ListeDocuments, type DocumentVue } from "@/components/documents";
@@ -66,6 +70,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     dossier: piece.dossier.reference,
   }));
   const finance = voitFinance(user.role);
+  const direction = peutHistorique(user.role);
+  const modules = await lireModules();
+  const journal = direction
+    ? await lireJournal({ clientId: client.id, dossierIds: client.dossiers.map((dossier) => dossier.id), take: 40 })
+    : [];
   const totalPaye = client.dossiers.reduce((somme, dossier) => somme + dossier.paiements.reduce((s, p) => s + p.montant, 0), 0);
 
   return (
@@ -74,44 +83,48 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         <ArrowLeft size={16} /> Clients
       </Link>
 
-      <header className="carte relative overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-desk/90 to-desk/60" />
-        <div className="relative flex flex-wrap items-end justify-between gap-4 pt-8">
-          <div className="flex items-end gap-4">
-            <div className="rounded-full ring-4 ring-white">
-              <Avatar prenom={client.prenom} nom={client.nom} taille="lg" />
-            </div>
-            <div className="pb-1">
-              <h1 className="text-2xl font-bold tracking-tight">{nomComplet(client)}</h1>
-              <p className="text-sm text-ink/55">Client depuis le {formatJour(client.creeLe)}</p>
-            </div>
+      <header className="carte overflow-hidden !p-0">
+        <div className="flex items-center gap-4 bg-gradient-to-r from-desk/90 to-desk/60 px-5 py-6">
+          <div className="rounded-full ring-4 ring-white/80">
+            <Avatar prenom={client.prenom} nom={client.nom} taille="lg" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {creation ? (
-              <Tiroir label="Ouvrir un dossier" icone={<FolderPlus size={16} />} titre="Nouveau dossier" description={`Pour ${nomComplet(client)}`}>
-                <Formulaire action={ouvrirDossier} submit="Ouvrir le dossier" succes="Dossier ouvert" className="grid gap-4">
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <Champ label="Procédure" aide="Le dossier démarre à la première étape et le responsable est prévenu par SMS.">
-                    <select className="champ" name="procedureId" required>
-                      {procedures.map((procedure) => (
-                        <option key={procedure.id} value={procedure.id}>{procedure.nom}</option>
-                      ))}
-                    </select>
-                  </Champ>
-                </Formulaire>
-              </Tiroir>
+          <h1 className="text-2xl font-bold tracking-tight text-white">{nomComplet(client)}</h1>
+        </div>
+        <div className="px-5 pt-5 pb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink/55">Client depuis le {formatJour(client.creeLe)}</p>
+            <div className="flex flex-wrap gap-2">
+              {creation ? (
+                <Tiroir label="Ouvrir un dossier" icone={<FolderPlus size={16} />} titre="Nouveau dossier" description={`Pour ${nomComplet(client)}`}>
+                  <Formulaire action={ouvrirDossier} submit="Ouvrir le dossier" succes="Dossier ouvert" className="grid gap-4">
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <Champ label="Procédure" aide="Le dossier démarre à la première étape et le responsable est prévenu par SMS.">
+                      <select className="champ" name="procedureId" required>
+                        {procedures.map((procedure) => (
+                          <option key={procedure.id} value={procedure.id}>{procedure.nom}</option>
+                        ))}
+                      </select>
+                    </Champ>
+                  </Formulaire>
+                </Tiroir>
+              ) : null}
+            {collaborateur && modules.messagerie ? (
+              <form action={ouvrirGroupeClient}>
+                <input type="hidden" name="clientId" value={client.id} />
+                <button className="bouton-second" type="submit"><MessagesSquare size={15} /> Groupe d&apos;échanges</button>
+              </form>
             ) : null}
             {collaborateur ? (
               <Tiroir label="Modifier" variante="second" icone={<Pencil size={15} />} titre="Modifier le client">
-                <Formulaire action={modifierClient} submit="Enregistrer les modifications" succes="Fiche mise à jour" reinitialiser={false} className="grid gap-4">
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <ChampsClient client={client} partenaires={partenaires} />
-                </Formulaire>
-              </Tiroir>
-            ) : null}
+                  <Formulaire action={modifierClient} submit="Enregistrer les modifications" succes="Fiche mise à jour" reinitialiser={false} className="grid gap-4">
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <ChampsClient client={client} partenaires={partenaires} />
+                  </Formulaire>
+                </Tiroir>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <dl className="relative mt-6 grid gap-4 border-t border-ink/[0.06] pt-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-5 grid gap-4 border-t border-ink/[0.06] pt-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex items-center gap-2.5">
             <Phone size={16} className="text-ink/35" />
             <a href={`tel:${client.telephone}`} className="font-medium hover:text-desk">{client.telephone}</a>
@@ -141,6 +154,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </div>
           ) : null}
         </dl>
+        </div>
       </header>
 
       <div className="grid gap-3">
@@ -175,6 +189,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </div>
         )}
       </div>
+
+      {direction ? (
+        <div className="grid gap-3" id="historique">
+          <h2 className="flex items-center justify-between gap-2 text-lg font-bold">
+            <span className="flex items-center gap-2"><ScrollText size={19} className="text-desk" /> Historique</span>
+            <Link href={`/historique?client=${client.id}`} className="text-sm font-semibold text-desk hover:underline">Tout voir</Link>
+          </h2>
+          <div className="carte">
+            <Journal lignes={journal} vide="Aucune action enregistrée pour ce client." />
+          </div>
+        </div>
+      ) : null}
 
       {collaborateur ? (
         <div className="grid gap-3" id="documents">

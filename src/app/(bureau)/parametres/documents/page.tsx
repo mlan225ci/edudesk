@@ -34,7 +34,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const apercu = (await searchParams).apercu === "facture" ? "facture" : "devis";
   const [reglages, entreprise] = await Promise.all([lireDocuments(), lireEntreprise()]);
   const version = empreinte(JSON.stringify([reglages, entreprise]));
-  const legales = [entreprise.nom, entreprise.adresse, entreprise.rccm && `RCCM ${entreprise.rccm}`, entreprise.ncc && `NCC ${entreprise.ncc}`].filter(Boolean).join(" · ");
+  const legales = [entreprise.nom, entreprise.adresse, entreprise.rccm && `N° RC ${entreprise.rccm}`, entreprise.ncc && `N° CC ${entreprise.ncc}`].filter(Boolean).join(" · ");
   const logo = reglages.logo === "aucun" ? "aucun" : reglages.logo ? "importe" : "defaut";
 
   return (

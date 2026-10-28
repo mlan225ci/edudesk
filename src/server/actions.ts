@@ -17,8 +17,7 @@ import {
   peutGererEquipe,
   peutInventaire,
   peutModifierMontant,
-  peutProcedures,
-  peutProspects,
+  peutParametrer,
   peutReaffecter,
   peutValiderConges,
   voitCompta,
@@ -27,6 +26,7 @@ import {
   voitPartenaires,
   type SessionUser,
 } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { fermerSession, ouvrirSession, requireUser } from "@/server/session";
 import {
   cloturerEtape,
@@ -83,7 +83,7 @@ export async function logout() {
 
 export async function creerProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutProspects(user.role)) return { error: "Vous ne pouvez pas saisir de prospect." };
+  if (!(await aLeDroit(user, "prospects"))) return { error: "Vous ne pouvez pas saisir de prospect." };
   const prenom = String(formData.get("prenom") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
   const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
@@ -205,7 +205,7 @@ export async function ouvrirDossier(_etat: EtatAction, formData: FormData): Prom
 
 export async function modifierProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutProspects(user.role)) return { error: "Modification non autorisée." };
+  if (!(await aLeDroit(user, "prospects"))) return { error: "Modification non autorisée." };
   const relance = String(formData.get("relanceLe") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   await prisma.prospect.update({
@@ -253,7 +253,7 @@ export async function marquerNotificationsLues() {
 
 export async function convertirProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutProspects(user.role)) return { error: "Conversion non autorisée." };
+  if (!(await aLeDroit(user, "prospects"))) return { error: "Conversion non autorisée." };
   const prospectId = String(formData.get("prospectId") ?? "");
   const procedureId = String(formData.get("procedureId") ?? "");
   const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } });
@@ -464,7 +464,7 @@ export async function reaffecter(_etat: EtatAction, formData: FormData): Promise
 
 export async function encaisser(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutEncaisser(user.role)) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
+  if (!peutEncaisser(user.role) && !(await aLeDroit(user, "caisse"))) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
   const montant = Number(String(formData.get("montant") ?? "").replace(/\s/g, ""));
   const jour = String(formData.get("date") ?? "");
   const resultat = await enregistrerPaiement({
@@ -506,7 +506,7 @@ export async function reorienter(_etat: EtatAction, formData: FormData): Promise
 
 export async function modifierDelai(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) return { error: "Modification non autorisée." };
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
   const brut = String(formData.get("delaiHeures") ?? "").trim();
   const delaiHeures = brut === "" ? null : Number(brut);
   if (delaiHeures != null && (!Number.isInteger(delaiHeures) || delaiHeures < 0)) {
@@ -546,7 +546,7 @@ export async function modifierLimite(_etat: EtatAction, formData: FormData): Pro
 
 export async function ajouterEtape(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) return { error: "Modification non autorisée." };
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
   const procedureId = String(formData.get("procedureId") ?? "");
   const titre = String(formData.get("titre") ?? "").trim();
   const tache = String(formData.get("tache") ?? "").trim();
@@ -591,7 +591,7 @@ export async function ajouterEtape(_etat: EtatAction, formData: FormData): Promi
 
 export async function ajouterElementModele(formData: FormData) {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) return;
+  if (!peutParametrer(user.role)) return;
   const etapeId = String(formData.get("etapeId") ?? "");
   const sorte = String(formData.get("sorte") ?? "");
   const libelle = String(formData.get("libelle") ?? "").trim();

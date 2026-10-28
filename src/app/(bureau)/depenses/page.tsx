@@ -9,7 +9,8 @@ import { BarresHorizontales, Kpi, Panneau } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, Choix, EnTete, Info, Vide } from "@/components/ui";
 import { annulerDepense, creerDepense } from "@/server/actions";
-import { peutAnnulerDepense, voitDepenses } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { peutAnnulerDepense } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { Filtres } from "@/components/filtres";
 
@@ -17,7 +18,7 @@ export const metadata = { title: "Dépenses" };
 
 export default async function DepensesPage({ searchParams }: { searchParams: Promise<{ mois?: string; categorie?: string; nouveau?: string }> }) {
   const user = await requireUser();
-  if (!voitDepenses(user.role)) redirect("/tableau-de-bord");
+  if (!(await aLeDroit(user, "depenses"))) redirect("/tableau-de-bord");
   const params = await searchParams;
   const debut = moisDepuisCle(params.mois);
   const fin = new Date(Date.UTC(debut.getUTCFullYear(), debut.getUTCMonth() + 1, 1));

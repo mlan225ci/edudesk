@@ -8,7 +8,7 @@ import { Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
 import { Avatar, Badge, Champ, Choix, EnTete, Info, Vide } from "@/components/ui";
 import { encaisser } from "@/server/actions";
-import { peutEncaisser } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 import { situationDossiers } from "@/server/stats";
 
@@ -16,7 +16,7 @@ export const metadata = { title: "Caisse" };
 
 export default async function CaissePage({ searchParams }: { searchParams: Promise<{ dossier?: string }> }) {
   const user = await requireUser();
-  if (!peutEncaisser(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "caisse"))) redirect("/missions");
   const { dossier: dossierChoisi } = await searchParams;
   const depuis = debutJourAbidjan();
   const [situation, paiements] = await Promise.all([

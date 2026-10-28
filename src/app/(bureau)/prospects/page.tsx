@@ -8,8 +8,8 @@ import { SOURCES, labelSource } from "@/lib/labels";
 import { Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Avatar, Badge, Champ, Choix, EnTete, Onglets, Vide } from "@/components/ui";
+import { aLeDroit } from "@/server/acces";
 import { creerProspect } from "@/server/actions";
-import { peutProspects } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { Filtres } from "@/components/filtres";
 
@@ -17,7 +17,7 @@ export const metadata = { title: "Prospects" };
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ filtre?: string; q?: string; nouveau?: string }> }) {
   const user = await requireUser();
-  if (!peutProspects(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "prospects"))) redirect("/missions");
   const { filtre = "actifs", q, nouveau } = await searchParams;
   const finJour = new Date();
   finJour.setUTCHours(23, 59, 59, 999);

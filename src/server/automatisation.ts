@@ -1,5 +1,6 @@
 import { prisma } from "../lib/db";
 import { flushSms, scannerAlertes } from "./engine";
+import { lireModules } from "./modules";
 import { ecrireParametres } from "./parametres";
 
 const CLE_DERNIERE = "automatisation.derniereExecution";
@@ -39,7 +40,8 @@ async function reserverPassage(minutes: number, force: boolean) {
 export async function executerAutomatisation(source: "planificateur" | "manuel" | "cron", force = false) {
   const config = await configAutomatisation();
   if (!(await reserverPassage(config.minutes, force))) return null;
-  const { alertes } = await scannerAlertes();
+  const modules = await lireModules();
+  const { alertes } = modules.automatisation ? await scannerAlertes() : { alertes: 0 };
   const avant = new Date(Date.now() - 2 * 60_000);
   const [sms, mails] = await Promise.all([
     prisma.notificationSms.findMany({ where: { statut: "EN_ATTENTE", creeLe: { lt: avant } }, select: { id: true }, take: 100 }),

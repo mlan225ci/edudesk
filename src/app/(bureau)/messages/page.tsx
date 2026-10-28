@@ -3,9 +3,12 @@ import { MessagesSquare } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { labelRole } from "@/lib/labels";
 import { apercuMessage } from "@/lib/messages";
-import { Conversation, ListeContacts, ReglagesAlertes, type Contact } from "@/components/messagerie";
+import { ColonneDiscussions, ConversationGroupe } from "@/components/groupe-chat";
+import { Conversation, ReglagesAlertes, type Contact } from "@/components/messagerie";
 import { EnTete, Vide } from "@/components/ui";
+import { listerGroupes, lireFilGroupe } from "@/server/groupes";
 import { requireUser } from "@/server/session";
+import { nomComplet } from "@/lib/format";
 import { diffuser, INCLURE_FLUX, versFlux } from "@/server/temps-reel";
 
 export const metadata = { title: "Messagerie" };
@@ -13,10 +16,16 @@ export const metadata = { title: "Messagerie" };
 const FIL_INITIAL = 300;
 const FIL_MAX = 2000;
 
-export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string; message?: string; q?: string }> }) {
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string; message?: string; q?: string; groupe?: string }> }) {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
-  const { avec, message: cibleId, q } = await searchParams;
+  const { avec, message: cibleId, q, groupe: groupeId } = await searchParams;
+  const groupes = await listerGroupes(user.id);
+  if (!groupeId && !avec) {
+    const general = groupes.find((groupe) => groupe.general);
+    if (general) redirect(`/messages?groupe=${general.id}`);
+  }
+  const filGroupe = groupeId ? await lireFilGroupe(user.id, groupeId) : null;
 
   const [collegues, recents, nonLus] = await Promise.all([
     prisma.user.findMany({ where: { actif: true, role: { not: "PARTENAIRE" }, NOT: { id: user.id } }, orderBy: { prenom: "asc" } }),
@@ -88,31 +97,45 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
       <EnTete
         titre="Messagerie"
         icone={MessagesSquare}
-        description="Échangez avec vos collègues : messages instantanés, fichiers et notes vocales. Un signal sonore vous prévient quand l'onglet n'est pas affiché."
+        description="Messages entre collègues, groupe de toute l'équipe, et groupe d'échanges pour un client. Fichiers, images et notes vocales dans chaque conversation. @ mentionne une personne, # un dossier."
         actions={<ReglagesAlertes />}
       />
 
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <ListeContacts moiId={user.id} actifId={correspondant?.id ?? null} initiaux={contacts} />
+        <ColonneDiscussions
+          groupes={groupes}
+          contacts={contacts}
+          moiId={user.id}
+          groupeActif={filGroupe?.id ?? null}
+          collegueActif={filGroupe ? null : correspondant?.id ?? null}
+        />
 
-        {correspondant ? (
-          <Conversation
-            key={correspondant.id}
-            moiId={user.id}
-            correspondant={{
-              id: correspondant.id,
-              prenom: correspondant.prenom,
-              nom: correspondant.nom,
-              role: labelRole(correspondant.role),
-              vuLe: correspondant.vuLe?.toISOString() ?? null,
-            }}
-            initiaux={fil.reverse().map((message) => versFlux({ ...message, lu: message.deId === correspondant.id ? true : message.lu }))}
-            cible={cible}
-            rechercheInitiale={cible ? (q ?? "").slice(0, 100) : ""}
-          />
-        ) : (
-          <Vide icone={MessagesSquare} titre="Choisissez un collègue" texte="Sélectionnez une personne dans la liste pour ouvrir la conversation." />
-        )}
+        {filGroupe ? (
+            <ConversationGroupe
+              key={filGroupe.id}
+              moiId={user.id}
+              groupe={filGroupe}
+              messages={filGroupe.messages}
+              collegues={collegues.map((collegue) => ({ id: collegue.id, nom: nomComplet(collegue) }))}
+            />
+          ) : correspondant ? (
+            <Conversation
+              key={correspondant.id}
+              moiId={user.id}
+              correspondant={{
+                id: correspondant.id,
+                prenom: correspondant.prenom,
+                nom: correspondant.nom,
+                role: labelRole(correspondant.role),
+                vuLe: correspondant.vuLe?.toISOString() ?? null,
+              }}
+              initiaux={fil.reverse().map((message) => versFlux({ ...message, lu: message.deId === correspondant.id ? true : message.lu }))}
+              cible={cible}
+              rechercheInitiale={cible ? (q ?? "").slice(0, 100) : ""}
+            />
+          ) : (
+            <Vide icone={MessagesSquare} titre="Choisissez un collègue" texte="Sélectionnez une personne dans la liste pour ouvrir la conversation." />
+          )}
       </div>
     </section>
   );

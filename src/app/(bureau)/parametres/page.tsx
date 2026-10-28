@@ -7,6 +7,7 @@ import { Icone } from "@/components/icones";
 import { Badge, EnTete, type Ton } from "@/components/ui";
 import { CHAMPS_ENTREPRISE, configMail, configSms, lireDocuments, lireEntreprise, urlPublique } from "@/server/parametres";
 import { configAutomatisation } from "@/server/automatisation";
+import { lireModules } from "@/server/modules";
 import { ongletsParametres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -16,7 +17,8 @@ type Carte = { href: string; icone: string; titre: string; texte: string; etat: 
 
 export default async function ParametresPage() {
   const user = await requireUser();
-  const onglets = new Set(ongletsParametres(user.role).map((onglet) => onglet.href));
+  const modules = await lireModules();
+  const onglets = new Set(ongletsParametres(user.role, modules).map((onglet) => onglet.href));
   const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
     lireEntreprise(),
     lireDocuments(),
@@ -73,6 +75,14 @@ export default async function ParametresPage() {
       ton: "desk",
     },
     {
+      href: "/parametres/acces",
+      icone: "acces",
+      titre: "Accès",
+      texte: "Fonctionnalités visibles pour un rôle, ou retirées pour un compte en particulier.",
+      etat: "Par rôle ou par compte",
+      ton: "desk",
+    },
+    {
       href: "/parametres/sms",
       icone: "sms",
       titre: "SMS",
@@ -116,37 +126,37 @@ export default async function ParametresPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 entree-cascade">
         {cartes.map((carte) => (
-          <Link key={carte.href} href={carte.href} className="carte carte-lien group grid content-between gap-4">
-            <div className="flex items-start gap-3">
+          <Link key={carte.href} href={carte.href} className="carte carte-lien group grid min-w-0 content-between gap-4 overflow-hidden">
+            <div className="flex min-w-0 items-start gap-3">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-desk/[0.07] text-desk">
                 <Icone nom={carte.icone} size={19} />
               </span>
               <div className="min-w-0">
                 <p className="font-semibold group-hover:text-desk">{carte.titre}</p>
-                <p className="mt-0.5 text-sm text-ink/55">{carte.texte}</p>
+                <p className="mt-0.5 text-sm break-words text-ink/55">{carte.texte}</p>
               </div>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <Badge ton={carte.ton} point>{carte.etat}</Badge>
-              <ArrowRight size={16} className="text-ink/25 transition group-hover:translate-x-0.5 group-hover:text-desk" />
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <Badge ton={carte.ton} point className="min-w-0 whitespace-normal! text-left leading-snug">{carte.etat}</Badge>
+              <ArrowRight size={16} className="shrink-0 text-ink/25 transition group-hover:translate-x-0.5 group-hover:text-desk" />
             </div>
           </Link>
         ))}
-        <Link href="/ecoles" className="carte carte-lien group grid content-between gap-4">
-          <div className="flex items-start gap-3">
+        {modules.ecoles ? <Link href="/ecoles" className="carte carte-lien group grid min-w-0 content-between gap-4 overflow-hidden">
+          <div className="flex min-w-0 items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-desk/[0.07] text-desk">
               <Icone nom="ecoles" size={19} />
             </span>
             <div className="min-w-0">
               <p className="font-semibold group-hover:text-desk">Catalogue des écoles</p>
-              <p className="mt-0.5 text-sm text-ink/55">Écoles proposées aux étudiants, formations, frais et commissions partenaires.</p>
+              <p className="mt-0.5 text-sm break-words text-ink/55">Écoles proposées aux étudiants, formations, frais et commissions partenaires.</p>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <Badge ton={ecoles ? "desk" : "edu"} point>{ecoles ? `${ecoles} école${ecoles > 1 ? "s" : ""} active${ecoles > 1 ? "s" : ""}` : "Catalogue vide"}</Badge>
-            <ArrowRight size={16} className="text-ink/25 transition group-hover:translate-x-0.5 group-hover:text-desk" />
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <Badge ton={ecoles ? "desk" : "edu"} point className="min-w-0 whitespace-normal! text-left leading-snug">{ecoles ? `${ecoles} école${ecoles > 1 ? "s" : ""} active${ecoles > 1 ? "s" : ""}` : "Catalogue vide"}</Badge>
+            <ArrowRight size={16} className="shrink-0 text-ink/25 transition group-hover:translate-x-0.5 group-hover:text-desk" />
           </div>
-        </Link>
+        </Link> : null}
       </div>
 
       {historique.length > 0 ? (
@@ -155,11 +165,11 @@ export default async function ParametresPage() {
           <ul className="mt-3 divide-y divide-ink/[0.05] text-sm">
             {historique.map((ligne) => (
               <li key={ligne.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
-                <span>
+                <span className="min-w-0 break-words">
                   <span className="font-medium">{ACTIONS_AUDIT[ligne.action] ?? ligne.action}</span>
                   {ligne.detail ? <span className="text-ink/60"> · {ligne.detail}</span> : null}
                 </span>
-                <span className="text-xs text-ink/45">
+                <span className="shrink-0 text-xs text-ink/45">
                   {ligne.user ? nomComplet(ligne.user) : "Système"} · {formatDate(ligne.creeLe)}
                 </span>
               </li>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import { AlarmClock, FilePlus2, FileSignature, FileSpreadsheet, Hourglass, ReceiptText, Search, SearchX, Wallet } from "lucide-react";
+import { AlarmClock, FilePlus2, FileSignature, Hourglass, ReceiptText, Search, SearchX, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { ETATS_DEVIS, ETATS_FACTURE, etatDevis, etatFacture } from "@/lib/facturation";
 import { formatJour, xof } from "@/lib/format";
@@ -15,7 +15,8 @@ import { nouveauDevis } from "@/server/devis-actions";
 import { CHAMPS_DOSSIER_FACTURABLE, versDossierFacturable } from "@/server/dossiers-facturables";
 import { nouvelleFacture } from "@/server/facturation-actions";
 import { lireDocuments } from "@/server/parametres";
-import { peutDevis, peutFacturer, voitFinance } from "@/server/permissions";
+import { lireModules } from "@/server/modules";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Devis et factures" };
@@ -34,10 +35,13 @@ export default async function FacturationPage({
   searchParams: Promise<{ vue?: string; q?: string; statut?: string; type?: string; dossier?: string; nouveau?: string }>;
 }) {
   const user = await requireUser();
-  if (!peutDevis(user.role)) redirect("/");
+  const modules = await lireModules();
   const filtres = await searchParams;
-  const finance = voitFinance(user.role);
-  const vue = filtres.vue === "factures" && finance ? "factures" : "devis";
+  const voitDevis = (await aLeDroit(user, "devis")) && modules.devis;
+  const voitFactures = (await aLeDroit(user, "factures")) && modules.factures;
+  if (!voitDevis && !voitFactures) redirect("/tableau-de-bord");
+  const demandeFactures = filtres.vue === "factures" || filtres.nouveau === "facture";
+  const vue = demandeFactures && voitFactures ? "factures" : voitDevis ? "devis" : "factures";
   const maintenant = new Date();
   const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
 
@@ -49,7 +53,7 @@ export default async function FacturationPage({
       include: { dossier: { select: selectionDossier }, facture: { select: { id: true, numero: true } } },
       orderBy: { creeLe: "desc" },
     }),
-    finance
+    voitFactures
       ? prisma.facture.findMany({
           include: { dossier: { select: selectionDossier }, reglements: { select: { montant: true } }, devis: { select: { numero: true } } },
           orderBy: { creeLe: "desc" },
@@ -88,7 +92,7 @@ export default async function FacturationPage({
 
   const actions = (
     <>
-      <Tiroir
+      {voitDevis ? <Tiroir
         label="Nouveau devis"
         variante={vue === "devis" ? "principal" : "second"}
         icone={<FileSignature size={16} />}
@@ -109,8 +113,8 @@ export default async function FacturationPage({
             Envoyer aussitôt au client par e-mail (adresse de la fiche client)
           </label>
         </Formulaire>
-      </Tiroir>
-      {peutFacturer(user.role) ? (
+      </Tiroir> : null}
+      {voitFactures ? (
         <Tiroir
           label="Nouvelle facture"
           variante={vue === "factures" ? "principal" : "second"}
@@ -136,13 +140,13 @@ export default async function FacturationPage({
   return (
     <section className="grid gap-6">
       <EnTete
-        titre="Devis et factures"
-        icone={FileSpreadsheet}
-        description="Établissez vos devis, transformez-les en factures en un clic et suivez les règlements jusqu'au solde."
+        titre={voitDevis && voitFactures ? "Devis et factures" : voitDevis ? "Devis" : "Factures"}
+        icone={vue === "factures" ? ReceiptText : FileSignature}
+        description={voitDevis && voitFactures ? "Établissez vos devis, transformez-les en factures en un clic et suivez les règlements jusqu'au solde." : voitDevis ? "Établissez vos devis et suivez les réponses des clients." : "Émettez vos factures et suivez les règlements jusqu'au solde."}
         actions={actions}
       />
 
-      {finance ? (
+      {voitDevis && voitFactures ? (
         <Onglets
           actif={vue === "factures" ? "/facturation?vue=factures" : "/facturation"}
           onglets={[

@@ -7,7 +7,8 @@ import { Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
 import { Avatar, Badge, EnTete, Onglets, Progression, Vide } from "@/components/ui";
 import { modifierMontantConvenu } from "@/server/actions";
-import { peutEncaisser, peutModifierMontant, voitFinance } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { peutEncaisser, peutModifierMontant } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { situationDossiers } from "@/server/stats";
 import { Filtres } from "@/components/filtres";
@@ -16,7 +17,7 @@ export const metadata = { title: "Créances" };
 
 export default async function CreancesPage({ searchParams }: { searchParams: Promise<{ filtre?: string; q?: string }> }) {
   const user = await requireUser();
-  if (!voitFinance(user.role)) redirect("/tableau-de-bord");
+  if (!(await aLeDroit(user, "creances"))) redirect("/tableau-de-bord");
   const { filtre = "impayes", q = "" } = await searchParams;
   const situation = await situationDossiers();
   const recherche = q.trim().toLowerCase();

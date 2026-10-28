@@ -7,7 +7,9 @@ import { prisma } from "@/lib/db";
 import type { EtatAction } from "@/server/actions";
 import { supprimerDevis } from "@/server/devis-actions";
 import { annulerFacture, creerFacture, enregistrerPaiement, facturerDevis } from "@/server/engine";
-import { peutAnnulerFacture, peutEncaisser, peutFacturer } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { lireModules } from "@/server/modules";
+import { peutAnnulerFacture, peutEncaisser } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 function entier(valeur: FormDataEntryValue | null) {
@@ -21,7 +23,8 @@ function jours(valeur: FormDataEntryValue | null) {
 
 export async function nouvelleFacture(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutFacturer(user.role)) return { error: "La facturation est réservée à la finance et à la direction." };
+  if (!(await aLeDroit(user, "factures"))) return { error: "La facturation est réservée à la finance et à la direction." };
+  if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const objet = String(formData.get("objet") ?? "").trim();
   if (!objet) return { error: "Indiquez l'objet de la facture." };
   const libelles = formData.getAll("libelle").map((valeur) => String(valeur));
@@ -42,7 +45,8 @@ export async function nouvelleFacture(_etat: EtatAction, formData: FormData): Pr
 
 export async function transformerDevis(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutFacturer(user.role)) return { error: "La facturation est réservée à la finance et à la direction." };
+  if (!(await aLeDroit(user, "factures"))) return { error: "La facturation est réservée à la finance et à la direction." };
+  if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const resultat = await facturerDevis({ devisId: String(formData.get("devisId") ?? ""), echeanceJours: jours(formData.get("echeance")), actor: user });
   if (!resultat.ok) return { error: resultat.error };
   revalidatePath("/", "layout");
@@ -57,6 +61,7 @@ export async function supprimerDevisEtRevenir(devisId: string) {
 export async function reglerFacture(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
   if (!peutEncaisser(user.role)) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
+  if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const facture = await prisma.facture.findUnique({ where: { id: String(formData.get("factureId") ?? "") }, select: { id: true, dossierId: true } });
   if (!facture) return { error: "Facture introuvable." };
   const jour = String(formData.get("date") ?? "");
@@ -79,6 +84,7 @@ export async function reglerFacture(_etat: EtatAction, formData: FormData): Prom
 export async function annulerFactureAction(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
   if (!peutAnnulerFacture(user.role)) return { error: "L'annulation d'une facture est réservée à la direction et à la comptabilité." };
+  if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const motif = String(formData.get("motif") ?? "").trim();
   if (!motif) return { error: "Indiquez le motif de l'annulation." };
   const resultat = await annulerFacture({ factureId: String(formData.get("factureId") ?? ""), motif, actor: user });

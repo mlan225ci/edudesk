@@ -8,7 +8,8 @@ import { STATUTS_TRADUCTION } from "@/lib/labels";
 import { BoutonEnvoi, FormAction, Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
-import { peutTraduire, voitTraductions } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { peutTraduire } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { livrerTraduction, prendreTraduction } from "@/server/traductions-actions";
 
@@ -18,7 +19,7 @@ const VUES: Record<string, StatutTraduction> = { "a-faire": "A_FAIRE", "en-cours
 
 export default async function TraductionsPage({ searchParams }: { searchParams: Promise<{ vue?: string; tous?: string }> }) {
   const user = await requireUser();
-  if (!voitTraductions(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "traductions"))) redirect("/missions");
   const traducteur = peutTraduire(user.role);
   const { vue = "a-faire", tous } = await searchParams;
   const statut = VUES[vue] ?? "A_FAIRE";

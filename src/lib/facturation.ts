@@ -1,4 +1,18 @@
-export type LigneDocument = { libelle: string; quantite: number; prixUnitaire: number };
+import type { TypePaiement } from "@prisma/client";
+
+export type LigneDocument = { libelle: string; quantite: number; prixUnitaire: number; mention?: string };
+
+/** Mention imprimée sur la facture des frais que le bureau ne reverse pas. */
+export const MENTION_NON_REMBOURSABLE = "Non remboursable";
+
+/** Acompte d'ouverture et frais de procédure (Campus France). L'acompte de scolarité peut être remboursé par l'école. */
+export function estNonRemboursable(type: TypePaiement | null | undefined, libelle = "") {
+  if (type === "ACOMPTE_DOSSIER" || type === "FRAIS") return true;
+  if (type === "ACOMPTE_SCOLARITE" || type === "AUTRE") return false;
+  const texte = libelle.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (/scolarit/.test(texte)) return false;
+  return /frais de service|frais de procedure|frais de dossier|acompte d'ouverture|campus france/.test(texte);
+}
 
 export function lireLignes(valeur: unknown): LigneDocument[] {
   if (!Array.isArray(valeur)) return [];

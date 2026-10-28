@@ -7,7 +7,7 @@ import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
 import { Badge, EnTete, Onglets, Vide } from "@/components/ui";
 import { rapprocher } from "@/server/actions";
-import { voitCompta } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Comptabilité" };
@@ -17,7 +17,7 @@ const JOURNAUX: Record<string, string> = { VTE: "Ventes", CAI: "Caisse", ACH: "A
 
 export default async function ComptabilitePage({ searchParams }: { searchParams: Promise<{ periode?: string }> }) {
   const user = await requireUser();
-  if (!voitCompta(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "comptabilite"))) redirect("/missions");
   const { periode = "jour" } = await searchParams;
   const depuis = periode === "mois" ? debutMois(0) : debutJourAbidjan();
   const [ecritures, reglements, aRapprocher, tresorerie] = await Promise.all([

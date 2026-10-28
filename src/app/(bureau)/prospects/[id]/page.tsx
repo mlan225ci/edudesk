@@ -7,7 +7,7 @@ import { labelSource } from "@/lib/labels";
 import { Formulaire } from "@/components/formulaire";
 import { Avatar, Badge, Champ } from "@/components/ui";
 import { convertirProspect, modifierProspect } from "@/server/actions";
-import { peutProspects } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProspectPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!peutProspects(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "prospects"))) redirect("/missions");
   const { id } = await params;
   const prospect = await prisma.prospect.findUnique({ where: { id }, include: { partenaire: true } });
   if (!prospect) notFound();

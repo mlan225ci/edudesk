@@ -37,6 +37,7 @@ export function BarreHaute({
   actions,
   nonLues,
   messagerie,
+  notifications = true,
   utilisateur,
   accueil,
 }: {
@@ -45,6 +46,7 @@ export function BarreHaute({
   actions: Lien[];
   nonLues: number;
   messagerie: boolean;
+  notifications?: boolean;
   utilisateur: { nom: string; role: string; initiales: string };
   accueil: string;
 }) {
@@ -127,14 +129,16 @@ export function BarreHaute({
             </Link>
           ) : null}
 
-          <Link href="/notifications" className="relative grid h-10 w-10 place-items-center rounded-xl text-ink/60 transition hover:bg-ink/5 hover:text-ink" aria-label="Notifications">
-            <Bell size={19} />
-            {nonLues > 0 ? (
-              <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-cap px-1 text-[10px] font-bold text-white ring-2 ring-white">
-                {nonLues > 9 ? "9+" : nonLues}
-              </span>
-            ) : null}
-          </Link>
+          {notifications ? (
+            <Link href="/notifications" className="relative grid h-10 w-10 place-items-center rounded-xl text-ink/60 transition hover:bg-ink/5 hover:text-ink" aria-label="Notifications">
+              <Bell size={19} />
+              {nonLues > 0 ? (
+                <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-cap px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                  {nonLues > 9 ? "9+" : nonLues}
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
 
           <div className="relative" ref={refProfil}>
             <button onClick={() => setProfil((valeur) => !valeur)} className="flex items-center gap-2 rounded-xl py-1 pr-2 pl-1 transition hover:bg-ink/5" aria-expanded={profil}>

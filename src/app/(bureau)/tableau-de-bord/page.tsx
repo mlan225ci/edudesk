@@ -27,6 +27,7 @@ import { cleMois, debutJourAbidjan, debutMois, delaiTexte, formatDate, nomComple
 import { ACTIONS_AUDIT, COMPTES, STATUTS, detailAudit, labelCategorie, labelSource, labelTypeConge } from "@/lib/labels";
 import { Anneau, BarresHorizontales, BarresMensuelles, Kpi, Panneau } from "@/components/graphiques";
 import { Avatar, Progression } from "@/components/ui";
+import { lienSi, lireModules } from "@/server/modules";
 import { peutProspects, peutValiderConges, voitCompta, voitDirection, voitFinance, type SessionUser } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { COMPTES_TRESORERIE, compterPar, cumulParMois, moisGlissants, situationDossiers, tresorerie } from "@/server/stats";
@@ -116,11 +117,12 @@ export default async function TableauDeBordPage() {
 async function Priorites({ user }: { user: SessionUser }) {
   const maintenant = new Date();
   const finJour = new Date(debutJourAbidjan().getTime() + 864e5);
-  const [etapes, prospects, congesAValider, aRapprocher] = await Promise.all([
+  const [etapes, prospects, congesAValider, aRapprocher, modules] = await Promise.all([
     chargerEtapesEnCours(),
     peutProspects(user.role) ? chargerProspects() : Promise.resolve([]),
     peutValiderConges(user.role) ? prisma.conge.count({ where: { statut: "DEMANDE" } }) : Promise.resolve(0),
     voitCompta(user.role) ? prisma.paiement.count({ where: { statut: "ENCAISSE" } }) : Promise.resolve(0),
+    lireModules(),
   ]);
   const miennes = etapes.filter((etape) => etape.responsableId === user.id);
   const retards = miennes.filter((etape) => etape.limiteLe && etape.limiteLe < maintenant).length;
@@ -131,9 +133,9 @@ async function Priorites({ user }: { user: SessionUser }) {
   const puces = [
     { href: "/missions", icone: ListChecks, texte: `${miennes.length} mission${miennes.length > 1 ? "s" : ""} en cours`, alerte: false },
     ...(retards ? [{ href: "/missions", icone: AlarmClock, texte: `${retards} en retard`, alerte: true }] : []),
-    ...(relances ? [{ href: "/prospects?filtre=relance", icone: PhoneCall, texte: `${relances} prospect${relances > 1 ? "s" : ""} à rappeler`, alerte: false }] : []),
-    ...(congesAValider ? [{ href: "/conges", icone: CalendarCheck, texte: `${congesAValider} absence${congesAValider > 1 ? "s" : ""} à valider`, alerte: false }] : []),
-    ...(aRapprocher ? [{ href: "/comptabilite", icone: Scale, texte: `${aRapprocher} paiement${aRapprocher > 1 ? "s" : ""} à rapprocher`, alerte: false }] : []),
+    ...(modules.prospects && relances ? [{ href: "/prospects?filtre=relance", icone: PhoneCall, texte: `${relances} prospect${relances > 1 ? "s" : ""} à rappeler`, alerte: false }] : []),
+    ...(modules.conges && congesAValider ? [{ href: "/conges", icone: CalendarCheck, texte: `${congesAValider} absence${congesAValider > 1 ? "s" : ""} à valider`, alerte: false }] : []),
+    ...(modules.comptabilite && aRapprocher ? [{ href: "/comptabilite", icone: Scale, texte: `${aRapprocher} paiement${aRapprocher > 1 ? "s" : ""} à rapprocher`, alerte: false }] : []),
   ];
 
   return (
@@ -156,7 +158,7 @@ async function Priorites({ user }: { user: SessionUser }) {
 }
 
 async function KpisFinance() {
-  const [{ paiements, depenses }, tresor] = await Promise.all([chargerFlux(), tresorerie()]);
+  const [{ paiements, depenses }, tresor, modules] = await Promise.all([chargerFlux(), tresorerie(), lireModules()]);
   const encaisse = cumulParMois(paiements, (p) => p.dateEncaissement, (p) => p.montant);
   const sorties = cumulParMois(depenses, (d) => d.date, (d) => d.montant);
   const ceMois = cleMois(debutMois(0));
@@ -168,21 +170,22 @@ async function KpisFinance() {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 entree-cascade">
-      <Kpi titre="Encaissé ce mois" valeur={encaisseMois} format="xof" evolution={variation(encaisseMois, encaisse.get(avant) ?? 0)} detail="vs mois dernier" ton="desk" icone={Wallet} href="/caisse" />
-      <Kpi titre="Dépenses du mois" valeur={depenseMois} format="xof" evolution={variation(depenseMois, sorties.get(avant) ?? 0)} inverse detail="vs mois dernier" ton="mission" icone={ArrowDownCircle} href="/depenses" />
-      <Kpi titre="Résultat du mois" valeur={encaisseMois - depenseMois} format="xof" detail={`Encaissé ${annee} : ${xofCourt(encaisseAnnee)}`} ton={encaisseMois - depenseMois >= 0 ? "vert" : "cap"} icone={TrendingUp} href="/rapports" />
-      <Kpi titre="Trésorerie disponible" valeur={tresor.total} format="xof" detail="caisse, banque, mobile money" ton="ink" icone={Landmark} href="/comptabilite" />
+      <Kpi titre="Encaissé ce mois" valeur={encaisseMois} format="xof" evolution={variation(encaisseMois, encaisse.get(avant) ?? 0)} detail="vs mois dernier" ton="desk" icone={Wallet} href={lienSi(modules.caisse, "/caisse")} />
+      <Kpi titre="Dépenses du mois" valeur={depenseMois} format="xof" evolution={variation(depenseMois, sorties.get(avant) ?? 0)} inverse detail="vs mois dernier" ton="mission" icone={ArrowDownCircle} href={lienSi(modules.depenses, "/depenses")} />
+      <Kpi titre="Résultat du mois" valeur={encaisseMois - depenseMois} format="xof" detail={`Encaissé ${annee} : ${xofCourt(encaisseAnnee)}`} ton={encaisseMois - depenseMois >= 0 ? "vert" : "cap"} icone={TrendingUp} href={lienSi(modules.rapports, "/rapports")} />
+      <Kpi titre="Trésorerie disponible" valeur={tresor.total} format="xof" detail="caisse, banque, mobile money" ton="ink" icone={Landmark} href={lienSi(modules.comptabilite, "/comptabilite")} />
     </div>
   );
 }
 
 async function KpisActivite({ user }: { user: SessionUser }) {
-  const [dossiers, prospects, etapes, clotures, clients] = await Promise.all([
+  const [dossiers, prospects, etapes, clotures, clients, modules] = await Promise.all([
     chargerDossiers(),
     chargerProspects(),
     chargerEtapesEnCours(),
     chargerClotures(),
     prisma.client.count(),
+    lireModules(),
   ]);
   const maintenant = new Date();
   const ouverts = cumulParMois(dossiers, (d) => d.ouvertLe, () => 1);
@@ -197,7 +200,7 @@ async function KpisActivite({ user }: { user: SessionUser }) {
       <Kpi titre="Dossiers actifs" valeur={dossiers.filter((d) => d.statut !== "REORIENTE").length} detail={`${clients} clients au total`} icone={FolderOpen} href="/dossiers" />
       <Kpi titre="Ouverts ce mois" valeur={ouvertsMois} evolution={variation(ouvertsMois, ouverts.get(cleMois(debutMois(-1))) ?? 0)} detail="vs mois dernier" ton="desk" icone={FolderPlus} href="/dossiers" />
       <Kpi titre="Étapes en retard" valeur={retards} detail={`${etapes.length} étapes en cours`} ton={retards ? "cap" : "vert"} icone={AlarmClock} href="/dossiers?retard=1" />
-      {peutProspects(user.role) || voitDirection(user.role) ? (
+      {(peutProspects(user.role) || voitDirection(user.role)) && modules.prospects ? (
         <Kpi titre="Conversion prospects" valeur={taux} format="pourcent" detail={`${convertis} convertis sur ${prospects.length}`} ton="edu" icone={Target} href="/prospects" />
       ) : (
         <Kpi
@@ -214,7 +217,7 @@ async function KpisActivite({ user }: { user: SessionUser }) {
 }
 
 async function BlocFinance() {
-  const [{ paiements, depenses }, tresor, situation] = await Promise.all([chargerFlux(), tresorerie(), situationDossiers()]);
+  const [{ paiements, depenses }, tresor, situation, modules] = await Promise.all([chargerFlux(), tresorerie(), situationDossiers(), lireModules()]);
   const mois = moisGlissants(12);
   const convenu = situation.reduce((somme, ligne) => somme + ligne.convenu, 0);
   const paye = situation.reduce((somme, ligne) => somme + Math.min(ligne.paye, ligne.convenu), 0);
@@ -223,7 +226,7 @@ async function BlocFinance() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-3 entree-cascade">
-      <Panneau titre="Encaissements et dépenses · 12 mois" icone={TrendingUp} className="lg:col-span-2" action={{ href: "/rapports", label: "Rapports" }}>
+      <Panneau titre="Encaissements et dépenses · 12 mois" icone={TrendingUp} className="lg:col-span-2" action={modules.rapports ? { href: "/rapports", label: "Rapports" } : null}>
         <BarresMensuelles
           mois={mois}
           series={[
@@ -233,10 +236,10 @@ async function BlocFinance() {
         />
       </Panneau>
       <div className="grid gap-4">
-        <Panneau titre="Trésorerie" icone={Landmark} action={{ href: "/comptabilite", label: "Détail" }}>
+        <Panneau titre="Trésorerie" icone={Landmark} action={modules.comptabilite ? { href: "/comptabilite", label: "Détail" } : null}>
           <BarresHorizontales format="xof" donnees={COMPTES_TRESORERIE.map((compte) => ({ label: COMPTES[compte], valeur: tresor.soldes[compte] ?? 0 }))} />
         </Panneau>
-        <Panneau titre="Recouvrement" icone={Receipt} action={{ href: "/creances", label: "Créances" }}>
+        <Panneau titre="Recouvrement" icone={Receipt} action={modules.creances ? { href: "/creances", label: "Créances" } : null}>
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="text-xl font-bold text-cap tabular-nums">{xof(reste)}</p>
@@ -254,7 +257,7 @@ async function BlocFinance() {
 }
 
 async function BlocRepartition({ user }: { user: SessionUser }) {
-  const [dossiers, prospects] = await Promise.all([chargerDossiers(), chargerProspects()]);
+  const [dossiers, prospects, modules] = await Promise.all([chargerDossiers(), chargerProspects(), lireModules()]);
   const actifs = dossiers.filter((d) => d.statut !== "REORIENTE");
   const mois = moisGlissants(12);
   return (
@@ -274,7 +277,7 @@ async function BlocRepartition({ user }: { user: SessionUser }) {
       <Panneau titre="Destinations" icone={FolderOpen}>
         <BarresHorizontales donnees={compterPar(actifs, (d) => d.procedure.destination).map(([label, valeur]) => ({ label, valeur }))} vide="Aucun dossier actif." />
       </Panneau>
-      {peutProspects(user.role) || voitDirection(user.role) ? (
+      {(peutProspects(user.role) || voitDirection(user.role)) && modules.prospects ? (
         <Panneau titre="Origine des prospects" icone={Target} action={{ href: "/prospects", label: "Prospects" }}>
           <BarresHorizontales ton="edu" donnees={compterPar(prospects, (p) => labelSource(p.source)).map(([label, valeur]) => ({ label, valeur }))} vide="Aucun prospect." />
         </Panneau>
@@ -403,11 +406,12 @@ function ListeDebiteurs({ debiteurs }: { debiteurs: Awaited<ReturnType<typeof si
 }
 
 async function BlocVieInterne({ finance }: { finance: boolean }) {
-  const [absents, audits, flux, situation] = await Promise.all([
+  const [absents, audits, flux, situation, modules] = await Promise.all([
     chargerAbsents(),
     prisma.audit.findMany({ where: { action: { not: "PIECE_CONSULTEE" } }, orderBy: { creeLe: "desc" }, take: 6, include: { user: true } }),
     finance ? chargerFlux() : Promise.resolve(null),
     finance ? situationDossiers() : Promise.resolve([]),
+    lireModules(),
   ]);
   const ceMois = debutMois(0);
   const parCategorie = new Map<string, number>();
@@ -417,7 +421,7 @@ async function BlocVieInterne({ finance }: { finance: boolean }) {
   const debiteurs = situation.filter((ligne) => ligne.reste > 0).sort((a, b) => b.reste - a.reste).slice(0, 5);
 
   const panneauAbsents = (
-    <Panneau titre="Absents aujourd'hui" icone={CalendarDays} action={{ href: "/conges", label: "Planning" }}>
+    <Panneau titre="Absents aujourd'hui" icone={CalendarDays} action={modules.conges ? { href: "/conges", label: "Planning" } : null}>
       <ul className="grid gap-2">
         {absents.map((conge) => (
           <li key={conge.id} className="flex items-center gap-3 text-sm">
@@ -444,10 +448,10 @@ async function BlocVieInterne({ finance }: { finance: boolean }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-3 entree-cascade">
-      <Panneau titre="Plus gros restes à payer" icone={Receipt} action={{ href: "/creances", label: "Créances" }}>
+      <Panneau titre="Plus gros restes à payer" icone={Receipt} action={modules.creances ? { href: "/creances", label: "Créances" } : null}>
         <ListeDebiteurs debiteurs={debiteurs} />
       </Panneau>
-      <Panneau titre="Dépenses du mois" icone={ArrowDownCircle} action={{ href: "/depenses", label: "Dépenses" }}>
+      <Panneau titre="Dépenses du mois" icone={ArrowDownCircle} action={modules.depenses ? { href: "/depenses", label: "Dépenses" } : null}>
         <BarresHorizontales ton="edu" format="xof" donnees={[...parCategorie.entries()].sort((a, b) => b[1] - a[1]).map(([label, valeur]) => ({ label, valeur }))} vide="Aucune dépense ce mois." />
       </Panneau>
       {panneauAbsents}

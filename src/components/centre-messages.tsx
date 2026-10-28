@@ -81,14 +81,16 @@ export function usePresence(userId: string) {
   return { enLigne: contexte?.enLigne.has(userId) ?? false, vuLe: contexte?.vuLe.get(userId) ?? null };
 }
 
-export function CentreMessages({ moiId, initial, children }: { moiId: string; initial: number; children: React.ReactNode }) {
+export function CentreMessages({ moiId, moiNom, initial, children }: { moiId: string; moiNom: string; initial: number; children: React.ReactNode }) {
   const [nonLus, setNonLus] = useState(initial);
   const [enLigne, setEnLigne] = useState<Set<string>>(() => new Set());
   const [vuLe, setVuLe] = useState<Map<string, string>>(() => new Map());
   const toast = useToast();
   const router = useRouter();
   const outils = useRef({ toast, router });
+  const nom = useRef(moiNom.toLocaleLowerCase("fr"));
   outils.current = { toast, router };
+  nom.current = moiNom.toLocaleLowerCase("fr");
 
   useEffect(() => setNonLus(initial), [initial]);
 
@@ -216,6 +218,20 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
           setVuLe((actuels) => new Map(actuels).set(evenement.userId, quand));
         }
       }
+      if (evenement.type === "groupe") {
+        const message = evenement.message;
+        if (message.deId === moiId || enLecture(`groupe:${evenement.groupeId}`)) return;
+        const extrait = apercuMessage(message).replace(/\s+/g, " ").trim().slice(0, 120);
+        const mention = nom.current.length > 1 && message.texte.replace(/\s+/g, " ").trim().toLocaleLowerCase("fr").includes(nom.current);
+        jouerSon();
+        outils.current.toast(
+          `${message.deNom} · ${evenement.groupeNom}${mention ? " vous mentionne" : ""} : ${extrait}`,
+          "message",
+          `/messages?groupe=${evenement.groupeId}`,
+        );
+        setNonLus((valeur) => valeur + 1);
+        return;
+      }
       if (evenement.type !== "message") return;
       const message = evenement.message;
       if (vus.has(message.id)) return;
@@ -229,7 +245,7 @@ export function CentreMessages({ moiId, initial, children }: { moiId: string; in
     const ouvrirFlux = () => {
       let coupe = false;
       source = new EventSource("/api/messages/flux");
-      for (const type of ["message", "lu", "compteur", "ecrit", "presence", "presences"] as const) {
+      for (const type of ["message", "lu", "compteur", "ecrit", "presence", "presences", "groupe"] as const) {
         source.addEventListener(type, (event) => {
           const evenement = JSON.parse((event as MessageEvent<string>).data) as EvenementFlux;
           canal?.postMessage(evenement);

@@ -22,7 +22,7 @@ export async function ouvrirSession(userId: string) {
   jar.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "0" ? false : process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 12,
   });

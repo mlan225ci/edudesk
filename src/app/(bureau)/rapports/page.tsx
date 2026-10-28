@@ -4,7 +4,7 @@ import { EnTete } from "@/components/ui";
 import { variation, xof } from "@/lib/format";
 import { BarresHorizontales, BarresMensuelles, Kpi, Panneau } from "@/components/graphiques";
 import { Filtres } from "@/components/filtres";
-import { voitRapports } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 import { TYPES_PERIODE, calculerStatistiques, lirePeriode, periodePrecedente, periodesRecentes } from "@/server/statistiques";
 
@@ -23,7 +23,7 @@ export const metadata = { title: "Rapports" };
 
 export default async function RapportsPage({ searchParams }: { searchParams: Promise<{ periode?: string; cle?: string; mois?: string }> }) {
   const user = await requireUser();
-  if (!voitRapports(user.role)) redirect("/tableau-de-bord");
+  if (!(await aLeDroit(user, "rapports"))) redirect("/tableau-de-bord");
   const { periode: type, cle, mois } = await searchParams;
   const periode = lirePeriode(type, cle ?? mois);
   const precedente = periodePrecedente(periode);

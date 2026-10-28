@@ -8,14 +8,15 @@ import { Kpi } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, Choix, EnTete, Progression, Vide } from "@/components/ui";
 import { creerPartenaire, verserCommission } from "@/server/actions";
-import { voitDepenses, voitPartenaires } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { voitDepenses } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Partenaires" };
 
 export default async function PartenairesPage({ searchParams }: { searchParams: Promise<{ nouveau?: string }> }) {
   const user = await requireUser();
-  if (!voitPartenaires(user.role)) redirect("/tableau-de-bord");
+  if (!(await aLeDroit(user, "partenaires"))) redirect("/tableau-de-bord");
   const { nouveau } = await searchParams;
   const partenaires = await prisma.partenaire.findMany({
     orderBy: { nom: "asc" },

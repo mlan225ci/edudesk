@@ -8,17 +8,18 @@ import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { BarresHorizontales, Kpi, Panneau } from "@/components/graphiques";
 import { Avatar, Badge, EnTete } from "@/components/ui";
 import { lancerAlertes } from "@/server/actions";
-import { voitDirection } from "@/server/permissions";
+import { lienSi, lireModules } from "@/server/modules";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Direction" };
 
 export default async function DirectionPage() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) redirect("/missions");
+  if (!(await aLeDroit(user, "direction"))) redirect("/missions");
   const maintenant = new Date();
   const depuis = debutJourAbidjan();
-  const [dossiers, retards, paiements, partenaires] = await Promise.all([
+  const [dossiers, retards, paiements, partenaires, modules] = await Promise.all([
     prisma.dossier.findMany({ select: { statut: true, procedure: { select: { destination: true } } } }),
     prisma.dossierEtape.findMany({
       where: { statut: "EN_COURS", limiteLe: { lt: maintenant } },
@@ -29,6 +30,7 @@ export default async function DirectionPage() {
     prisma.partenaire.findMany({
       include: { clients: { include: { dossiers: { include: { procedure: true } } } } },
     }),
+    lireModules(),
   ]);
 
   const parDestination = new Map<string, number>();
@@ -50,17 +52,19 @@ export default async function DirectionPage() {
         icone={Building2}
         description="Vue de pilotage : retards, entonnoir commercial et commissions à reverser."
         actions={
-          <FormAction action={lancerAlertes} succes="Alertes envoyées aux responsables en retard">
-            <BoutonEnvoi className="bouton"><BellRing size={16} /> Relancer les retards par SMS</BoutonEnvoi>
-          </FormAction>
+          modules.automatisation ? (
+            <FormAction action={lancerAlertes} succes="Alertes envoyées aux responsables en retard">
+              <BoutonEnvoi className="bouton"><BellRing size={16} /> Relancer les retards par SMS</BoutonEnvoi>
+            </FormAction>
+          ) : null
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi titre="Dossiers actifs" valeur={actifs} icone={FolderOpen} href="/dossiers" />
         <Kpi titre="Étapes en retard" valeur={retards.length} icone={AlarmClock} ton={retards.length ? "cap" : "vert"} href="/dossiers?retard=1" />
-        <Kpi titre="Encaissé aujourd'hui" valeur={paiements._sum.montant ?? 0} format="xof" icone={Wallet} ton="vert" href="/caisse" />
-        <Kpi titre="Partenaires" valeur={partenaires.length} icone={Handshake} href="/partenaires" />
+        <Kpi titre="Encaissé aujourd'hui" valeur={paiements._sum.montant ?? 0} format="xof" icone={Wallet} ton="vert" href={lienSi(modules.caisse, "/caisse")} />
+        <Kpi titre="Partenaires" valeur={partenaires.length} icone={Handshake} href={lienSi(modules.partenaires, "/partenaires")} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -103,7 +107,7 @@ export default async function DirectionPage() {
         </div>
       </div>
 
-      <Panneau titre="Commissions partenaires" icone={Handshake} action={<Link href="/partenaires" className="text-sm font-semibold text-desk hover:underline">Gérer</Link>}>
+      <Panneau titre="Commissions partenaires" icone={Handshake} action={modules.partenaires ? <Link href="/partenaires" className="text-sm font-semibold text-desk hover:underline">Gérer</Link> : null}>
         <p className="mb-3 text-sm text-ink/55">Commission de la procédure × dossiers apportés. Le versement se fait depuis la page Partenaires.</p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {commissions.map(({ partenaire, nombre, montant }) => (

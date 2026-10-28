@@ -45,10 +45,10 @@ export function EnTete({
   );
 }
 
-export function Badge({ ton = "gris", children, point = false }: { ton?: Ton; children: React.ReactNode; point?: boolean }) {
+export function Badge({ ton = "gris", children, point = false, className = "" }: { ton?: Ton; children: React.ReactNode; point?: boolean; className?: string }) {
   return (
-    <span className={`badge ${BADGES[ton]}`}>
-      {point ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+    <span className={`badge ${BADGES[ton]} ${className}`}>
+      {point ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" /> : null}
       {children}
     </span>
   );

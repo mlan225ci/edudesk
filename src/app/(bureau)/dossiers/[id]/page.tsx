@@ -16,6 +16,7 @@ import { PanneauDevis } from "@/components/panneau-devis";
 import { PanneauTraductions } from "@/components/panneau-traductions";
 import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter } from "@/server/actions";
 import { relancerPieces } from "@/server/communication-actions";
+import { lireModules } from "@/server/modules";
 import { lireDocuments } from "@/server/parametres";
 import { peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -119,7 +120,8 @@ export default async function DossierPage({
   });
   if (!dossier) notFound();
   if (user.role === "PARTENAIRE" && dossier.client.partenaireId !== user.partenaireId) notFound();
-  const avecEcoles = dossier.procedure.ecoles || dossier.candidatures.length > 0;
+  const modules = await lireModules();
+  const avecEcoles = modules.ecoles && (dossier.procedure.ecoles || dossier.candidatures.length > 0);
   const gereCandidatures = avecEcoles && peutCandidatures(user.role);
 
   const [audits, utilisateurs, procedures, reportees, origine, ecoles] = await Promise.all([
@@ -332,7 +334,7 @@ export default async function DossierPage({
             </article>
           ) : null}
 
-          {!lectureSeule && (dossier.traductions.length > 0 || documents.some((document) => document.fichier)) ? (
+          {!lectureSeule && modules.traductions && (dossier.traductions.length > 0 || documents.some((document) => document.fichier)) ? (
             <PanneauTraductions
               traductions={dossier.traductions}
               pieces={documents.filter((document) => document.fichier).map((document) => ({ id: document.id, libelle: document.libelle }))}
@@ -341,7 +343,7 @@ export default async function DossierPage({
             />
           ) : null}
 
-          {!lectureSeule && (peutDevis(user.role) || dossier.devis.length > 0) ? (
+          {!lectureSeule && modules.devis && (peutDevis(user.role) || dossier.devis.length > 0) ? (
             <PanneauDevis
               dossierId={dossier.id}
               devis={dossier.devis}
@@ -480,7 +482,7 @@ export default async function DossierPage({
                   </Tiroir>
                 ) : null}
               </div>
-              {dossier.factures.length ? (
+              {modules.factures && dossier.factures.length ? (
                 <ul className="mt-4 grid gap-2 text-sm">
                   {dossier.factures.map((facture) => {
                     const regle = facture.reglements.reduce((somme, reglement) => somme + reglement.montant, 0);
@@ -506,7 +508,7 @@ export default async function DossierPage({
                       <p className="font-semibold tabular-nums">{xof(paiement.montant)}</p>
                       <p className="truncate text-xs text-ink/50">{labelTypePaiement(paiement.type)} · {labelMode(paiement.mode)} · {formatJour(paiement.dateEncaissement)}</p>
                     </div>
-                    {paiement.facture || paiement.factureReglee ? (
+                    {modules.factures && (paiement.facture || paiement.factureReglee) ? (
                       <Link className="bouton-fantome shrink-0 text-desk" href={`/facturation/factures/${(paiement.facture ?? paiement.factureReglee)!.id}`} title="Voir la facture">
                         <Receipt size={15} />
                       </Link>

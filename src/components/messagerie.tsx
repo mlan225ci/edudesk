@@ -53,7 +53,7 @@ import {
   type EvenementClient,
 } from "@/components/centre-messages";
 import { marquerLu, posterMessage } from "@/server/messages-actions";
-import type { MessageFlux, ReponseFlux } from "@/server/temps-reel";
+import type { FichierFlux, MessageFlux, ReponseFlux } from "@/server/temps-reel";
 
 type Ligne = MessageFlux & { etat?: "envoi" | "echec" };
 type EnvoiFichier = { fichier: File; texte: string; duree: number | null; reponse: ReponseFlux | null };
@@ -230,7 +230,15 @@ function LecteurVocal({ src, duree, moi }: { src: string | null; duree: number |
   );
 }
 
-function ContenuFichier({ message, moi, requete }: { message: Ligne; moi: boolean; requete: string }) {
+export function ContenuFichier({
+  message,
+  moi,
+  requete = "",
+}: {
+  message: { id: string; etat?: "envoi" | "echec"; fichier: FichierFlux | null };
+  moi: boolean;
+  requete?: string;
+}) {
   const fichier = message.fichier;
   if (!fichier) return null;
   const url = message.etat ? null : urlFichierMessage(message.id);

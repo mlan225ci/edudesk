@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { xof } from "@/lib/format";
 import type { EtatAction } from "@/server/actions";
 import { creerDevis, envoyerDevisClient } from "@/server/engine";
-import { peutDevis } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
+import { lireModules } from "@/server/modules";
 import { requireUser } from "@/server/session";
 
 function entier(valeur: FormDataEntryValue | null) {
@@ -14,7 +15,8 @@ function entier(valeur: FormDataEntryValue | null) {
 
 export async function nouveauDevis(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutDevis(user.role)) return { error: "Vous ne pouvez pas établir de devis." };
+  if (!(await aLeDroit(user, "devis"))) return { error: "Vous ne pouvez pas établir de devis." };
+  if (!(await lireModules()).devis) return { error: "Les devis sont désactivés." };
   const libelles = formData.getAll("libelle").map((valeur) => String(valeur).trim());
   const quantites = formData.getAll("quantite");
   const prix = formData.getAll("prix");
@@ -43,7 +45,8 @@ export async function nouveauDevis(_etat: EtatAction, formData: FormData): Promi
 
 export async function envoyerDevis(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutDevis(user.role)) return { error: "Action non autorisée." };
+  if (!(await aLeDroit(user, "devis"))) return { error: "Action non autorisée." };
+  if (!(await lireModules()).devis) return { error: "Les devis sont désactivés." };
   const resultat = await envoyerDevisClient({
     devisId: String(formData.get("devisId") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -55,7 +58,7 @@ export async function envoyerDevis(_etat: EtatAction, formData: FormData): Promi
 
 export async function deciderDevis(devisId: string, decision: "ACCEPTE" | "REFUSE") {
   const user = await requireUser();
-  if (!peutDevis(user.role)) return;
+  if (!(await aLeDroit(user, "devis")) || !(await lireModules()).devis) return;
   const devis = await prisma.devis.findUnique({ where: { id: devisId }, include: { dossier: true } });
   if (!devis || devis.statut !== "EMIS") return;
   await prisma.$transaction([
@@ -76,7 +79,7 @@ export async function deciderDevis(devisId: string, decision: "ACCEPTE" | "REFUS
 
 export async function supprimerDevis(devisId: string) {
   const user = await requireUser();
-  if (!peutDevis(user.role)) return;
+  if (!(await aLeDroit(user, "devis")) || !(await lireModules()).devis) return;
   const devis = await prisma.devis.findUnique({ where: { id: devisId } });
   if (!devis || devis.statut !== "EMIS") return;
   await prisma.devis.delete({ where: { id: devis.id } });

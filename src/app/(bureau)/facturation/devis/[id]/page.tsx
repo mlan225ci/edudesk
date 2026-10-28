@@ -10,7 +10,9 @@ import { Badge, Champ, EnTete, Info } from "@/components/ui";
 import { deciderDevis, envoyerDevis } from "@/server/devis-actions";
 import { supprimerDevisEtRevenir, transformerDevis } from "@/server/facturation-actions";
 import { lireDocuments } from "@/server/parametres";
-import { peutDevis, peutFacturer, voitFinance } from "@/server/permissions";
+import { lireModules } from "@/server/modules";
+import { aLeDroit } from "@/server/acces";
+import { peutFacturer, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function DevisPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!peutDevis(user.role)) redirect("/");
+  if (!(await aLeDroit(user, "devis"))) redirect("/");
   const { id } = await params;
   const devis = await prisma.devis.findUnique({
     where: { id },
@@ -36,7 +38,8 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
   const lignes = lireLignes(devis.lignes);
   const client = devis.dossier.client;
   const ouvert = devis.statut === "EMIS" && !devis.facture;
-  const facturable = peutFacturer(user.role) && !devis.facture && devis.statut !== "REFUSE";
+  const modules = await lireModules();
+  const facturable = modules.factures && peutFacturer(user.role) && !devis.facture && devis.statut !== "REFUSE";
 
   const details: [string, React.ReactNode][] = [
     ["Client", client.email ? `${devis.clientNom} · ${client.email}` : devis.clientNom],
@@ -124,7 +127,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
                 <span className="block text-xs text-ink/50">Transformé en facture le {formatJour(devis.facture.creeLe)}</span>
                 <span className="block font-semibold">{devis.facture.numero}</span>
               </span>
-              {voitFinance(user.role) ? (
+              {modules.factures && voitFinance(user.role) ? (
                 <Link href={`/facturation/factures/${devis.facture.id}`} className="text-sm font-semibold text-desk after:absolute after:inset-0">
                   Ouvrir
                 </Link>

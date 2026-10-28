@@ -9,8 +9,9 @@ import { compterSegments, normaliserTelephone, telephoneValide } from "@/lib/for
 import type { EtatAction } from "@/server/actions";
 import { executerAutomatisation } from "@/server/automatisation";
 import { emailValide, envoyerMailDirect } from "@/server/mail";
+import { MODULES } from "@/server/modules";
 import { CHAMPS_ENTREPRISE, REPERTOIRE_PARAMETRES, TAILLES_LOGO, configSms, ecrireParametres, lireDocuments, lireEntreprise } from "@/server/parametres";
-import { peutParametrer, voitDirection } from "@/server/permissions";
+import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { envoyerSms } from "@/server/sms";
 
@@ -147,7 +148,7 @@ export async function modifierOperateurSms(_etat: EtatAction, formData: FormData
 
 export async function envoyerSmsTest(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
   const telephone = normaliserTelephone(texte(formData, "telephone"));
   if (!telephoneValide(telephone)) return { error: "Numéro international invalide, par exemple +2250700000000." };
   const config = await configSms();
@@ -197,7 +198,7 @@ export async function modifierServeurMail(_etat: EtatAction, formData: FormData)
 
 export async function envoyerMailTest(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
   const destinataire = texte(formData, "email");
   if (!emailValide(destinataire)) return { error: "Adresse e-mail invalide." };
   const entreprise = await lireEntreprise();
@@ -231,14 +232,24 @@ export async function modifierAutomatisation(_etat: EtatAction, formData: FormDa
 
 export async function lancerAutomatisation() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return;
+  if (!peutParametrer(user.role)) return;
   await executerAutomatisation("manuel", true);
   revalidatePath("/", "layout");
 }
 
+export async function enregistrerModules(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  const coches = new Set(formData.getAll("modules").map(String));
+  await ecrireParametres("modules", Object.fromEntries(MODULES.map((module) => [module.id, coches.has(module.id) ? "1" : "0"])));
+  const coupes = MODULES.filter((module) => !coches.has(module.id)).map((module) => module.label);
+  await journaliser(user.id, coupes.length ? `Fonctionnalités désactivées : ${coupes.join(", ")}` : "Toutes les fonctionnalités optionnelles sont actives");
+  return null;
+}
+
 export async function modifierModeleMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
   const code = texte(formData, "code");
   const sujet = texte(formData, "sujet");
   const corpsMail = String(formData.get("corpsMail") ?? "").replace(/\r/g, "").trim();

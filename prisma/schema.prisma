@@ -149,6 +149,27 @@ model User {
   messagesEnvoyes Message[] @relation("messagesEnvoyes")
   messagesRecus   Message[] @relation("messagesRecus")
   traductions     Traduction[] @relation("traductions")
+  groupesCrees    Groupe[] @relation("groupesCrees")
+  membresGroupe   MembreGroupe[]
+  messagesGroupe  MessageGroupe[]
+  acces           AccesCompte[]
+}
+
+model AccesRole {
+  role     Role
+  cle      String
+  autorise Boolean
+
+  @@id([role, cle])
+}
+
+model AccesCompte {
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cle      String
+  autorise Boolean
+
+  @@id([userId, cle])
 }
 
 model Partenaire {
@@ -197,6 +218,7 @@ model Client {
   creeLe           DateTime    @default(now())
   dossiers         Dossier[]
   paiements        Paiement[]
+  groupe           Groupe?
 
   @@index([telephone])
 }
@@ -670,6 +692,51 @@ model Audit {
   creeLe   DateTime @default(now())
 
   @@index([entite, entiteId])
+  @@index([creeLe])
+}
+
+model Groupe {
+  id        String         @id @default(cuid())
+  nom       String
+  general   Boolean        @default(false)
+  clientId  String?        @unique
+  client    Client?        @relation(fields: [clientId], references: [id])
+  creeParId String
+  creePar   User           @relation("groupesCrees", fields: [creeParId], references: [id])
+  creeLe    DateTime       @default(now())
+  membres   MembreGroupe[]
+  messages  MessageGroupe[]
+
+  @@index([general])
+}
+
+model MembreGroupe {
+  groupeId String
+  groupe   Groupe   @relation(fields: [groupeId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ajouteLe DateTime @default(now())
+  luLe     DateTime @default(now())
+
+  @@id([groupeId, userId])
+  @@index([userId])
+}
+
+model MessageGroupe {
+  id       String   @id @default(cuid())
+  groupeId String
+  groupe   Groupe   @relation(fields: [groupeId], references: [id], onDelete: Cascade)
+  deId     String
+  de       User     @relation(fields: [deId], references: [id])
+  texte    String
+  fichierNom    String?
+  fichierChemin String?
+  fichierType   String?
+  fichierTaille Int?
+  duree         Int?
+  creeLe   DateTime @default(now())
+
+  @@index([groupeId, creeLe])
 }
 
 model Parametre {

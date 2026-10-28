@@ -3,6 +3,15 @@ import { apercuMessage } from "@/lib/messages";
 
 export type FichierFlux = { nom: string; type: string; taille: number; duree: number | null };
 export type ReponseFlux = { id: string; deId: string; deNom: string; apercu: string };
+export type MessageGroupeFlux = {
+  id: string;
+  deId: string;
+  deNom: string;
+  texte: string;
+  creeLe: string;
+  fichier: FichierFlux | null;
+  cle?: string;
+};
 
 export const INCLURE_FLUX = {
   de: { select: { prenom: true, nom: true } },
@@ -28,7 +37,8 @@ export type EvenementFlux =
   | { type: "compteur"; nonLus: number }
   | { type: "ecrit"; par: string }
   | { type: "presence"; userId: string; enLigne: boolean; vuLe: string | null }
-  | { type: "presences"; enLigne: string[] };
+  | { type: "presences"; enLigne: string[] }
+  | { type: "groupe"; groupeId: string; groupeNom: string; message: MessageGroupeFlux };
 
 const TOUS = "*";
 const DELAI_DEPART_MS = 6000;

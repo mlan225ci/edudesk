@@ -3,7 +3,9 @@ import { Suspense } from "react";
 import { BarreNavigation } from "@/components/barre-navigation";
 import { nomComplet } from "@/lib/format";
 import { labelRole } from "@/lib/labels";
+import type { AccesEffectif } from "@/server/acces";
 import { actionsRapides, navigation, ongletsParametres, type SessionUser } from "@/server/permissions";
+import type { ModulesActifs } from "@/server/modules";
 import { Navigation } from "@/components/navigation";
 import { BarreHaute } from "@/components/barre-haute";
 import { ToastProvider } from "@/components/toasts";
@@ -13,14 +15,18 @@ export function Shell({
   user,
   nonLues,
   messagesNonLus,
+  modules,
+  droits,
   children,
 }: {
   user: SessionUser;
   nonLues: number;
   messagesNonLus: number;
+  modules: ModulesActifs;
+  droits: AccesEffectif;
   children: React.ReactNode;
 }) {
-  const sections = navigation(user.role);
+  const sections = navigation(user.role, modules, droits);
   const accueil = user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord";
   const contenu = (
     <>
@@ -48,10 +54,11 @@ export function Shell({
         <div className="flex min-w-0 flex-1 flex-col">
           <BarreHaute
             sections={sections}
-            parametres={ongletsParametres(user.role)}
-            actions={actionsRapides(user.role)}
+            parametres={ongletsParametres(user.role, modules)}
+            actions={actionsRapides(user.role, modules, droits)}
             nonLues={nonLues}
-            messagerie={user.role !== "PARTENAIRE"}
+            messagerie={droits.messagerie && modules.messagerie}
+            notifications={droits.notifications && modules.notifications}
             accueil={accueil}
             utilisateur={{
               nom: nomComplet(user),
@@ -66,10 +73,10 @@ export function Shell({
   );
   return (
     <ToastProvider>
-      {user.role === "PARTENAIRE" ? (
+      {user.role === "PARTENAIRE" || !modules.messagerie || !droits.messagerie ? (
         contenu
       ) : (
-        <CentreMessages moiId={user.id} initial={messagesNonLus}>
+        <CentreMessages moiId={user.id} moiNom={`${user.prenom} ${user.nom}`} initial={messagesNonLus}>
           {contenu}
         </CentreMessages>
       )}

@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Blocks,
   BookOpen,
   CalendarDays,
   Crown,
@@ -20,6 +21,7 @@ import {
   ArrowDownCircle,
   Building2,
   Settings,
+  ShieldCheck,
   Mail,
   Languages,
   MessagesSquare,
@@ -27,6 +29,7 @@ import {
   FileSpreadsheet,
   FileSignature,
   ReceiptText,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +53,8 @@ export const ICONES: Record<string, LucideIcon> = {
   inventaire: Package,
   sms: MessageSquare,
   parametres: Settings,
+  acces: ShieldCheck,
+  modules: Blocks,
   entreprise: Building2,
   email: Mail,
   traductions: Languages,
@@ -58,6 +63,7 @@ export const ICONES: Record<string, LucideIcon> = {
   facturation: FileSpreadsheet,
   devis: FileSignature,
   facture: ReceiptText,
+  historique: ScrollText,
   page: FileText,
 };
 

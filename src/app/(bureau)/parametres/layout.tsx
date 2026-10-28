@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { OngletsParametres } from "@/components/onglets-parametres";
+import { lireModules } from "@/server/modules";
 import { ongletsParametres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export default async function ParametresLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const onglets = ongletsParametres(user.role);
+  const onglets = ongletsParametres(user.role, await lireModules());
   if (onglets.length === 0) redirect("/missions");
   return (
     <div className="grid gap-6">

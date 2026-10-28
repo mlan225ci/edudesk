@@ -11,6 +11,13 @@ export const CHAMPS_ENTREPRISE = [
   "siteWeb",
   "rccm",
   "ncc",
+  "banque",
+  "codeGuichet",
+  "numeroCompte",
+  "cleRib",
+  "iban",
+  "swift",
+  "ordreVirement",
 ] as const;
 
 export type Entreprise = Record<(typeof CHAMPS_ENTREPRISE)[number], string>;
@@ -22,8 +29,15 @@ const ENTREPRISE_DEFAUT: Entreprise = {
   telephone: "",
   email: "",
   siteWeb: "",
-  rccm: "",
-  ncc: "",
+  rccm: "CI-ABJ-03-2022-B13-03950",
+  ncc: "2242022",
+  banque: "HD SERVICES",
+  codeGuichet: "01006",
+  numeroCompte: "004072890001",
+  cleRib: "52",
+  iban: "CI93 CI03 2010 0600 4072 8900 0152",
+  swift: "AFRICIABXXX",
+  ordreVirement: "Edudesk",
 };
 
 export const TAILLES_LOGO = { petit: "Petit", moyen: "Moyen", grand: "Grand" } as const;

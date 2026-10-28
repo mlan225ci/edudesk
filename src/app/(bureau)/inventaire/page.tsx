@@ -9,7 +9,7 @@ import { Kpi } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
 import { ajouterMateriel, modifierMateriel } from "@/server/actions";
-import { peutInventaire } from "@/server/permissions";
+import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Inventaire" };
@@ -18,7 +18,7 @@ const TON_ETAT: Record<EtatMateriel, "vert" | "edu" | "cap" | "gris"> = { BON: "
 
 export default async function InventairePage({ searchParams }: { searchParams: Promise<{ categorie?: string; nouveau?: string }> }) {
   const user = await requireUser();
-  if (!peutInventaire(user.role)) redirect("/tableau-de-bord");
+  if (!(await aLeDroit(user, "inventaire"))) redirect("/tableau-de-bord");
   const { categorie, nouveau } = await searchParams;
   const [materiels, collaborateurs] = await Promise.all([
     prisma.materiel.findMany({ include: { affecteA: true }, orderBy: [{ categorie: "asc" }, { designation: "asc" }] }),

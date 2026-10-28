@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { prisma } from "../lib/db";
-import { etatDevis, etatFacture, lireLignes, montantEnLettres, type EtatDocument, type LigneDocument } from "../lib/facturation";
+import { estNonRemboursable, etatDevis, etatFacture, lireLignes, MENTION_NON_REMBOURSABLE, montantEnLettres, type EtatDocument, type LigneDocument } from "../lib/facturation";
 import { formatJour, xof } from "../lib/format";
 import { labelMode } from "../lib/labels";
 import { lireDocuments, lireEntreprise, logoDocuments, type Entreprise, type ParametresDocuments } from "./parametres";
@@ -272,12 +272,14 @@ class Gabarit {
     enTete();
     lignes.forEach((ligne, index) => {
       const morceaux = this.couper(ligne.libelle, largeurDesignation - 16, 9.5);
-      const hauteur = morceaux.length * 12.5 + 15;
+      const mention = ligne.mention ? this.couper(ligne.mention, largeurDesignation - 16, 8) : [];
+      const hauteur = morceaux.length * 12.5 + mention.length * 11 + (mention.length ? 20 : 15);
       if (this.besoin(hauteur)) enTete();
       if (index % 2 === 1) this.page.drawRectangle({ x: MARGE, y: this.y - hauteur, width: UTILE, height: hauteur, color: ZEBRE });
       const y = this.y - 17;
       this.texte(String(index + 1).padStart(2, "0"), MARGE + 12, y, { taille: 8.5, couleur: GRIS });
       morceaux.forEach((morceau, rang) => this.texte(morceau, xDesignation + 8, y - rang * 12.5, { taille: 9.5 }));
+      mention.forEach((morceau, rang) => this.texte(morceau, xDesignation + 8, y - morceaux.length * 12.5 - rang * 11, { taille: 8, police: "gras" }));
       this.texte(String(ligne.quantite), finQuantite - 10, y, { taille: 9.5, align: "droite" });
       this.texte(xof(ligne.prixUnitaire), finPrix - 10, y, { taille: 9.5, couleur: GRIS_FONCE, align: "droite" });
       this.texte(xof(ligne.quantite * ligne.prixUnitaire), finMontant - 12, y, { taille: 9.5, police: "gras", align: "droite" });
@@ -347,6 +349,35 @@ class Gabarit {
       const sousPoint = point((largeur - this.largeur(sous, 8, "gras")) / 2, 11);
       this.page.drawText(sous, { x: sousPoint.x, y: sousPoint.y, size: 8, font: this.polices.gras, color: VERT, rotate: degrees(angle), opacity: 0.9 });
     }
+  }
+
+  /** Bloc bancaire du modèle de facture : mode, RIB, IBAN et SWIFT. */
+  banque(paiements: Paiement[]) {
+    const e = this.entreprise;
+    const rib = [
+      e.codeGuichet && `Guichet ${e.codeGuichet}`,
+      e.numeroCompte && `Compte ${e.numeroCompte}`,
+      e.cleRib && `Clé RIB ${e.cleRib}`,
+    ].filter(Boolean);
+    const virement = [e.ordreVirement && `Ordre de virement à ${e.ordreVirement}`, e.iban && `IBAN ${e.iban}`, e.swift && `SWIFT ${e.swift}`].filter(Boolean);
+    if (rib.length === 0 && virement.length === 0 && paiements.length === 0) return;
+    const mode = paiements.length
+      ? [...new Set(paiements.map((paiement) => paiement.mode))].join(", ")
+      : "";
+    const lignes = [
+      mode && `Mode de paiement : ${mode}`,
+      e.banque,
+      rib.join("   ·   "),
+      ...virement,
+    ].filter(Boolean) as string[];
+    if (lignes.length === 0) return;
+    this.titre("Règlement");
+    this.besoin(lignes.length * 13 + 8);
+    for (const ligne of lignes) {
+      this.texte(this.tronquer(ligne, UTILE, 9), MARGE, this.y, { taille: 9, couleur: GRIS_FONCE });
+      this.y -= 13;
+    }
+    this.y -= 8;
   }
 
   reglements(liste: Paiement[]) {
@@ -429,9 +460,11 @@ class Gabarit {
   mentions(premiere: string) {
     const entreprise = this.entreprise;
     const legales = this.reglages.afficherMentionsLegales
-      ? [entreprise.nom, entreprise.adresse, entreprise.rccm && `RCCM ${entreprise.rccm}`, entreprise.ncc && `NCC ${entreprise.ncc}`].filter(Boolean).join("  ·  ")
+      ? [entreprise.nom, entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb, entreprise.rccm && `N° RC ${entreprise.rccm}`, entreprise.ncc && `N° CC ${entreprise.ncc}`].filter(Boolean).join("  ·  ")
       : "";
-    return [premiere, this.reglages.piedCommun, legales].filter(Boolean);
+    const lignes = [premiere, this.reglages.piedCommun].filter(Boolean).flatMap((ligne) => this.couper(ligne, UTILE - 70, 7.5));
+    if (legales) lignes.push(...this.couper(legales, UTILE - 70, 7.5));
+    return lignes.slice(0, 4);
   }
 
   async terminer(lignes: string[], filigrane?: string) {
@@ -440,7 +473,7 @@ class Gabarit {
       this.page = page;
       if (filigrane) this.filigrane(filigrane);
       this.filet(MARGE, 58, UTILE, TRAIT, 0.7);
-      lignes.slice(0, 3).forEach((ligne, rang) => this.texte(this.tronquer(ligne, UTILE - 70, 7.5), MARGE, 44 - rang * 10.5, { taille: 7.5, couleur: GRIS }));
+      lignes.slice(0, 4).forEach((ligne, rang) => this.texte(this.tronquer(ligne, UTILE - 70, 7.5), MARGE, 46 - rang * 10, { taille: 7.5, couleur: GRIS }));
       this.texte(`Page ${index + 1} / ${pages.length}`, LARGEUR - MARGE, 44, { taille: 7.5, couleur: GRIS, align: "droite" });
     });
     return Buffer.from(await this.doc.save());
@@ -540,6 +573,7 @@ async function rendreFacture(facture: DonneesFacture): Promise<FichierPdf> {
     tampon: etat.code === "PAYEE" ? { titre: "PAYÉE", detail: dernier ? `le ${formatJour(dernier.date)}` : "" } : undefined,
   });
   if (paiements.length) pdf.reglements(paiements);
+  pdf.banque(paiements);
   if (facture.annuleeLe) {
     pdf.rubriques([{ titre: "Facture annulée", texte: `Annulée le ${formatJour(facture.annuleeLe)}${facture.motifAnnulation ? ` : ${facture.motifAnnulation}` : "."}` }]);
   } else {
@@ -574,6 +608,10 @@ export async function pdfDevis(devisId: string): Promise<FichierPdf | null> {
   });
 }
 
+function lignesAvecMention(type: Parameters<typeof estNonRemboursable>[0], lignes: LigneDocument[]) {
+  return lignes.map((ligne) => (estNonRemboursable(type, ligne.libelle) ? { ...ligne, mention: MENTION_NON_REMBOURSABLE } : ligne));
+}
+
 export async function pdfFacture(factureId: string): Promise<FichierPdf | null> {
   const facture = await prisma.facture.findUnique({
     where: { id: factureId },
@@ -596,7 +634,7 @@ export async function pdfFacture(factureId: string): Promise<FichierPdf | null> 
     creeLe: facture.creeLe,
     echeanceLe: facture.echeanceLe,
     libelle: facture.libelle,
-    lignes: facture.lignes ? lireLignes(facture.lignes) : [{ libelle: facture.libelle, quantite: 1, prixUnitaire: facture.montant }],
+    lignes: lignesAvecMention(facture.paiement?.type, facture.lignes ? lireLignes(facture.lignes) : [{ libelle: facture.libelle, quantite: 1, prixUnitaire: facture.montant }]),
     montant: facture.montant,
     conditions: facture.conditions,
     annuleeLe: facture.annuleeLe,

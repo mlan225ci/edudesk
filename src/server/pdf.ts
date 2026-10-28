@@ -241,7 +241,7 @@ export class DocumentPdf {
   }
 
   mentionsLegales(premiere?: string) {
-    const legales = [this.entreprise.rccm && `RCCM ${this.entreprise.rccm}`, this.entreprise.ncc && `NCC ${this.entreprise.ncc}`].filter(Boolean);
+    const legales = [this.entreprise.rccm && `N° RC ${this.entreprise.rccm}`, this.entreprise.ncc && `N° CC ${this.entreprise.ncc}`].filter(Boolean);
     return [premiere, [this.entreprise.nom, ...legales].join(" · ")].filter(Boolean) as string[];
   }
 }
