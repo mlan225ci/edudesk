@@ -12,11 +12,12 @@ function secret() {
   return new TextEncoder().encode(value);
 }
 
-export async function ouvrirSession(userId: string) {
+export async function ouvrirSession(userId: string, souvenir = false) {
+  const duree = souvenir ? "30d" : "12h";
   const token = await new SignJWT({ sub: userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("12h")
+    .setExpirationTime(duree)
     .sign(secret());
   const jar = await cookies();
   jar.set(COOKIE, token, {
@@ -24,7 +25,7 @@ export async function ouvrirSession(userId: string) {
     sameSite: "lax",
     secure: process.env.COOKIE_SECURE === "0" ? false : process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 12,
+    maxAge: souvenir ? 60 * 60 * 24 * 30 : 60 * 60 * 12,
   });
 }
 

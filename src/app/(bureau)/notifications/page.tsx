@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { Badge, EnTete, Info, Onglets, Vide } from "@/components/ui";
+import { RafraichirCompteur } from "@/components/rafraichir-compteur";
 import { renvoyerMail } from "@/server/communication-actions";
 import { voitDirection } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -23,7 +24,8 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const { vue = "moi" } = await searchParams;
 
   const internes = await prisma.notificationInterne.findMany({ where: { userId: user.id }, orderBy: { creeLe: "desc" }, take: 50 });
-  if (internes.some((note) => !note.lue)) {
+  const aLire = internes.filter((note) => !note.lue).length;
+  if (aLire > 0) {
     await prisma.notificationInterne.updateMany({ where: { userId: user.id, lue: false }, data: { lue: true } });
   }
 
@@ -62,11 +64,13 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       <Onglets
         actif={`/notifications?vue=${vue}`}
         onglets={[
-          { href: "/notifications?vue=moi", label: "Pour moi", nombre: internes.filter((note) => !note.lue).length || undefined },
+          { href: "/notifications?vue=moi", label: "Pour moi", nombre: aLire || undefined },
           { href: "/notifications?vue=sms", label: "Journal SMS" },
           ...(user.role === "PARTENAIRE" ? [] : [{ href: "/notifications?vue=mail", label: "Journal e-mails" }]),
         ]}
       />
+
+      {aLire > 0 ? <RafraichirCompteur /> : null}
 
       {vue === "moi" ? (
         internes.length === 0 ? (

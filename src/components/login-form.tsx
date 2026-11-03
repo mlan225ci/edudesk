@@ -15,9 +15,9 @@ const COMPTES = [
   ["Partenaire", "partenaire@edudesk.ci"],
 ];
 
-export function LoginForm() {
-  const [email, setEmail] = useState("direction@edudesk.ci");
-  const [motDePasse, setMotDePasse] = useState("Edudesk2026!");
+export function LoginForm({ demonstration = false }: { demonstration?: boolean }) {
+  const [email, setEmail] = useState(demonstration ? "direction@edudesk.ci" : "");
+  const [motDePasse, setMotDePasse] = useState(demonstration ? "Edudesk2026!" : "");
   const [visible, setVisible] = useState(false);
   const [etat, action, pending] = useActionState(login as (etat: EtatAction, data: FormData) => Promise<EtatAction>, null);
 
@@ -27,7 +27,7 @@ export function LoginForm() {
         <span>E-mail</span>
         <span className="relative">
           <Mail size={17} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink/35" />
-          <input className="champ pl-11" name="email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          <input className="champ pl-11" name="email" type="email" autoComplete="username" placeholder="vous@edudesk.ci" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </span>
       </label>
       <label className="etiquette">
@@ -39,6 +39,7 @@ export function LoginForm() {
             name="motDePasse"
             type={visible ? "text" : "password"}
             autoComplete="current-password"
+            placeholder="Votre mot de passe"
             value={motDePasse}
             onChange={(event) => setMotDePasse(event.target.value)}
             required
@@ -53,6 +54,10 @@ export function LoginForm() {
           </button>
         </span>
       </label>
+      <label className="flex items-center gap-2.5 text-sm text-ink/70">
+        <input type="checkbox" name="souvenir" className="h-4 w-4 rounded accent-desk" />
+        Se souvenir de moi
+      </label>
       {etat?.error ? (
         <p className="flex animate-entree items-center gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-cap">
           <AlertTriangle size={16} /> {etat.error}
@@ -63,6 +68,7 @@ export function LoginForm() {
         {pending ? "Connexion…" : "Se connecter"}
         {pending ? null : <ArrowRight size={18} />}
       </button>
+      {demonstration ? (
       <div className="grid gap-2.5 border-t border-ink/[0.06] pt-5">
         <p className="text-xs font-semibold tracking-wide text-ink/45 uppercase">Essayer avec un compte de démonstration</p>
         <div className="flex flex-wrap gap-1.5">
@@ -81,6 +87,7 @@ export function LoginForm() {
           ))}
         </div>
       </div>
+      ) : null}
     </form>
   );
 }

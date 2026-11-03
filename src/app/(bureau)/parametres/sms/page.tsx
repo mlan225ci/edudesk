@@ -43,12 +43,12 @@ export default async function ParametresSmsPage() {
           </div>
           {gestion ? (
             <Formulaire action={modifierOperateurSms} submit="Enregistrer l'opérateur" succes="Opérateur enregistré" reinitialiser={false} className="grid gap-4">
-              <Champ label="Adresse d'envoi de l'opérateur (API HTTP)" aide="EduDesk y envoie en POST : to, text, sender. Laisser vide pour débrancher.">
-                <input className="champ" name="url" defaultValue={config.source === "parametres" ? (config.url ?? "") : ""} placeholder="https://api.operateur.ci/sms" />
+              <Champ label="Adresse d'envoi de l'opérateur (API HTTP)" aide="MTN SMS Cloud : https://api.smscloud.ci/v1/campaigns. Laisser vide pour débrancher.">
+                <input className="champ" name="url" defaultValue={config.source === "parametres" ? (config.url ?? "") : ""} placeholder="https://api.smscloud.ci/v1/campaigns" />
               </Champ>
               <Champ
                 label="Clé d'accès (jeton)"
-                aide={config.source === "parametres" && config.token ? "Une clé est enregistrée. Laissez vide pour la conserver." : "Envoyée en en-tête Authorization: Bearer."}
+                aide={config.source === "parametres" && config.token ? "Une clé est enregistrée. Laissez vide pour la conserver." : "Envoyée en en-tête Authorization: Bearer. Chez SMS Cloud, c'est le jeton de l'onglet API."}
               >
                 <input className="champ" name="token" type="password" autoComplete="off" placeholder={config.source === "parametres" && config.token ? "••••••••••••" : ""} />
               </Champ>
@@ -60,7 +60,7 @@ export default async function ParametresSmsPage() {
               <Champ label="Nom d'expéditeur" aide="11 caractères au plus, lettres et chiffres. Il doit être validé par l'opérateur.">
                 <input className="champ" name="expediteur" defaultValue={config.expediteur} maxLength={11} />
               </Champ>
-              {config.source === "serveur" ? <Info>Un opérateur est aussi défini dans la configuration du serveur ; celui saisi ici le remplace.</Info> : null}
+              {config.source === "serveur" ? <Info>Un opérateur est défini sur le serveur ({config.url}). Une adresse saisie ici le remplace. Le nom d'expéditeur doit être celui validé par MTN.</Info> : null}
             </Formulaire>
           ) : (
             <Info>Seule la direction générale peut modifier l'opérateur. Expéditeur actuel : {config.expediteur}.</Info>

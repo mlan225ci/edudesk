@@ -40,7 +40,7 @@ export default function LoginPage() {
           <h2 className="text-3xl font-bold tracking-tight">Bon retour</h2>
           <p className="mt-1.5 mb-8 text-ink/60">Connectez-vous à votre espace EduDesk.</p>
           <div className="rounded-3xl border border-ink/[0.06] bg-card p-7 shadow-[0_1px_2px_rgba(20,40,75,0.04),0_20px_50px_-24px_rgba(20,40,75,0.25)]">
-            <LoginForm />
+            <LoginForm demonstration={process.env.NODE_ENV !== "production"} />
           </div>
         </div>
       </section>

@@ -19,15 +19,16 @@ export const ROLES: { value: Role; label: string }[] = [
   { value: "ADMINISTRATEUR", label: "Administrateur" },
   { value: "RESPONSABLE_COMMERCIALE", label: "Responsable commerciale" },
   { value: "COMMERCIAL", label: "Commercial" },
-  { value: "ASSISTANTE_ADMINISTRATIVE", label: "Assistante administrative" },
-  { value: "INFORMATICIEN_VISA", label: "Informaticien visa" },
-  { value: "INFORMATICIEN_ECOLE", label: "Informaticien école" },
-  { value: "COACH", label: "Coach" },
+  { value: "ASSISTANTE_ADMINISTRATIVE", label: "Secrétaire" },
+  { value: "INFORMATICIEN_VISA", label: "Responsable production" },
+  { value: "INFORMATICIEN_ECOLE", label: "Informaticien 2" },
+  { value: "INFORMATICIEN_FRANCE", label: "Informaticien 3" },
+  { value: "COACH", label: "Coach CF" },
   { value: "COACH_RP", label: "Coach RP" },
   { value: "TRADUCTEUR", label: "Traducteur" },
-  { value: "COMMUNITY_MANAGER", label: "Community manager" },
+  { value: "COMMUNITY_MANAGER", label: "Social manager" },
   { value: "COMPTABLE", label: "Comptable" },
-  { value: "MOYENS_GENERAUX", label: "Moyens généraux" },
+  { value: "MOYENS_GENERAUX", label: "Responsable moyens généraux" },
   { value: "PARTENAIRE", label: "Partenaire local" },
 ];
 
@@ -71,6 +72,8 @@ export const ACTIONS_AUDIT: Record<string, string> = {
   PIECES_RELANCE: "Pièces manquantes demandées",
   PIECE_DEPOSEE_CLIENT: "Pièce déposée par le client",
   PIECE_REFUSEE: "Pièce refusée",
+  PIECE_MANQUANTE: "Pièce signalée manquante",
+  SIGNATURE: "Contrat signé",
   FACTURE_ENVOYEE: "Facture envoyée",
   DEVIS: "Devis",
   TRADUCTION: "Traduction",
@@ -152,7 +155,27 @@ export const SOURCES: { value: SourceProspect; label: string }[] = [
 ];
 
 export function labelSource(source: SourceProspect) {
+  if (source === "FORMULAIRE") return "Formulaire public";
   return SOURCES.find((item) => item.value === source)?.label ?? source;
+}
+
+export const ETAPES_PIPELINE: { value: "CONTACT" | "RENDEZ_VOUS" | "PROPOSITION" | "CONTRAT" | "PAIEMENT"; label: string }[] = [
+  { value: "CONTACT", label: "Premier contact" },
+  { value: "RENDEZ_VOUS", label: "Rendez-vous de conseil" },
+  { value: "PROPOSITION", label: "Proposition" },
+  { value: "CONTRAT", label: "Contrat" },
+  { value: "PAIEMENT", label: "Paiement" },
+];
+
+export const CATEGORIES_DOCUMENT = ["Identité", "Cursus", "Financier", "Visa", "Dossier"];
+
+export function categorieDocument(libelle: string) {
+  const texte = libelle.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (/passeport|identite|cni|naissance|photo/.test(texte)) return "Identité";
+  if (/diplome|releve|bulletin|cursus|attestation/.test(texte)) return "Cursus";
+  if (/paiement|recu|facture|rib|financier/.test(texte)) return "Financier";
+  if (/visa|casier|residence/.test(texte)) return "Visa";
+  return "Dossier";
 }
 
 export const MODES: { value: ModePaiement; label: string; compte: string }[] = [

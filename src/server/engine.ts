@@ -903,6 +903,7 @@ export async function envoyerPiecesManquantes(input: { dossierId: string; actor:
         detail: `${manquantes.length} pièce(s) : ${vars.pieces}`.slice(0, 300),
       },
     });
+    await tx.dossier.update({ where: { id: dossier.id }, data: { attentePieces: true } });
     return { ok: true as const, dossierId: dossier.id, nombre: manquantes.length };
   });
   if (resultat.ok) await flushSms(outbox);

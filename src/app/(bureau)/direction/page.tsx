@@ -1,9 +1,10 @@
+import type { SourceProspect } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlarmClock, ArrowRight, BellRing, Building2, FolderOpen, Handshake, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { debutJourAbidjan, delaiTexte, nomComplet, xof } from "@/lib/format";
-import { STATUTS } from "@/lib/labels";
+import { STATUTS, labelSource } from "@/lib/labels";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { BarresHorizontales, Kpi, Panneau } from "@/components/graphiques";
 import { Avatar, Badge, EnTete } from "@/components/ui";
@@ -19,7 +20,7 @@ export default async function DirectionPage() {
   if (!(await aLeDroit(user, "direction"))) redirect("/missions");
   const maintenant = new Date();
   const depuis = debutJourAbidjan();
-  const [dossiers, retards, paiements, partenaires, modules] = await Promise.all([
+  const [dossiers, retards, paiements, partenaires, modules, prospects] = await Promise.all([
     prisma.dossier.findMany({ select: { statut: true, procedure: { select: { destination: true } } } }),
     prisma.dossierEtape.findMany({
       where: { statut: "EN_COURS", limiteLe: { lt: maintenant } },
@@ -31,6 +32,7 @@ export default async function DirectionPage() {
       include: { clients: { include: { dossiers: { include: { procedure: true } } } } },
     }),
     lireModules(),
+    prisma.prospect.groupBy({ by: ["source", "converti"], _count: { _all: true } }),
   ]);
 
   const parDestination = new Map<string, number>();
@@ -44,6 +46,20 @@ export default async function DirectionPage() {
       return { partenaire, nombre: valides.length, montant: valides.reduce((somme, dossier) => somme + dossier.procedure.commissionXof, 0) };
     })
     .sort((a, b) => b.montant - a.montant);
+  const parSource = new Map<SourceProspect, { total: number; convertis: number }>();
+  for (const ligne of prospects) {
+    const actuel = parSource.get(ligne.source) ?? { total: 0, convertis: 0 };
+    actuel.total += ligne._count._all;
+    if (ligne.converti) actuel.convertis += ligne._count._all;
+    parSource.set(ligne.source, actuel);
+  }
+  const acquisition = [...parSource.entries()].map(([source, valeurs]) => ({
+    source,
+    label: labelSource(source),
+    total: valeurs.total,
+    convertis: valeurs.convertis,
+    taux: valeurs.total ? Math.round((valeurs.convertis / valeurs.total) * 100) : 0,
+  }));
 
   return (
     <section className="grid gap-6">
@@ -66,6 +82,21 @@ export default async function DirectionPage() {
         <Kpi titre="Encaissé aujourd'hui" valeur={paiements._sum.montant ?? 0} format="xof" icone={Wallet} ton="vert" href={lienSi(modules.caisse, "/caisse")} />
         <Kpi titre="Partenaires" valeur={partenaires.length} icone={Handshake} href={lienSi(modules.partenaires, "/partenaires")} />
       </div>
+
+      <Panneau titre="Acquisition" icone={Handshake}>
+        {acquisition.length === 0 ? (
+          <p className="py-4 text-center text-sm text-ink/50">Aucun prospect pour l'instant.</p>
+        ) : (
+          <ul className="grid gap-2 text-sm">
+            {acquisition.map((ligne) => (
+              <li key={ligne.source} className="flex items-center justify-between gap-3 rounded-xl bg-paper px-3 py-2">
+                <span className="font-semibold">{ligne.label}</span>
+                <span className="text-ink/60">{ligne.convertis}/{ligne.total} · {ligne.taux}%</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panneau>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panneau titre="Étapes en retard" icone={AlarmClock} action={retards.length ? <Badge ton="cap">{retards.length}</Badge> : null}>

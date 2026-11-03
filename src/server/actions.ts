@@ -6,19 +6,22 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import type { AcompteExige, CategorieDepense, EtatMateriel, ModePaiement, Role, SourceProspect, TypeConge, TypePaiement } from "@prisma/client";
+import type { AcompteExige, CategorieDepense, EtapePipeline, EtatMateriel, ModePaiement, Role, SourceProspect, TypeConge, TypePaiement } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { normaliserTelephone, telephoneValide } from "@/lib/format";
-import { CATEGORIES_DEPENSE, ETATS_MATERIEL, MODES, ROLES, TYPES_CONGE, estLettreDefinitive, typePourAcompte } from "@/lib/labels";
+import { CATEGORIES_DEPENSE, ETATS_MATERIEL, MODES, ROLES, TYPES_CONGE, categorieDocument, estLettreDefinitive, typePourAcompte } from "@/lib/labels";
 import {
   peutAnnulerDepense,
   peutCreerClient,
   peutEncaisser,
   peutGererEquipe,
   peutInventaire,
+  chargeEtape,
+  estProduction,
   peutModifierMontant,
   peutParametrer,
   peutReaffecter,
+  peutSigner,
   peutValiderConges,
   voitCompta,
   voitDepenses,
@@ -34,6 +37,7 @@ import {
   enregistrerDepense,
   enregistrerPaiement,
   envoyerCodeSuivi,
+  envoyerPiecesManquantes,
   flushSms,
   refuserDepotClient,
   reorienterDossier,
@@ -69,10 +73,23 @@ export async function login(_etat: EtatAction, formData: FormData): Promise<Etat
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const motDePasse = String(formData.get("motDePasse") ?? "");
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.actif || !(await bcrypt.compare(motDePasse, user.motDePasseHash))) {
+  if (user?.verrouilleJusquau && user.verrouilleJusquau > new Date()) {
+    return { error: "Compte verrouillé après plusieurs échecs. Réessayez dans 15 minutes." };
+  }
+  const bon = Boolean(user?.actif) && (await bcrypt.compare(motDePasse, user!.motDePasseHash));
+  if (!user || !bon) {
+    if (user?.actif) {
+      const echecs = user.echecsConnexion + 1;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: echecs >= 5 ? { echecsConnexion: 0, verrouilleJusquau: new Date(Date.now() + 15 * 60 * 1000) } : { echecsConnexion: echecs },
+      });
+      if (echecs >= 5) return { error: "Compte verrouillé après plusieurs échecs. Réessayez dans 15 minutes." };
+    }
     return { error: "Identifiants incorrects, ou compte désactivé." };
   }
-  await ouvrirSession(user.id);
+  await prisma.user.update({ where: { id: user.id }, data: { echecsConnexion: 0, verrouilleJusquau: null } });
+  await ouvrirSession(user.id, formData.get("souvenir") === "on");
   redirect(user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord");
 }
 
@@ -122,11 +139,100 @@ export async function creerProspect(_etat: EtatAction, formData: FormData): Prom
       partenaireId: partenaireId || null,
       notes: notes || null,
       relanceLe: relance ? new Date(`${relance}T12:00:00.000Z`) : null,
+      activiteLe: new Date(),
       creeParId: user.id,
     },
   });
   rafraichir();
   return null;
+}
+
+const ETAPES_DEPLACABLES = ["CONTACT", "RENDEZ_VOUS", "PROPOSITION", "CONTRAT", "PAIEMENT"] as const;
+
+export async function deplacerProspect(formData: FormData) {
+  const user = await requireUser();
+  if (!(await aLeDroit(user, "prospects"))) return;
+  const id = String(formData.get("prospectId") ?? "");
+  const etape = String(formData.get("etape") ?? "") as EtapePipeline;
+  if (!ETAPES_DEPLACABLES.includes(etape as (typeof ETAPES_DEPLACABLES)[number])) return;
+  const prospect = await prisma.prospect.findUnique({ where: { id } });
+  if (!prospect || prospect.converti) return;
+  if (user.role === "COMMERCIAL" && prospect.creeParId !== user.id) return;
+  await prisma.prospect.update({ where: { id }, data: { etape, activiteLe: new Date() } });
+  rafraichir();
+}
+
+export async function recevoirProspectPublic(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const prenom = String(formData.get("prenom") ?? "").trim();
+  const nom = String(formData.get("nom") ?? "").trim();
+  const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const notes = String(formData.get("notes") ?? "").trim();
+  if (!prenom || !nom) return { error: "Le nom et le prénom sont obligatoires." };
+  if (!telephoneValide(telephone)) return { error: "Indiquez un téléphone international, par exemple +2250700000000." };
+  const [prospectExistant, clientExistant] = await Promise.all([
+    prisma.prospect.findFirst({ where: { telephone, converti: false } }),
+    prisma.client.findFirst({ where: { telephone } }),
+  ]);
+  if (prospectExistant || clientExistant) return { error: "Ce numéro est déjà enregistré. L'agence vous recontactera." };
+  if (email) {
+    const doublon = await prisma.prospect.findFirst({ where: { email, converti: false } });
+    if (doublon) return { error: "Cet e-mail est déjà enregistré." };
+  }
+  const responsable = await prisma.user.findFirst({
+    where: { actif: true, role: { in: ["RESPONSABLE_COMMERCIALE", "CEO"] } },
+    orderBy: { role: "desc" },
+  });
+  if (!responsable) return { error: "Le formulaire est momentanément indisponible." };
+  await prisma.prospect.create({
+    data: {
+      prenom,
+      nom,
+      telephone,
+      email: email || null,
+      source: "FORMULAIRE",
+      notes: notes || null,
+      etape: "CONTACT",
+      activiteLe: new Date(),
+      creeParId: responsable.id,
+    },
+  });
+  await prisma.notificationInterne.create({
+    data: {
+      userId: responsable.id,
+      titre: "Nouveau prospect",
+      message: `${prenom} ${nom} a écrit via le formulaire public.`,
+      lien: "/prospects",
+    },
+  });
+  return null;
+}
+
+export async function signerContrat(formData: FormData) {
+  const user = await requireUser();
+  if (!peutSigner(user.role)) return;
+  const dossierId = String(formData.get("dossierId") ?? "");
+  const dossier = await prisma.dossier.findUnique({ where: { id: dossierId }, select: { id: true, reference: true, contratSigneLe: true } });
+  if (!dossier || dossier.contratSigneLe) return;
+  await prisma.dossier.update({ where: { id: dossier.id }, data: { contratSigneLe: new Date(), contratSigneParId: user.id } });
+  await prisma.audit.create({
+    data: { userId: user.id, action: "SIGNATURE", entite: "Dossier", entiteId: dossier.id, detail: dossier.reference },
+  });
+  rafraichir();
+}
+
+export async function signalerManquante(formData: FormData) {
+  const user = await requireUser();
+  if (user.role === "PARTENAIRE" || user.role === "COMPTABLE" || user.role === "MOYENS_GENERAUX") return;
+  const piece = await prisma.pieceDossier.findUnique({ where: { id: String(formData.get("pieceId") ?? "") } });
+  if (!piece || piece.recue) return;
+  await prisma.pieceDossier.update({ where: { id: piece.id }, data: { manquante: true, categorie: categorieDocument(piece.libelle) } });
+  await prisma.dossier.update({ where: { id: piece.dossierId }, data: { attentePieces: true } });
+  await prisma.audit.create({
+    data: { userId: user.id, action: "PIECE_MANQUANTE", entite: "Dossier", entiteId: piece.dossierId, detail: piece.libelle },
+  });
+  await envoyerPiecesManquantes({ dossierId: piece.dossierId, actor: user, baseUrl: await urlDuSite() });
+  rafraichir();
 }
 
 export async function creerClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
@@ -276,13 +382,19 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
   } else if (!client.paysVise && procedure) {
     client = await prisma.client.update({ where: { id: client.id }, data: { paysVise: procedure.destination } });
   }
+  if (!client.convertiLe) {
+    client = await prisma.client.update({
+      where: { id: client.id },
+      data: { convertiLe: new Date(), convertiParId: user.id },
+    });
+  }
 
   const cree = await creerDossier({ clientId: client.id, procedureId, actor: user });
   if (!cree.ok) return { error: cree.error, manques: cree.manques };
 
   await prisma.prospect.update({
     where: { id: prospect.id },
-    data: { converti: true, clientId: client.id },
+    data: { converti: true, clientId: client.id, etape: "CLIENT", activiteLe: new Date() },
   });
   await prisma.audit.create({
     data: {
@@ -305,6 +417,7 @@ export async function basculerTache(formData: FormData) {
     include: { etape: true },
   });
   if (!tache || tache.etape.statut !== "EN_COURS") return;
+  if (estProduction(user.role) && !chargeEtape(user.role, tache.etape.roles) && tache.etape.responsableId !== user.id) return;
   if (!tache.faite && (await bloqueParAcompte(tache.libelle, tache.etape))) {
     throw new Error("Encaissez d'abord l'acompte : la lettre d'admission définitive en dépend.");
   }
@@ -345,6 +458,18 @@ export async function deposerPiece(_etat: EtatAction, formData: FormData): Promi
     if (fichier.size > 10 * 1024 * 1024) return { error: "Le fichier dépasse 10 Mo." };
     const dossier = path.join(process.cwd(), "storage", "pieces");
     await mkdir(dossier, { recursive: true });
+    if (piece.fichierChemin) {
+      await prisma.pieceVersion.create({
+        data: {
+          pieceId: piece.id,
+          version: piece.version,
+          fichierNom: piece.fichierNom || piece.libelle,
+          fichierChemin: piece.fichierChemin,
+          deposeParId: piece.recueParId,
+          deposeLe: piece.recueLe ?? new Date(),
+        },
+      });
+    }
     const nom = `${piece.id}-${Date.now()}-${fichier.name.replace(/[^\w.\-]+/g, "_")}`;
     await writeFile(path.join(dossier, nom), Buffer.from(await fichier.arrayBuffer()));
     fichierNom = fichier.name;
@@ -359,6 +484,9 @@ export async function deposerPiece(_etat: EtatAction, formData: FormData): Promi
       recueParId: user.id,
       fichierNom,
       fichierChemin,
+      manquante: false,
+      categorie: piece.categorie === "Dossier" ? categorieDocument(piece.libelle) : piece.categorie,
+      version: piece.fichierChemin && fichier instanceof File && fichier.size > 0 ? piece.version + 1 : piece.version,
     },
   });
   await prisma.audit.create({
@@ -370,6 +498,8 @@ export async function deposerPiece(_etat: EtatAction, formData: FormData): Promi
       detail: piece.libelle,
     },
   });
+  const reste = await prisma.pieceDossier.count({ where: { dossierId: piece.dossierId, recue: false, fichierChemin: null } });
+  if (reste === 0) await prisma.dossier.update({ where: { id: piece.dossierId }, data: { attentePieces: false } });
   rafraichir();
   return null;
 }

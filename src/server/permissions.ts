@@ -13,11 +13,11 @@ export type SessionUser = {
   partenaireId: string | null;
 };
 
-const FINANCE = new Set<Role>(["CEO", "ADMINISTRATEUR", "COMPTABLE", "RESPONSABLE_COMMERCIALE", "ASSISTANTE_ADMINISTRATIVE"]);
+const FINANCE = new Set<Role>(["CEO", "ADMINISTRATEUR", "COMPTABLE", "RESPONSABLE_COMMERCIALE"]);
 const PROSPECTS = new Set<Role>(["CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE", "COMMERCIAL", "COMMUNITY_MANAGER"]);
 const PROCEDURES = new Set<Role>(["CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE", "COMMERCIAL", "ASSISTANTE_ADMINISTRATIVE"]);
 const DIRECTION = new Set<Role>(["CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE"]);
-const ENCAISSER = new Set<Role>(["CEO", "ADMINISTRATEUR", "COMPTABLE", "RESPONSABLE_COMMERCIALE", "ASSISTANTE_ADMINISTRATIVE"]);
+const ENCAISSER = new Set<Role>(["CEO", "ADMINISTRATEUR", "COMPTABLE", "RESPONSABLE_COMMERCIALE"]);
 const REAFFECTER = new Set<Role>(["CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE"]);
 const EQUIPE = new Set<Role>(["CEO", "ADMINISTRATEUR"]);
 const DEPENSES = new Set<Role>(["CEO", "ADMINISTRATEUR", "COMPTABLE", "MOYENS_GENERAUX"]);
@@ -73,8 +73,18 @@ export function peutProcedures(role: Role) {
   return PROCEDURES.has(role);
 }
 
+export function estProduction(role: Role) {
+  return role === "INFORMATICIEN_VISA" || role === "INFORMATICIEN_ECOLE" || role === "INFORMATICIEN_FRANCE";
+}
+
+export function chargeEtape(role: Role, roles: string) {
+  const liste = roles.split(",").filter(Boolean);
+  if (liste.includes(role)) return true;
+  return role === "INFORMATICIEN_FRANCE" && liste.includes("INFORMATICIEN_ECOLE");
+}
+
 export function peutEcoles(role: Role) {
-  return PROCEDURES.has(role) || role === "INFORMATICIEN_ECOLE";
+  return PROCEDURES.has(role) || role === "INFORMATICIEN_ECOLE" || role === "INFORMATICIEN_FRANCE";
 }
 
 export function peutCandidatures(role: Role) {
@@ -86,6 +96,10 @@ export function voitDirection(role: Role) {
 }
 
 export function peutHistorique(role: Role) {
+  return role === "CEO";
+}
+
+export function peutSigner(role: Role) {
   return role === "CEO" || role === "ADMINISTRATEUR";
 }
 
@@ -149,7 +163,7 @@ export function ongletsParametres(role: Role, modules?: ModulesActifs): Lien[] {
 export function peutCloturer(user: SessionUser, etape: { responsableId: string | null; roles: string }) {
   if (user.role === "CEO" || user.role === "ADMINISTRATEUR") return true;
   if (etape.responsableId === user.id) return true;
-  return etape.roles.split(",").includes(user.role);
+  return chargeEtape(user.role, etape.roles);
 }
 
 export function peutPiece(user: SessionUser, etape: { responsableId: string | null; roles: string }) {

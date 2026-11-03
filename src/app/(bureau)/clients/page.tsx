@@ -28,6 +28,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 { nom: { contains: q, mode: "insensitive" } },
                 { prenom: { contains: q, mode: "insensitive" } },
                 { telephone: { contains: q } },
+                { email: { contains: q, mode: "insensitive" } },
+                { paysVise: { contains: q, mode: "insensitive" } },
+                { dossiers: { some: { reference: { contains: q, mode: "insensitive" } } } },
+                { dossiers: { some: { procedure: { nom: { contains: q, mode: "insensitive" } } } } },
+                { dossiers: { some: { procedure: { destination: { contains: q, mode: "insensitive" } } } } },
               ],
             }
           : {}),
@@ -64,7 +69,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
 
       <Filtres className="relative max-w-md" action="/clients">
         <Search size={16} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-ink/35" />
-        <input className="champ pl-10" name="q" placeholder="Rechercher par nom ou téléphone…" defaultValue={q ?? ""} />
+        <input className="champ pl-10" name="q" placeholder="Nom, téléphone, dossier, pays ou procédure…" defaultValue={q ?? ""} />
       </Filtres>
 
       {clients.length === 0 ? (

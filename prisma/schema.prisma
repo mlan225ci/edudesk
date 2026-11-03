@@ -15,6 +15,7 @@ enum Role {
   ASSISTANTE_ADMINISTRATIVE
   INFORMATICIEN_VISA
   INFORMATICIEN_ECOLE
+  INFORMATICIEN_FRANCE
   COACH
   COACH_RP
   TRADUCTEUR
@@ -30,6 +31,16 @@ enum SourceProspect {
   APPEL
   APPORTEUR
   PARTENAIRE
+  FORMULAIRE
+}
+
+enum EtapePipeline {
+  CONTACT
+  RENDEZ_VOUS
+  PROPOSITION
+  CONTRAT
+  PAIEMENT
+  CLIENT
 }
 
 enum StatutDossier {
@@ -133,8 +144,10 @@ model User {
   email          String    @unique
   telephone      String    @unique
   motDePasseHash String
-  role           Role
-  actif          Boolean   @default(true)
+  role              Role
+  actif             Boolean   @default(true)
+  echecsConnexion   Int       @default(0)
+  verrouilleJusquau DateTime?
   superieurId    String?
   superieur      User?     @relation("hierarchie", fields: [superieurId], references: [id])
   equipe         User[]    @relation("hierarchie")
@@ -194,6 +207,8 @@ model Prospect {
   partenaireId String?
   partenaire   Partenaire?    @relation(fields: [partenaireId], references: [id])
   notes        String?
+  etape        EtapePipeline  @default(CONTACT)
+  activiteLe   DateTime       @default(now())
   relanceLe    DateTime?
   converti     Boolean        @default(false)
   clientId     String?
@@ -215,6 +230,8 @@ model Client {
   partenaire       Partenaire? @relation(fields: [partenaireId], references: [id])
   garantNom        String?
   garantTelephone  String?
+  convertiLe       DateTime?
+  convertiParId    String?
   creeLe           DateTime    @default(now())
   dossiers         Dossier[]
   paiements        Paiement[]
@@ -296,6 +313,9 @@ model Dossier {
   dossierOrigineId       String?
   alerteSansResponsable  Boolean        @default(false)
   montantConvenu         Int?
+  attentePieces          Boolean        @default(false)
+  contratSigneLe         DateTime?
+  contratSigneParId      String?
   etapes                 DossierEtape[]
   pieces                 PieceDossier[]
   paiements              Paiement[]
@@ -425,7 +445,24 @@ model PieceDossier {
   fichierChemin  String?
   reportee       Boolean       @default(false)
   deposeLe       DateTime?
+  categorie      String        @default("Dossier")
+  version        Int           @default(1)
+  manquante      Boolean       @default(false)
+  versions       PieceVersion[]
   traductions    Traduction[]
+}
+
+model PieceVersion {
+  id            String       @id @default(cuid())
+  pieceId       String
+  piece         PieceDossier @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  version       Int
+  fichierNom    String
+  fichierChemin String
+  deposeLe      DateTime     @default(now())
+  deposeParId   String?
+
+  @@index([pieceId])
 }
 
 model Paiement {

@@ -48,6 +48,9 @@ export function Shell({
             <p>
               Appuyez sur <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl K</kbd> pour retrouver un client, un dossier ou une page.
             </p>
+            <Link href="/aide" className="mt-2 inline-block font-semibold text-white/85 underline decoration-white/25 underline-offset-2 hover:text-white">
+              Voir la démo
+            </Link>
           </div>
           <div className="h-1 bg-gradient-to-r from-cap via-edu to-desk" />
         </aside>

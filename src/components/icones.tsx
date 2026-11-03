@@ -3,6 +3,7 @@ import {
   Blocks,
   BookOpen,
   CalendarDays,
+  CircleHelp,
   Crown,
   FileText,
   FolderOpen,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 
 export const ICONES: Record<string, LucideIcon> = {
+  aide: CircleHelp,
   tableau: LayoutDashboard,
   direction: Crown,
   rapports: BarChart3,

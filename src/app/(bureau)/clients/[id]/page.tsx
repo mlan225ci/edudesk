@@ -76,6 +76,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     ? await lireJournal({ clientId: client.id, dossierIds: client.dossiers.map((dossier) => dossier.id), take: 40 })
     : [];
   const totalPaye = client.dossiers.reduce((somme, dossier) => somme + dossier.paiements.reduce((s, p) => s + p.montant, 0), 0);
+  const auteurConversion = client.convertiParId
+    ? await prisma.user.findUnique({ where: { id: client.convertiParId }, select: { prenom: true, nom: true } })
+    : null;
 
   return (
     <section className="grid gap-6">
@@ -92,7 +95,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="px-5 pt-5 pb-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-ink/55">Client depuis le {formatJour(client.creeLe)}</p>
+            <p className="text-sm text-ink/55">
+              Client depuis le {formatJour(client.creeLe)}
+              {client.convertiLe ? ` · devenu client le ${formatJour(client.convertiLe)}${auteurConversion ? ` grâce à ${nomComplet(auteurConversion)}` : ""}` : ""}
+            </p>
             <div className="flex flex-wrap gap-2">
               {creation ? (
                 <Tiroir label="Ouvrir un dossier" icone={<FolderPlus size={16} />} titre="Nouveau dossier" description={`Pour ${nomComplet(client)}`}>

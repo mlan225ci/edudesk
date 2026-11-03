@@ -3,6 +3,7 @@ import { formatJour } from "@/lib/format";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { JoindreScan } from "@/components/joindre-scan";
 import { refuserDepot, validerDepot } from "@/server/communication-actions";
+import { signalerManquante } from "@/server/actions";
 
 export type DocumentVue = {
   id: string;
@@ -14,16 +15,20 @@ export type DocumentVue = {
   reportee?: boolean;
   dossier?: string;
   aVerifier?: boolean;
+  version?: number;
+  categorie?: string | null;
 };
 
 export function ListeDocuments({
   documents,
   vide = "Aucun document pour l'instant.",
   peutJoindre = false,
+  peutSignaler = false,
 }: {
   documents: DocumentVue[];
   vide?: string;
   peutJoindre?: boolean;
+  peutSignaler?: boolean;
 }) {
   if (documents.length === 0) {
     return (
@@ -38,7 +43,7 @@ export function ListeDocuments({
   return (
     <ul className="entree-cascade grid gap-2 sm:grid-cols-2">
       {tries.map((document) => {
-        const sousTitre = [document.dossier, document.etape, document.reportee ? "repris du dossier précédent" : null].filter(Boolean).join(" · ");
+        const sousTitre = [document.categorie, document.version && document.version > 1 ? `version ${document.version}` : null, document.dossier, document.etape, document.reportee ? "repris du dossier précédent" : null].filter(Boolean).join(" · ");
         if (document.aVerifier) {
           return (
             <li key={document.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-mission/30 bg-mission/[0.05] px-3.5 py-3 sm:col-span-2">
@@ -107,6 +112,12 @@ export function ListeDocuments({
                 {sousTitre ? ` · ${sousTitre}` : ""}
               </p>
             </div>
+            {peutSignaler && !document.recue ? (
+              <FormAction action={signalerManquante} succes="Pièce signalée, le client reçoit la liste">
+                <input type="hidden" name="pieceId" value={document.id} />
+                <BoutonEnvoi className="bouton-second py-1.5 text-xs">Signaler</BoutonEnvoi>
+              </FormAction>
+            ) : null}
             {peutJoindre && document.recue ? <JoindreScan pieceId={document.id} libelle={document.libelle} /> : null}
           </li>
         );

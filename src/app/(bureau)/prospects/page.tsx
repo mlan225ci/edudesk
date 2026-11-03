@@ -4,10 +4,11 @@ import type { Prisma } from "@prisma/client";
 import { Megaphone, PhoneCall, Search, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatJour, nomComplet } from "@/lib/format";
-import { SOURCES, labelSource } from "@/lib/labels";
+import { SOURCES, labelSource, ETAPES_PIPELINE } from "@/lib/labels";
 import { Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Avatar, Badge, Champ, Choix, EnTete, Onglets, Vide } from "@/components/ui";
+import { KanbanProspects } from "@/components/kanban-prospects";
 import { aLeDroit } from "@/server/acces";
 import { creerProspect } from "@/server/actions";
 import { requireUser } from "@/server/session";
@@ -15,18 +16,21 @@ import { Filtres } from "@/components/filtres";
 
 export const metadata = { title: "Prospects" };
 
-export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ filtre?: string; q?: string; nouveau?: string }> }) {
+export default async function ProspectsPage({ searchParams }: { searchParams: Promise<{ filtre?: string; q?: string; nouveau?: string; vue?: string }> }) {
   const user = await requireUser();
   if (!(await aLeDroit(user, "prospects"))) redirect("/missions");
-  const { filtre = "actifs", q, nouveau } = await searchParams;
+  const { filtre = "actifs", q, nouveau, vue } = await searchParams;
   const finJour = new Date();
   finJour.setUTCHours(23, 59, 59, 999);
+  const ilYA7Jours = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const seulementSoi = user.role === "COMMERCIAL" ? { creeParId: user.id } : {};
 
   const filtres: Record<string, Prisma.ProspectWhereInput> = {
-    actifs: { converti: false },
-    relance: { converti: false, relanceLe: { lte: finJour } },
-    convertis: { converti: true },
-    tous: {},
+    actifs: { converti: false, ...seulementSoi },
+    relance: { converti: false, relanceLe: { lte: finJour }, ...seulementSoi },
+    inactifs: { converti: false, activiteLe: { lt: ilYA7Jours }, ...seulementSoi },
+    convertis: { converti: true, ...seulementSoi },
+    tous: { ...seulementSoi },
   };
   const where: Prisma.ProspectWhereInput = { ...(filtres[filtre] ?? filtres.actifs) };
   if (q) {
@@ -40,9 +44,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const [prospects, partenaires, compteurs] = await Promise.all([
     prisma.prospect.findMany({ where, orderBy: filtre === "relance" ? { relanceLe: "asc" } : { creeLe: "desc" }, include: { partenaire: true } }),
     prisma.partenaire.findMany({ orderBy: { nom: "asc" } }),
-    Promise.all(["actifs", "relance", "convertis", "tous"].map((cle) => prisma.prospect.count({ where: filtres[cle] }))),
+    Promise.all(["actifs", "relance", "inactifs", "convertis", "tous"].map((cle) => prisma.prospect.count({ where: filtres[cle] }))),
   ]);
-  const [nActifs, nRelance, nConvertis, nTous] = compteurs;
+  const [nActifs, nRelance, nInactifs, nConvertis, nTous] = compteurs;
+  const pipeline = vue !== "liste" && filtre === "actifs" && !q;
   const taux = nTous ? Math.round((nConvertis / nTous) * 100) : 0;
 
   return (
@@ -77,12 +82,14 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
       />
 
       <Onglets
-        actif={`/prospects?filtre=${filtre}`}
+        actif={filtre === "actifs" && vue === "liste" ? "/prospects?filtre=actifs&vue=liste" : filtre === "tous" ? "/prospects?filtre=tous&vue=liste" : `/prospects?filtre=${filtre}`}
         onglets={[
-          { href: "/prospects?filtre=actifs", label: "À traiter", nombre: nActifs },
-          { href: "/prospects?filtre=relance", label: "À relancer aujourd'hui", nombre: nRelance },
+          { href: "/prospects?filtre=actifs", label: "Pipeline", nombre: nActifs },
+          { href: "/prospects?filtre=actifs&vue=liste", label: "Liste", nombre: nActifs },
+          { href: "/prospects?filtre=relance", label: "À relancer", nombre: nRelance },
+          { href: "/prospects?filtre=inactifs", label: "Sans action 7 jours", nombre: nInactifs },
           { href: "/prospects?filtre=convertis", label: "Convertis", nombre: nConvertis },
-          { href: "/prospects?filtre=tous", label: "Tous", nombre: nTous },
+          { href: "/prospects?filtre=tous&vue=liste", label: "Tous", nombre: nTous },
         ]}
       />
 
@@ -92,7 +99,17 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
         <input className="champ pl-10" name="q" placeholder="Nom ou téléphone…" defaultValue={q ?? ""} />
       </Filtres>
 
-      {prospects.length === 0 ? (
+      {pipeline ? (
+        <KanbanProspects
+          cartes={prospects.map((prospect) => ({
+            id: prospect.id,
+            nom: `${prospect.prenom} ${prospect.nom}`,
+            telephone: prospect.telephone,
+            source: labelSource(prospect.source),
+            etape: ETAPES_PIPELINE.some((etape) => etape.value === prospect.etape) ? prospect.etape : "CONTACT",
+          }))}
+        />
+      ) : prospects.length === 0 ? (
         <Vide
           icone={filtre === "relance" ? PhoneCall : Megaphone}
           titre={filtre === "relance" ? "Aucune relance prévue aujourd'hui" : "Aucun prospect ici"}

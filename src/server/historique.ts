@@ -17,6 +17,8 @@ export const LIBELLES_ACTIONS: Record<string, string> = {
   PIECE_REFUSEE: "Pièce refusée",
   PIECE_DEPOSEE_CLIENT: "Pièce déposée par le client",
   PIECES_RELANCE: "Relance de pièces",
+  PIECE_MANQUANTE: "Pièce signalée manquante",
+  SIGNATURE: "Contrat signé",
   PIECE_CONSULTEE: "Document consulté",
   TACHE_FAITE: "Tâche cochée",
   TACHE_REPRISE: "Tâche rouverte",

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, LogOut, Menu, MessagesSquare, Plus, Search, UserCog, X } from "lucide-react";
+import { Bell, ChevronDown, CircleHelp, LogOut, Menu, MessagesSquare, Plus, Search, UserCog, X } from "lucide-react";
 import type { Lien, SectionNavigation } from "@/server/permissions";
 import { logout } from "@/server/actions";
 import { Navigation } from "@/components/navigation";
@@ -155,6 +155,10 @@ export function BarreHaute({
                   <p className="text-sm font-semibold">{utilisateur.nom}</p>
                   <p className="text-xs text-ink/50">{utilisateur.role}</p>
                 </div>
+                <Link href="/aide" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-paper">
+                  <CircleHelp size={17} className="text-ink/50" />
+                  Aide
+                </Link>
                 <Link href="/profil" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-paper">
                   <UserCog size={17} className="text-ink/50" />
                   Mon profil

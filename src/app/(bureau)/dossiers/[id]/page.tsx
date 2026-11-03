@@ -6,7 +6,7 @@ import { etatFacture } from "@/lib/facturation";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
 import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRole, labelRoles, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
 import { FriseEtapes } from "@/components/frise";
-import { Formulaire } from "@/components/formulaire";
+import { Formulaire, FormAction, BoutonEnvoi } from "@/components/formulaire";
 import { Avatar, Badge, Champ, Choix, Progression } from "@/components/ui";
 import { Tiroir } from "@/components/tiroir";
 import { EtapeCourante } from "@/components/etape-courante";
@@ -14,11 +14,11 @@ import { ListeDocuments, type DocumentVue } from "@/components/documents";
 import { PanneauCandidatures } from "@/components/candidatures";
 import { PanneauDevis } from "@/components/panneau-devis";
 import { PanneauTraductions } from "@/components/panneau-traductions";
-import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter } from "@/server/actions";
+import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter, signerContrat } from "@/server/actions";
 import { relancerPieces } from "@/server/communication-actions";
 import { lireModules } from "@/server/modules";
 import { lireDocuments } from "@/server/parametres";
-import { peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, voitFinance } from "@/server/permissions";
+import { estProduction, peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, peutSigner, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 const ACTIONS = ACTIONS_AUDIT;
@@ -166,6 +166,8 @@ export default async function DossierPage({
           fichier: Boolean(piece.fichierChemin),
           recueLe: piece.recueLe,
           etape: etape.titre,
+          categorie: piece.categorie,
+          version: piece.version,
           aVerifier: !piece.recue && Boolean(piece.fichierChemin),
         })),
       ),
@@ -199,6 +201,8 @@ export default async function DossierPage({
             <h1 className="truncate text-2xl font-bold tracking-tight">{nomComplet(dossier.client)}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <Badge ton={TON_STATUT[dossier.statut]} point>{STATUTS[dossier.statut]}</Badge>
+              {dossier.attentePieces ? <Badge ton="cap" point>En attente de pièces</Badge> : null}
+              {dossier.contratSigneLe ? <Badge ton="vert" point>Contrat signé</Badge> : null}
               <span className="text-xs text-ink/50">Ouvert le {formatJour(dossier.ouvertLe)}</span>
               {origine ? (
                 <Link className="text-xs font-semibold text-desk hover:underline" href={`/dossiers/${origine.id}`}>
@@ -217,6 +221,29 @@ export default async function DossierPage({
           <p className="mt-1.5 text-xs text-ink/45">{cloturees} étape(s) sur {dossier.etapes.length}</p>
         </div>
       </header>
+
+      {!lectureSeule ? (
+        <article className="carte flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Signature du contrat</h2>
+            <p className="text-sm text-ink/55">
+              {dossier.contratSigneLe
+                ? `Signé le ${formatDate(dossier.contratSigneLe)}. La trace est dans l'historique du dossier.`
+                : "Seuls la direction et l'administrateur peuvent signer. La signature est archivée, elle ne peut pas être effacée."}
+            </p>
+          </div>
+          {dossier.contratSigneLe ? (
+            <Badge ton="vert" point>Signé</Badge>
+          ) : peutSigner(user.role) ? (
+            <FormAction action={signerContrat} succes="Contrat signé" confirmer="Signer ce contrat ? L'action est enregistrée dans l'historique.">
+              <input type="hidden" name="dossierId" value={dossier.id} />
+              <BoutonEnvoi className="bouton">Signer le contrat</BoutonEnvoi>
+            </FormAction>
+          ) : (
+            <Badge ton="edu">En attente</Badge>
+          )}
+        </article>
+      ) : null}
 
       <FriseEtapes
         etapes={dossier.etapes.map((etape) => ({
@@ -330,7 +357,7 @@ export default async function DossierPage({
                   </Formulaire>
                 ) : null}
               </div>
-              <ListeDocuments documents={documents} vide="Aucun document attendu pour l'instant." peutJoindre />
+              <ListeDocuments documents={documents} vide="Aucun document attendu pour l'instant." peutJoindre peutSignaler={estProduction(user.role) || user.role === "ASSISTANTE_ADMINISTRATIVE"} />
             </article>
           ) : null}
 
