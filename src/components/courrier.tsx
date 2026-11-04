@@ -42,6 +42,7 @@ export function EcrireCourrier({
       <Formulaire action={envoyerCourrier} submit="Envoyer l'e-mail" succes="E-mail envoyé" icone={<Mail size={15} />} className="grid gap-4">
         <input type="hidden" name="clientId" value={clientId} />
         <input type="hidden" name="dossierId" value={contexte?.id ?? ""} />
+        <input type="hidden" name="modele" value={code} />
         {contextes.length > 1 ? (
           <Champ label="Dossier" aide="Les mots du modèle (référence, destination, étape) sont repris de ce dossier.">
             <select

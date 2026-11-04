@@ -10,7 +10,8 @@ import { labelMode } from "@/lib/labels";
 import { lienSuivi } from "@/lib/suivi";
 import type { EtatAction } from "@/server/actions";
 import { envoyerPiecesManquantes, refuserDepotClient } from "@/server/engine";
-import { emailValide, expedierMail } from "@/server/mail";
+import { emailValide, envoyerMailDirect, expedierMail } from "@/server/mail";
+import { pieceJointe } from "@/server/pdf-commercial";
 import { lireEntreprise, urlPublique } from "@/server/parametres";
 import { voitDirection, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -147,12 +148,24 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
     if (!dossier) return { error: "Ce dossier n'appartient pas à ce client." };
   }
   const sujet = String(formData.get("sujet") ?? "").replace(/\s+/g, " ").trim();
-  const corps = String(formData.get("corps") ?? "").replace(/\r/g, "").trim();
+  let corps = String(formData.get("corps") ?? "").replace(/\r/g, "").trim();
+  const modele = String(formData.get("modele") ?? "");
   if (!sujet) return { error: "Indiquez l'objet de l'e-mail." };
   if (sujet.length > 200) return { error: "L'objet ne peut pas dépasser 200 caractères." };
   if (!corps) return { error: "Écrivez le message." };
   if (corps.length > 8000) return { error: "Le message ne peut pas dépasser 8 000 caractères." };
 
+  let piece: string | null = null;
+  if (dossierId && modele === "client_devis") {
+    const devis = await prisma.devis.findFirst({
+      where: { dossierId, statut: { not: "REFUSE" } },
+      orderBy: { creeLe: "desc" },
+      select: { id: true },
+    });
+    if (devis) piece = `devis:${devis.id}`;
+  }
+  if (!piece && /ci-joint/i.test(corps)) corps = corps.replace(/trouver ci-joint/gi, "trouver ci-dessous");
+  const fichier = await pieceJointe(piece);
   const ligne = await prisma.notificationMail.create({
     data: {
       destinataire: client.email!.trim(),
@@ -160,9 +173,27 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
       dossierId: dossierId || null,
       sujet,
       corps,
+      pieceJointe: piece,
     },
   });
-  await expedierMail(ligne.id);
+  try {
+    const resultat = await envoyerMailDirect({
+      a: client.email!.trim(),
+      sujet,
+      corps,
+      pieces: fichier ? [fichier] : [],
+    });
+    await prisma.notificationMail.update({ where: { id: ligne.id }, data: { statut: resultat.statut, envoyeLe: new Date(), erreur: null } });
+    if (resultat.statut === "JOURNAL") {
+      revalidatePath("/", "layout");
+      return { error: "Aucun serveur e-mail branché (Paramètres › E-mail) : l'envoi a seulement été journalisé." };
+    }
+  } catch (erreur) {
+    const detail = erreur instanceof Error ? erreur.message : "Erreur inconnue";
+    await prisma.notificationMail.update({ where: { id: ligne.id }, data: { statut: "ECHEC", erreur: detail.slice(0, 500) } });
+    revalidatePath("/", "layout");
+    return { error: `Le serveur a refusé l'envoi : ${detail}.` };
+  }
   await prisma.audit.create({
     data: {
       userId: user.id,
