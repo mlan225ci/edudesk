@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
+import { EcrireCourrier } from "@/components/courrier";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
@@ -15,7 +16,7 @@ import { PanneauCandidatures } from "@/components/candidatures";
 import { PanneauDevis } from "@/components/panneau-devis";
 import { PanneauTraductions } from "@/components/panneau-traductions";
 import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter, signerContrat } from "@/server/actions";
-import { relancerPieces } from "@/server/communication-actions";
+import { relancerPieces, textesCourrier } from "@/server/communication-actions";
 import { lireModules } from "@/server/modules";
 import { lireDocuments } from "@/server/parametres";
 import { estProduction, peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, peutSigner, voitFinance } from "@/server/permissions";
@@ -184,6 +185,8 @@ export default async function DossierPage({
   const manquantes = documents.filter((document) => !document.recue && !document.fichier).length;
   const aVerifier = documents.filter((document) => document.aVerifier).length;
   const traducteurs = utilisateurs.filter((item) => item.role === "TRADUCTEUR");
+  const courrier = lectureSeule ? null : await textesCourrier(dossier.client.id);
+  const contexteCourrier = courrier?.contextes.filter((contexte) => contexte.id === dossier.id) ?? [];
 
   return (
     <section className="grid gap-6">
@@ -408,6 +411,9 @@ export default async function DossierPage({
               <p className="text-ink/60">{dossier.client.email || "Sans e-mail"}</p>
               <p className="text-ink/60">Partenaire : {dossier.client.partenaire?.nom ?? "aucun"}</p>
             </div>
+            {courrier && contexteCourrier.length > 0 ? (
+              <EcrireCourrier clientId={dossier.client.id} email={courrier.email} contextes={contexteCourrier} className="mt-4 w-full" />
+            ) : null}
             <Link href={`/clients/${dossier.client.id}`} className="bouton-second mt-4 w-full">
               Voir la fiche client
             </Link>

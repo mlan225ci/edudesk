@@ -18,6 +18,8 @@ export function Tiroir({
   description,
   variante = "principal",
   ouvertParDefaut = false,
+  largeur = "md",
+  className = "",
   children,
 }: {
   label: string;
@@ -26,6 +28,8 @@ export function Tiroir({
   description?: string;
   variante?: "principal" | "second";
   ouvertParDefaut?: boolean;
+  largeur?: "md" | "lg";
+  className?: string;
   children: React.ReactNode;
 }) {
   const [ouvert, setOuvert] = useState(ouvertParDefaut);
@@ -64,7 +68,7 @@ export function Tiroir({
 
   return (
     <>
-      <button type="button" className={variante === "principal" ? "bouton" : "bouton-second"} onClick={() => setOuvert(true)}>
+      <button type="button" className={`${variante === "principal" ? "bouton" : "bouton-second"} ${className}`} onClick={() => setOuvert(true)}>
         {icone}
         {label}
       </button>
@@ -72,7 +76,7 @@ export function Tiroir({
         ? createPortal(
         <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={titre}>
           <div className="absolute inset-0 animate-apparition bg-ink/30 backdrop-blur-[2px]" onClick={fermer} />
-          <aside className="relative flex h-full w-full max-w-md animate-glisse-droite flex-col bg-white shadow-2xl">
+          <aside className={`relative flex h-full w-full ${largeur === "lg" ? "max-w-xl" : "max-w-md"} animate-glisse-droite flex-col bg-white shadow-2xl`}>
             <div className="flex items-start justify-between gap-4 border-b border-ink/[0.06] px-6 py-5">
               <div>
                 <h2 className="text-lg font-bold">{titre}</h2>

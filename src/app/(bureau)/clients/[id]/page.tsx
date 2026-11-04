@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { formatJour, nomComplet, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { modifierClient, ouvrirDossier } from "@/server/actions";
+import { textesCourrier } from "@/server/communication-actions";
+import { EcrireCourrier } from "@/components/courrier";
 import { Journal } from "@/components/journal";
 import { lireJournal } from "@/server/historique";
 import { lireModules } from "@/server/modules";
@@ -69,6 +71,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     etape: piece.etape?.titre ?? null,
     dossier: piece.dossier.reference,
   }));
+  const courrier = collaborateur ? await textesCourrier(client.id) : null;
   const finance = voitFinance(user.role);
   const direction = peutHistorique(user.role);
   const modules = await lireModules();
@@ -120,6 +123,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 <button className="bouton-second" type="submit"><MessagesSquare size={15} /> Groupe d&apos;échanges</button>
               </form>
             ) : null}
+            {courrier ? <EcrireCourrier clientId={client.id} email={courrier.email} contextes={courrier.contextes} /> : null}
             {collaborateur ? (
               <Tiroir label="Modifier" variante="second" icone={<Pencil size={15} />} titre="Modifier le client">
                   <Formulaire action={modifierClient} submit="Enregistrer les modifications" succes="Fiche mise à jour" reinitialiser={false} className="grid gap-4">

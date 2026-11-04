@@ -12,6 +12,7 @@ export const LIBELLES_ACTIONS: Record<string, string> = {
   DEVIS: "Devis",
   FACTURE: "Facture",
   FACTURE_ENVOYEE: "Facture envoyée",
+  COURRIER: "E-mail envoyé",
   PAIEMENT: "Paiement",
   PIECE_RECUE: "Pièce reçue",
   PIECE_REFUSEE: "Pièce refusée",

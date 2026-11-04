@@ -75,6 +75,7 @@ export const ACTIONS_AUDIT: Record<string, string> = {
   PIECE_MANQUANTE: "Pièce signalée manquante",
   SIGNATURE: "Contrat signé",
   FACTURE_ENVOYEE: "Facture envoyée",
+  COURRIER: "E-mail envoyé",
   DEVIS: "Devis",
   TRADUCTION: "Traduction",
   AUTOMATISATION: "Automatisation",
