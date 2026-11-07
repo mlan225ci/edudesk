@@ -2,9 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
+// L'hébergeur (Apache) peut transmettre la page d'index du dossier web au lieu de « / ».
+const INDEX_SERVEUR = new Set(["/index.html", "/index.htm", "/index.php", "/standard_index.html"]);
+
 function passer(request: NextRequest) {
   const entetes = new Headers(request.headers);
   entetes.set("x-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  if (INDEX_SERVEUR.has(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.rewrite(url, { request: { headers: entetes } });
+  }
   return NextResponse.next({ request: { headers: entetes } });
 }
 
