@@ -52,6 +52,8 @@ export const ACTIONS_AUDIT: Record<string, string> = {
   CLIENT_RESTAURE: "Client restauré",
   CLIENT_SUPPRIME: "Client supprimé",
   CLIENT_ATTRIBUE: "Client attribué",
+  COMPTE: "Compte utilisateur",
+  COMPTE_SUPPRIME: "Compte supprimé",
   CLOTURE_ETAPE: "Étape clôturée",
   PAIEMENT: "Encaissement",
   DEPENSE: "Dépense saisie",

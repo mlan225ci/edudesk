@@ -33,6 +33,7 @@ import {
 } from "@/server/permissions";
 import { aLeDroit } from "@/server/acces";
 import { demarrerVerification, exigeDoubleAuth, renvoyerCodeConnexion, verifierCodeConnexion } from "@/server/deux-facteurs";
+import { emailValide } from "@/server/mail";
 import { fermerAttenteCode, fermerSession, lireAttenteCode, ouvrirSession, requireUser } from "@/server/session";
 import {
   cloturerEtape,
@@ -1085,38 +1086,114 @@ export async function retirerConge(formData: FormData) {
   rafraichir();
 }
 
-export async function creerUtilisateur(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
-  const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+function lireIdentiteCompte(formData: FormData) {
   const prenom = String(formData.get("prenom") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
   const role = String(formData.get("role") ?? "") as Role;
-  const motDePasse = String(formData.get("motDePasse") ?? "");
   const superieurId = String(formData.get("superieurId") ?? "") || null;
-  if (!prenom || !nom || !email || !ROLES.some((item) => item.value === role)) {
-    return { error: "Complétez l'identité et le rôle." };
+  return { prenom, nom, email, telephone, role, superieurId };
+}
+
+function validerIdentiteCompte(donnees: { prenom: string; nom: string; email: string; telephone: string; role: Role; superieurId: string | null }, userId?: string) {
+  if (!donnees.prenom || !donnees.nom || !donnees.email || !ROLES.some((item) => item.value === donnees.role)) {
+    return "Complétez l'identité et le rôle.";
   }
-  if (!telephoneValide(telephone)) return { error: "Téléphone international invalide." };
+  if (!emailValide(donnees.email)) return "L'adresse e-mail n'est pas valide.";
+  if (!telephoneValide(donnees.telephone)) return "Téléphone international invalide.";
+  if (donnees.superieurId && donnees.superieurId === userId) return "Une personne ne peut pas être son propre supérieur.";
+  return null;
+}
+
+export async function creerUtilisateur(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+  const donnees = lireIdentiteCompte(formData);
+  const motDePasse = String(formData.get("motDePasse") ?? "");
+  const erreur = validerIdentiteCompte(donnees);
+  if (erreur) return { error: erreur };
   if (motDePasse.length < 8) return { error: "Le mot de passe contient au moins 8 caractères." };
   try {
     await prisma.user.create({
       data: {
-        prenom,
-        nom,
-        email,
-        telephone,
-        role,
-        superieurId,
+        ...donnees,
         motDePasseHash: await bcrypt.hash(motDePasse, 10),
       },
     });
   } catch {
     return { error: "Cet e-mail ou ce téléphone est déjà utilisé." };
   }
+  await prisma.audit.create({
+    data: { userId: user.id, action: "COMPTE", entite: "User", entiteId: donnees.email, detail: `Compte créé : ${donnees.prenom} ${donnees.nom} (${donnees.role})` },
+  });
   rafraichir();
   return null;
+}
+
+export async function modifierUtilisateur(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+  const id = String(formData.get("userId") ?? "");
+  const cible = await prisma.user.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, role: true } });
+  if (!cible) return { error: "Compte introuvable." };
+  const donnees = lireIdentiteCompte(formData);
+  const erreur = validerIdentiteCompte(donnees, id);
+  if (erreur) return { error: erreur };
+  try {
+    await prisma.user.update({ where: { id }, data: donnees });
+  } catch {
+    return { error: "Cet e-mail ou ce téléphone est déjà utilisé." };
+  }
+  await prisma.audit.create({
+    data: {
+      userId: user.id,
+      action: "COMPTE",
+      entite: "User",
+      entiteId: id,
+      detail: `Compte modifié : ${cible.prenom} ${cible.nom} → ${donnees.prenom} ${donnees.nom} (${donnees.role})`,
+    },
+  });
+  rafraichir();
+  return null;
+}
+
+export async function supprimerUtilisateur(formData: FormData) {
+  const user = await requireUser();
+  if (!peutGererEquipe(user.role)) return;
+  const id = String(formData.get("userId") ?? "");
+  if (!id || id === user.id) return;
+  const cible = await prisma.user.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, role: true, email: true } });
+  if (!cible) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.updateMany({ where: { superieurId: id }, data: { superieurId: null } });
+    await tx.client.updateMany({ where: { responsableId: id }, data: { responsableId: null } });
+    await tx.materiel.updateMany({ where: { affecteAId: id }, data: { affecteAId: null } });
+    await tx.traduction.updateMany({ where: { traducteurId: id }, data: { traducteurId: null } });
+    await tx.audit.updateMany({ where: { userId: id }, data: { userId: null } });
+    await tx.groupe.updateMany({ where: { creeParId: id }, data: { creeParId: user.id } });
+    await tx.notificationInterne.deleteMany({ where: { userId: id } });
+    await tx.conge.deleteMany({ where: { userId: id } });
+    const messages = await tx.message.findMany({ where: { OR: [{ deId: id }, { aId: id }] }, select: { id: true } });
+    const messageIds = messages.map((message) => message.id);
+    if (messageIds.length) {
+      await tx.message.updateMany({ where: { reponseAId: { in: messageIds } }, data: { reponseAId: null } });
+      await tx.message.deleteMany({ where: { id: { in: messageIds } } });
+    }
+    await tx.messageGroupe.deleteMany({ where: { deId: id } });
+    await tx.user.delete({ where: { id } });
+    await tx.audit.create({
+      data: {
+        userId: user.id,
+        action: "COMPTE_SUPPRIME",
+        entite: "User",
+        entiteId: id,
+        detail: `${cible.prenom} ${cible.nom} · ${cible.email} · ${cible.role}`,
+      },
+    });
+  });
+  rafraichir();
 }
 
 export async function basculerActif(formData: FormData) {
