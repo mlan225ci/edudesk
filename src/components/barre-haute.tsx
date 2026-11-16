@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, ChevronDown, CircleHelp, LogOut, Menu, MessagesSquare, Plus, Search, UserCog, X } from "lucide-react";
 import type { Lien, SectionNavigation } from "@/server/permissions";
@@ -10,6 +10,7 @@ import { logout } from "@/server/actions";
 import { Navigation } from "@/components/navigation";
 import { Icone } from "@/components/icones";
 import { useMessagesNonLus } from "@/components/centre-messages";
+import { useRaccourciAction, useRaccourcis } from "@/components/raccourcis-bureau";
 
 const Recherche = dynamic(() => import("@/components/recherche"), { ssr: false });
 
@@ -51,6 +52,7 @@ export function BarreHaute({
   accueil: string;
 }) {
   const messagesNonLus = useMessagesNonLus() ?? 0;
+  const { label } = useRaccourcis();
   const [recherche, setRecherche] = useState(false);
   const [menuMobile, setMenuMobile] = useState(false);
   const [nouveau, setNouveau] = useState(false);
@@ -58,17 +60,12 @@ export function BarreHaute({
   const pathname = usePathname();
   const refNouveau = useFermeture<HTMLDivElement>(nouveau, () => setNouveau(false));
   const refProfil = useFermeture<HTMLDivElement>(profil, () => setProfil(false));
-
-  useEffect(() => {
-    const surTouche = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setRecherche(true);
-      }
-    };
-    document.addEventListener("keydown", surTouche);
-    return () => document.removeEventListener("keydown", surTouche);
-  }, []);
+  const ouvrirRecherche = useCallback(() => setRecherche(true), []);
+  const ouvrirNouveau = useCallback(() => {
+    if (actions.length > 0) setNouveau(true);
+  }, [actions.length]);
+  useRaccourciAction("recherche", ouvrirRecherche);
+  useRaccourciAction("nouveau", ouvrirNouveau);
 
   useEffect(() => {
     setMenuMobile(false);
@@ -88,7 +85,9 @@ export function BarreHaute({
         >
           <Search size={17} className="shrink-0" />
           <span className="truncate">Rechercher un client, un dossier, une page…</span>
-          <kbd className="ml-auto hidden rounded-md border border-ink/10 bg-white px-1.5 py-0.5 font-sans text-[11px] text-ink/45 sm:block">Ctrl K</kbd>
+          {label("recherche") !== "Aucun" ? (
+            <kbd className="ml-auto hidden rounded-md border border-ink/10 bg-white px-1.5 py-0.5 font-sans text-[11px] text-ink/45 sm:block">{label("recherche")}</kbd>
+          ) : null}
         </button>
 
         <div className="ml-auto flex items-center gap-1.5">

@@ -10,6 +10,7 @@ import { Navigation } from "@/components/navigation";
 import { BarreHaute } from "@/components/barre-haute";
 import { ToastProvider } from "@/components/toasts";
 import { CentreMessages } from "@/components/centre-messages";
+import { RaccourcisBureau } from "@/components/raccourcis-bureau";
 
 export function Shell({
   user,
@@ -46,7 +47,12 @@ export function Shell({
           <div className="mx-3 mb-4 rounded-2xl bg-white/[0.06] p-3.5 text-xs leading-5 text-white/55">
             <p className="font-semibold text-white/85">Astuce</p>
             <p>
-              Appuyez sur <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl K</kbd> pour retrouver un client, un dossier ou une page.
+              <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl + K</kbd> recherche ·{" "}
+              <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl + Maj + …</kbd> navigation. Personnalisez dans{" "}
+              <Link href="/profil" className="font-semibold text-white/85 underline decoration-white/25 underline-offset-2 hover:text-white">
+                Mon profil
+              </Link>
+              .
             </p>
             <Link href="/aide" className="mt-2 inline-block font-semibold text-white/85 underline decoration-white/25 underline-offset-2 hover:text-white">
               Voir la démo
@@ -76,13 +82,15 @@ export function Shell({
   );
   return (
     <ToastProvider>
-      {user.role === "PARTENAIRE" || !modules.messagerie || !droits.messagerie ? (
-        contenu
-      ) : (
-        <CentreMessages moiId={user.id} moiNom={`${user.prenom} ${user.nom}`} initial={messagesNonLus}>
-          {contenu}
-        </CentreMessages>
-      )}
+      <RaccourcisBureau accueil={accueil}>
+        {user.role === "PARTENAIRE" || !modules.messagerie || !droits.messagerie ? (
+          contenu
+        ) : (
+          <CentreMessages moiId={user.id} moiNom={`${user.prenom} ${user.nom}`} initial={messagesNonLus}>
+            {contenu}
+          </CentreMessages>
+        )}
+      </RaccourcisBureau>
     </ToastProvider>
   );
 }

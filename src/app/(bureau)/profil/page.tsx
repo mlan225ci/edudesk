@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatJour, nomComplet } from "@/lib/format";
 import { labelEtat, labelRole } from "@/lib/labels";
 import { rolesEffectifs } from "@/server/permissions";
+import { ConfigRaccourcis } from "@/components/config-raccourcis";
 import { Formulaire } from "@/components/formulaire";
 import { Kpi, Panneau } from "@/components/graphiques";
 import { Avatar, Badge, Champ } from "@/components/ui";
@@ -85,6 +86,8 @@ export default async function ProfilPage() {
             </Link>
           </Panneau>
         ) : null}
+
+        <ConfigRaccourcis />
       </div>
     </section>
   );

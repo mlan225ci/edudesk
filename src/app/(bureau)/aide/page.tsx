@@ -21,7 +21,7 @@ const CHAPITRES = [
     pageLabel: "Ouvrir le tableau de bord",
     image: "/aide/tableau.png",
     alt: "Tableau de bord avec les indicateurs du jour",
-    texte: "La page d'accueil résume la journée : missions, prospects à rappeler, paiements à rapprocher, encaissements, dépenses, trésorerie, dossiers ouverts et étapes en retard. Ctrl K retrouve un client, un dossier ou une page.",
+    texte: "La page d'accueil résume la journée : missions, prospects à rappeler, paiements à rapprocher, encaissements, dépenses, trésorerie, dossiers ouverts et étapes en retard. Ctrl + K ouvre la recherche. D'autres raccourcis (missions, dossiers, messagerie…) se configurent dans Mon profil.",
   },
   {
     id: "direction",
