@@ -14,7 +14,7 @@ export const metadata = { title: "Procédures" };
 
 export default async function ProceduresPage() {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) redirect("/missions");
+  if (!peutProcedures(user)) redirect("/missions");
   const direction = user.role === "CEO" || user.role === "ADMINISTRATEUR";
   const procedures = await prisma.procedure.findMany({
     include: { _count: { select: { etapes: true, dossiers: true } } },

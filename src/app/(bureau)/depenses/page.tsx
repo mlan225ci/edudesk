@@ -42,7 +42,7 @@ export default async function DepensesPage({ searchParams }: { searchParams: Pro
   }
   const auteur = new Map(auteurs.map((item) => [item.id, nomComplet(item)]));
   const choixMois = Array.from({ length: 12 }, (_, index) => debutMois(-index));
-  const annulable = peutAnnulerDepense(user.role);
+  const annulable = peutAnnulerDepense(user);
   const totalPrec = totalPrecedent._sum.montant ?? 0;
   const plusGros = [...parCategorie.entries()].sort((a, b) => b[1] - a[1])[0];
 

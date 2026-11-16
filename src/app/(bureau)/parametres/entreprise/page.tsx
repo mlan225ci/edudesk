@@ -12,7 +12,7 @@ export const metadata = { title: "Entreprise · Paramètres" };
 
 export default async function EntreprisePage() {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) redirect("/parametres");
+  if (!peutParametrer(user)) redirect("/parametres");
   const [entreprise, documents, url] = await Promise.all([lireEntreprise(), lireDocuments(), urlPublique()]);
   const mentions = [entreprise.rccm && `N° RC ${entreprise.rccm}`, entreprise.ncc && `N° CC ${entreprise.ncc}`].filter(Boolean).join(" · ");
   const contact = [entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb].filter(Boolean).join(" · ");

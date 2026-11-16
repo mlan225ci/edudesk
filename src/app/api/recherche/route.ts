@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { nomComplet } from "@/lib/format";
-import { peutProspects } from "@/server/permissions";
+import { aLeRole, peutProspects } from "@/server/permissions";
 import { getUser } from "@/server/session";
 
 export async function GET(request: Request) {
@@ -20,7 +20,9 @@ export async function GET(request: Request) {
   const portee: Prisma.ClientWhereInput = {
     archiveLe: null,
     ...(user.role === "PARTENAIRE" ? { partenaireId: user.partenaireId ?? "__aucun__" } : {}),
-    ...(user.role === "COMMERCIAL" ? { responsableId: user.id } : {}),
+    ...(aLeRole(user, "COMMERCIAL") && !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE")
+      ? { responsableId: user.id }
+      : {}),
   };
 
   const [clients, dossiers, prospects] = await Promise.all([
@@ -44,7 +46,7 @@ export async function GET(request: Request) {
       take: 6,
       orderBy: { ouvertLe: "desc" },
     }),
-    peutProspects(user.role)
+    peutProspects(user)
       ? prisma.prospect.findMany({
           where: { converti: false, AND: mots.map((mot) => ({ OR: correspondPersonne(mot) })) },
           take: 4,

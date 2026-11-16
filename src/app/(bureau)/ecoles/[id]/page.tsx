@@ -36,7 +36,7 @@ export default async function EcolePage({ params }: { params: Promise<{ id: stri
     prisma.procedure.findMany({ where: { ecoles: true }, select: { destination: true } }),
   ]);
   if (!ecole) notFound();
-  const gestion = peutEcoles(user.role);
+  const gestion = peutEcoles(user);
   const frequents = paysDesProcedures(procedures.map((procedure) => procedure.destination));
   const formations = (ecole.formations ?? "").split("\n").map((item) => item.trim()).filter(Boolean);
   const inscrits = ecole.candidatures.filter((item) => item.statut === "CHOISIE").length;

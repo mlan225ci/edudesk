@@ -60,7 +60,7 @@ export async function supprimerDevisEtRevenir(devisId: string) {
 
 export async function reglerFacture(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutEncaisser(user.role)) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
+  if (!peutEncaisser(user)) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
   if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const facture = await prisma.facture.findUnique({ where: { id: String(formData.get("factureId") ?? "") }, select: { id: true, dossierId: true } });
   if (!facture) return { error: "Facture introuvable." };
@@ -83,7 +83,7 @@ export async function reglerFacture(_etat: EtatAction, formData: FormData): Prom
 
 export async function annulerFactureAction(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutAnnulerFacture(user.role)) return { error: "L'annulation d'une facture est réservée à la direction et à la comptabilité." };
+  if (!peutAnnulerFacture(user)) return { error: "L'annulation d'une facture est réservée à la direction et à la comptabilité." };
   if (!(await lireModules()).factures) return { error: "Les factures sont désactivées." };
   const motif = String(formData.get("motif") ?? "").trim();
   if (!motif) return { error: "Indiquez le motif de l'annulation." };

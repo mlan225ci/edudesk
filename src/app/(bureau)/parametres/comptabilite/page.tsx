@@ -25,7 +25,7 @@ function Compte({ numero }: { numero: string }) {
 
 export default async function ParametresComptabilitePage() {
   const user = await requireUser();
-  if (!voitCompta(user.role)) redirect("/parametres");
+  if (!voitCompta(user)) redirect("/parametres");
   const compteurs = await prisma.compteur.findMany({ orderBy: { cle: "asc" } });
 
   return (

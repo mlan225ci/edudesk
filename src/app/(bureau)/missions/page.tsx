@@ -4,6 +4,7 @@ import { AlarmClock, ArrowRight, CheckCircle2, ListChecks, PhoneCall, Share2 } f
 import { prisma } from "@/lib/db";
 import { delaiTexte, nomComplet } from "@/lib/format";
 import { aLeDroit } from "@/server/acces";
+import { aLeRole } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { Avatar, Badge, EnTete, Vide } from "@/components/ui";
 import type { Ton } from "@/components/ui";
@@ -33,7 +34,13 @@ export default async function MissionsPage() {
     }),
     voitRappels
       ? prisma.prospect.findMany({
-          where: { converti: false, relanceLe: { lte: fin }, ...(user.role === "COMMERCIAL" ? { creeParId: user.id } : {}) },
+          where: {
+            converti: false,
+            relanceLe: { lte: fin },
+            ...(aLeRole(user, "COMMERCIAL") && !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE")
+              ? { creeParId: user.id }
+              : {}),
+          },
           orderBy: { relanceLe: "asc" },
         })
       : Promise.resolve([]),

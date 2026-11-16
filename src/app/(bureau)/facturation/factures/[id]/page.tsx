@@ -42,8 +42,8 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
   const etat = etatFacture({ montant: facture.montant, regle, annuleeLe: facture.annuleeLe, echeanceLe: facture.echeanceLe });
   const recu = Boolean(facture.paiementId);
   const client = facture.dossier.client;
-  const reglable = peutEncaisser(user.role) && !recu && !facture.annuleeLe && reste > 0;
-  const annulable = peutAnnulerFacture(user.role) && !recu && !facture.annuleeLe && paiements.length === 0;
+  const reglable = peutEncaisser(user) && !recu && !facture.annuleeLe && reste > 0;
+  const annulable = peutAnnulerFacture(user) && !recu && !facture.annuleeLe && paiements.length === 0;
 
   const details: [string, React.ReactNode][] = [
     ["Client", client.email ? `${facture.clientNom} · ${client.email}` : facture.clientNom],

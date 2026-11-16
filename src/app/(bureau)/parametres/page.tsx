@@ -19,7 +19,7 @@ type Carte = { href: string; icone: string; titre: string; texte: string; etat: 
 export default async function ParametresPage() {
   const user = await requireUser();
   const modules = await lireModules();
-  const onglets = new Set(ongletsParametres(user.role, modules).map((onglet) => onglet.href));
+  const onglets = new Set(ongletsParametres(user, modules).map((onglet) => onglet.href));
   const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, roles2fa, historique] = await Promise.all([
     lireEntreprise(),
     lireDocuments(),

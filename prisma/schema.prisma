@@ -145,6 +145,7 @@ model User {
   telephone      String    @unique
   motDePasseHash String
   role              Role
+  autresRoles       Role[]    @default([])
   actif             Boolean   @default(true)
   echecsConnexion      Int       @default(0)
   verrouilleJusquau    DateTime?

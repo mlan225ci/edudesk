@@ -14,7 +14,7 @@ function journaliser(userId: string, detail: string) {
 
 export async function enregistrerDoubleAuthRoles(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const coches = new Set(formData.getAll("roles").map(String));
   const roles = ROLES.map((item) => item.value).filter((role) => coches.has(role));
   await enregistrerRolesDoubleAuth(roles);
@@ -25,7 +25,7 @@ export async function enregistrerDoubleAuthRoles(_etat: EtatAction, formData: Fo
 
 export async function enregistrerDoubleAuthCompte(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const compteId = String(formData.get("compte") ?? "");
   const choix = String(formData.get("doubleAuth") ?? "role");
   const compte = await prisma.user.findUnique({ where: { id: compteId }, select: { id: true, prenom: true, nom: true, role: true } });
@@ -45,7 +45,7 @@ export async function enregistrerDoubleAuthCompte(_etat: EtatAction, formData: F
 
 export async function retablirDoubleAuthRoles(_etat: EtatAction, _formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   await prisma.parametre.deleteMany({ where: { cle: { startsWith: "2fa.role." } } });
   await journaliser(user.id, "Double authentification : retour aux rôles d'origine (Direction et Administrateur)");
   revalidatePath("/parametres", "layout");

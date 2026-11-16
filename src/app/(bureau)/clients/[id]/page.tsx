@@ -11,7 +11,7 @@ import { Journal } from "@/components/journal";
 import { lireJournal } from "@/server/historique";
 import { lireModules } from "@/server/modules";
 import { ouvrirGroupeClient } from "@/server/groupes-actions";
-import { peutArchiverClient, peutAttribuerClient, peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
+import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { ListeDocuments, type DocumentVue } from "@/components/documents";
@@ -40,19 +40,25 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     },
   });
   if (!client) notFound();
-  if (client.archiveLe && !peutArchiverClient(user.role)) notFound();
+  if (client.archiveLe && !peutArchiverClient(user)) notFound();
   if (user.role === "PARTENAIRE" && client.partenaireId !== user.partenaireId) notFound();
-  if (user.role === "COMMERCIAL" && client.responsableId !== user.id) notFound();
+  if (
+    aLeRole(user, "COMMERCIAL") &&
+    !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE") &&
+    client.responsableId !== user.id
+  ) {
+    notFound();
+  }
 
   const collaborateur = user.role !== "PARTENAIRE";
-  const creation = peutCreerClient(user.role);
-  const attribution = peutAttribuerClient(user.role) && !client.archiveLe;
+  const creation = peutCreerClient(user);
+  const attribution = peutAttribuerClient(user) && !client.archiveLe;
   const [partenaires, procedures, responsables] = await Promise.all([
     collaborateur ? prisma.partenaire.findMany({ select: { id: true, nom: true }, orderBy: { nom: "asc" } }) : [],
     creation ? prisma.procedure.findMany({ where: { actif: true }, select: { id: true, nom: true }, orderBy: { nom: "asc" } }) : [],
     attribution
       ? prisma.user.findMany({
-          where: { actif: true, role: { in: ["COMMERCIAL", "RESPONSABLE_COMMERCIALE"] } },
+          where: { actif: true, ...filtreParRoles(["COMMERCIAL", "RESPONSABLE_COMMERCIALE"]) },
           select: { id: true, prenom: true, nom: true },
           orderBy: { prenom: "asc" },
         })
@@ -83,8 +89,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     dossier: piece.dossier.reference,
   }));
   const courrier = collaborateur ? await textesCourrier(client.id) : null;
-  const finance = voitFinance(user.role);
-  const direction = peutHistorique(user.role);
+  const finance = voitFinance(user);
+  const direction = peutHistorique(user);
   const modules = await lireModules();
   const journal = direction
     ? await lireJournal({ clientId: client.id, dossierIds: client.dossiers.map((dossier) => dossier.id), take: 40 })
@@ -151,7 +157,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 </FormAction>
               </Tiroir>
             ) : null}
-            {peutArchiverClient(user.role) ? (
+            {peutArchiverClient(user) ? (
               client.archiveLe ? (
                 <FormAction action={restaurerClient} succes="Client restauré">
                   <input type="hidden" name="clientId" value={client.id} />

@@ -212,7 +212,7 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
 
 export async function renvoyerMail(id: string) {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return;
+  if (!voitDirection(user)) return;
   const mail = await prisma.notificationMail.findUnique({ where: { id } });
   if (!mail || mail.statut === "ENVOYE") return;
   await prisma.notificationMail.update({ where: { id }, data: { statut: "EN_ATTENTE", erreur: null } });
@@ -222,7 +222,7 @@ export async function renvoyerMail(id: string) {
 
 export async function envoyerFactureParMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitFinance(user.role)) return { error: "Réservé à la finance et à la direction." };
+  if (!voitFinance(user)) return { error: "Réservé à la finance et à la direction." };
   const facture = await prisma.facture.findUnique({
     where: { id: String(formData.get("factureId") ?? "") },
     include: { paiement: true, reglements: { select: { montant: true } }, dossier: { include: { client: true, procedure: true } } },

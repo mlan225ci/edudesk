@@ -21,8 +21,8 @@ const FREQUENCES = [
 
 export default async function ParametresAutomatisationPage() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) redirect("/parametres");
-  const gestion = peutParametrer(user.role);
+  if (!voitDirection(user)) redirect("/parametres");
+  const gestion = peutParametrer(user);
   const maintenant = new Date();
   const dans24h = new Date(maintenant.getTime() + 24 * 36e5);
   const [config, enRetard, demain] = await Promise.all([

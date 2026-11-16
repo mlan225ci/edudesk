@@ -12,7 +12,7 @@ export const metadata = { title: "Fonctionnalités" };
 
 export default async function FonctionnalitesPage() {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) redirect("/tableau-de-bord");
+  if (!peutParametrer(user)) redirect("/tableau-de-bord");
   const actifs = await lireModules();
   const groupes = [...new Set(MODULES.map((module) => module.groupe))];
 

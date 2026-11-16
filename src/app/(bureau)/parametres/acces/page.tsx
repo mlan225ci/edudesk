@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { nomComplet } from "@/lib/format";
-import { ROLES, labelRole } from "@/lib/labels";
+import { ROLES, labelRolesCompte } from "@/lib/labels";
 import { Formulaire } from "@/components/formulaire";
 import { Icone } from "@/components/icones";
 import { Badge, EnTete } from "@/components/ui";
@@ -16,11 +16,11 @@ export const metadata = { title: "Accès" };
 
 export default async function AccesPage({ searchParams }: { searchParams: Promise<{ portee?: string; role?: string; compte?: string }> }) {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) redirect("/tableau-de-bord");
+  if (!peutParametrer(user)) redirect("/tableau-de-bord");
   const params = await searchParams;
   const portee = params.portee === "compte" ? "compte" : "role";
   const role = ROLES.some((item) => item.value === params.role) ? params.role! : "COMMERCIAL";
-  const comptes = portee === "compte" ? await prisma.user.findMany({ where: { actif: true }, orderBy: [{ prenom: "asc" }, { nom: "asc" }], select: { id: true, prenom: true, nom: true, role: true } }) : [];
+  const comptes = portee === "compte" ? await prisma.user.findMany({ where: { actif: true }, orderBy: [{ prenom: "asc" }, { nom: "asc" }], select: { id: true, prenom: true, nom: true, role: true, autresRoles: true } }) : [];
   const compteId = comptes.some((compte) => compte.id === params.compte) ? params.compte! : comptes[0]?.id;
   const reglageRole = portee === "role" ? await lireReglageRole(role as (typeof ROLES)[number]["value"]) : null;
   const reglageCompte = portee === "compte" && compteId ? await lireReglageCompte(compteId) : null;
@@ -71,7 +71,7 @@ export default async function AccesPage({ searchParams }: { searchParams: Promis
               <span className="font-medium">Compte</span>
               <select name="compte" defaultValue={compteId} className="champ min-w-72">
                 {comptes.map((compte) => (
-                  <option key={compte.id} value={compte.id}>{nomComplet(compte)} · {labelRole(compte.role)}</option>
+                  <option key={compte.id} value={compte.id}>{nomComplet(compte)} · {labelRolesCompte(compte.role, compte.autresRoles)}</option>
                 ))}
               </select>
             </label>
@@ -85,7 +85,7 @@ export default async function AccesPage({ searchParams }: { searchParams: Promis
               </Formulaire>
               <Formulaire action={retablirAccesCompte} submit="Reprendre les droits du rôle" succes="Le compte suit de nouveau son rôle" reinitialiser={false} boutonClassName="bouton-second">
                 <input type="hidden" name="compte" value={reglageCompte.compte.id} />
-                <p className="text-sm text-ink/55">Retire les exceptions de {nomComplet(reglageCompte.compte)}. Les droits du poste {labelRole(reglageCompte.compte.role)} s'appliquent à nouveau.</p>
+                <p className="text-sm text-ink/55">Retire les exceptions de {nomComplet(reglageCompte.compte)}. Les droits des rôles {labelRolesCompte(reglageCompte.compte.role, reglageCompte.compte.autresRoles)} s'appliquent à nouveau.</p>
               </Formulaire>
             </>
           ) : (

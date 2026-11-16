@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatJour, nomComplet } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { attribuerClient, creerClient } from "@/server/actions";
-import { peutArchiverClient, peutAttribuerClient, peutCreerClient } from "@/server/permissions";
+import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { Formulaire } from "@/components/formulaire";
@@ -18,16 +18,18 @@ export const metadata = { title: "Clients" };
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string; nouveau?: string; responsable?: string; archives?: string }> }) {
   const user = await requireUser();
   const { q, nouveau, responsable, archives } = await searchParams;
-  const creation = peutCreerClient(user.role);
-  const attribution = peutAttribuerClient(user.role);
-  const archivage = peutArchiverClient(user.role);
+  const creation = peutCreerClient(user);
+  const attribution = peutAttribuerClient(user);
+  const archivage = peutArchiverClient(user);
   const archivesVisibles = archivage && archives === "1";
   const [clients, partenaires, procedures, responsables] = await Promise.all([
     prisma.client.findMany({
       where: {
         archiveLe: archivesVisibles ? { not: null } : null,
         ...(user.role === "PARTENAIRE" ? { partenaireId: user.partenaireId ?? "__aucun__" } : {}),
-        ...(user.role === "COMMERCIAL" ? { responsableId: user.id } : {}),
+        ...(aLeRole(user, "COMMERCIAL") && !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE")
+          ? { responsableId: user.id }
+          : {}),
         ...(responsable === "aucun" ? { responsableId: null } : {}),
         ...(responsable && responsable !== "aucun" ? { responsableId: responsable } : {}),
         ...(q
@@ -57,7 +59,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     creation ? prisma.procedure.findMany({ where: { actif: true }, select: { id: true, nom: true }, orderBy: { nom: "asc" } }) : [],
     attribution
       ? prisma.user.findMany({
-          where: { actif: true, role: { in: ["COMMERCIAL", "RESPONSABLE_COMMERCIALE"] } },
+          where: { actif: true, ...filtreParRoles(["COMMERCIAL", "RESPONSABLE_COMMERCIALE"]) },
           select: { id: true, prenom: true, nom: true, role: true },
           orderBy: [{ role: "asc" }, { prenom: "asc" }],
         })

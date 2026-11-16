@@ -39,8 +39,8 @@ export default async function CreancesPage({ searchParams }: { searchParams: Pro
   const paye = situation.reduce((somme, ligne) => somme + Math.min(ligne.paye, ligne.convenu || ligne.paye), 0);
   const reste = situation.reduce((somme, ligne) => somme + ligne.reste, 0);
   const compter = (cle: string) => situation.filter(regles[cle]).length;
-  const modifiable = peutModifierMontant(user.role);
-  const encaissement = peutEncaisser(user.role);
+  const modifiable = peutModifierMontant(user);
+  const encaissement = peutEncaisser(user);
 
   return (
     <section className="grid gap-6">

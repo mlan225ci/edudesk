@@ -15,7 +15,7 @@ export const metadata = { title: "Sécurité" };
 
 export default async function SecuritePage({ searchParams }: { searchParams: Promise<{ portee?: string; compte?: string }> }) {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) redirect("/tableau-de-bord");
+  if (!peutParametrer(user)) redirect("/tableau-de-bord");
   const params = await searchParams;
   const portee = params.portee === "compte" ? "compte" : "role";
   const [rolesActifs, comptes] = await Promise.all([

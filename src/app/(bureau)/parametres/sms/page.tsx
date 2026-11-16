@@ -16,8 +16,8 @@ const VARIABLES = ["prenom", "client", "reference", "destination", "etape", "del
 
 export default async function ParametresSmsPage() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) redirect("/parametres");
-  const gestion = peutParametrer(user.role);
+  if (!voitDirection(user)) redirect("/parametres");
+  const gestion = peutParametrer(user);
   const [config, modeles] = await Promise.all([configSms(), prisma.modeleSms.findMany({ orderBy: { libelle: "asc" } })]);
   const etat =
     config.source === "parametres"

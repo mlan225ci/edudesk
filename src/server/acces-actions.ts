@@ -5,7 +5,7 @@ import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ROLES } from "@/lib/labels";
 import type { EtatAction } from "@/server/actions";
-import { ACCES, accesParDefaut, estAccesId, lireReglageRole, type AccesId } from "@/server/acces";
+import { ACCES, accesParDefaut, estAccesId, lireReglageCompte, lireReglageRole, type AccesId } from "@/server/acces";
 import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
@@ -24,7 +24,7 @@ async function journaliser(userId: string, detail: string) {
 
 export async function enregistrerAccesRole(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const role = String(formData.get("role") ?? "");
   if (!roleValide(role)) return { error: "Rôle inconnu." };
   const choisi = coches(formData);
@@ -47,7 +47,7 @@ export async function enregistrerAccesRole(_etat: EtatAction, formData: FormData
 
 export async function retablirAccesRole(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const role = String(formData.get("role") ?? "");
   if (!roleValide(role)) return { error: "Rôle inconnu." };
   await prisma.accesRole.deleteMany({ where: { role } });
@@ -57,12 +57,12 @@ export async function retablirAccesRole(_etat: EtatAction, formData: FormData): 
 
 export async function enregistrerAccesCompte(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const userId = String(formData.get("compte") ?? "");
-  const cible = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, prenom: true, nom: true } });
-  if (!cible) return { error: "Compte introuvable." };
+  const reglage = await lireReglageCompte(userId);
+  if (!reglage) return { error: "Compte introuvable." };
   const choisi = coches(formData);
-  const duRole = await lireReglageRole(cible.role);
+  const { compte: cible, duRole } = reglage;
   await prisma.$transaction(async (tx) => {
     await tx.accesCompte.deleteMany({ where: { userId } });
     const lignes = ACCES.filter((acces) => choisi.has(acces.id) !== duRole[acces.id]).map((acces) => ({
@@ -78,7 +78,7 @@ export async function enregistrerAccesCompte(_etat: EtatAction, formData: FormDa
 
 export async function retablirAccesCompte(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const userId = String(formData.get("compte") ?? "");
   const cible = await prisma.user.findUnique({ where: { id: userId }, select: { prenom: true, nom: true } });
   if (!cible) return { error: "Compte introuvable." };

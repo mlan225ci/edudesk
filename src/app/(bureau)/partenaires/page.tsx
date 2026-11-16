@@ -26,7 +26,7 @@ export default async function PartenairesPage({ searchParams }: { searchParams: 
       _count: { select: { prospects: true, utilisateurs: true } },
     },
   });
-  const peutVerser = voitDepenses(user.role);
+  const peutVerser = voitDepenses(user);
 
   const fiches = partenaires
     .map((partenaire) => {

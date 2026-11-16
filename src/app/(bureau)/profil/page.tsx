@@ -3,6 +3,7 @@ import { Boxes, KeyRound, ListChecks, Mail, Palmtree, Phone, UserRound } from "l
 import { prisma } from "@/lib/db";
 import { formatJour, nomComplet } from "@/lib/format";
 import { labelEtat, labelRole } from "@/lib/labels";
+import { rolesEffectifs } from "@/server/permissions";
 import { Formulaire } from "@/components/formulaire";
 import { Kpi, Panneau } from "@/components/graphiques";
 import { Avatar, Badge, Champ } from "@/components/ui";
@@ -30,7 +31,9 @@ export default async function ProfilPage() {
           <div className="pb-1">
             <h1 className="text-2xl font-bold tracking-tight">{nomComplet(user)}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Badge ton="desk">{labelRole(user.role)}</Badge>
+              {rolesEffectifs(user).map((role) => (
+                <Badge key={role} ton="desk">{labelRole(role)}</Badge>
+              ))}
               {user.partenaire ? <Badge ton="edu">{user.partenaire.nom}</Badge> : null}
               <span className="text-xs text-ink/50">Membre depuis le {formatJour(user.creeLe)}</span>
             </div>

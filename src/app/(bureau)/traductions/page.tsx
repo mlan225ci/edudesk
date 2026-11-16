@@ -9,7 +9,7 @@ import { BoutonEnvoi, FormAction, Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
 import { aLeDroit } from "@/server/acces";
-import { peutTraduire } from "@/server/permissions";
+import { aLeRole, peutTraduire } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { livrerTraduction, prendreTraduction } from "@/server/traductions-actions";
 
@@ -20,10 +20,10 @@ const VUES: Record<string, StatutTraduction> = { "a-faire": "A_FAIRE", "en-cours
 export default async function TraductionsPage({ searchParams }: { searchParams: Promise<{ vue?: string; tous?: string }> }) {
   const user = await requireUser();
   if (!(await aLeDroit(user, "traductions"))) redirect("/missions");
-  const traducteur = peutTraduire(user.role);
+  const traducteur = peutTraduire(user);
   const { vue = "a-faire", tous } = await searchParams;
   const statut = VUES[vue] ?? "A_FAIRE";
-  const miennes = user.role === "TRADUCTEUR" && !tous;
+  const miennes = aLeRole(user, "TRADUCTEUR") && !tous;
   const portee: Prisma.TraductionWhereInput = miennes ? { OR: [{ traducteurId: user.id }, { traducteurId: null }] } : {};
 
   const [traductions, compteurs] = await Promise.all([
@@ -50,7 +50,7 @@ export default async function TraductionsPage({ searchParams }: { searchParams: 
         icone={Languages}
         description="Les documents à traduire, rattachés à leur original dans chaque dossier. Le traducteur dépose la traduction certifiée ici."
         actions={
-          user.role === "TRADUCTEUR" ? (
+          aLeRole(user, "TRADUCTEUR") ? (
             <Link href={`/traductions?vue=${vue}${tous ? "" : "&tous=1"}`} className="bouton-second">
               {tous ? "Mes traductions" : "Toutes les traductions"}
             </Link>

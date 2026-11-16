@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BarreNavigation } from "@/components/barre-navigation";
 import { nomComplet } from "@/lib/format";
-import { labelRole } from "@/lib/labels";
+import { labelRolesCompte } from "@/lib/labels";
 import type { AccesEffectif } from "@/server/acces";
 import { actionsRapides, navigation, ongletsParametres, type SessionUser } from "@/server/permissions";
 import type { ModulesActifs } from "@/server/modules";
@@ -26,7 +26,7 @@ export function Shell({
   droits: AccesEffectif;
   children: React.ReactNode;
 }) {
-  const sections = navigation(user.role, modules, droits);
+  const sections = navigation(user, modules, droits);
   const accueil = user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord";
   const contenu = (
     <>
@@ -57,15 +57,15 @@ export function Shell({
         <div className="flex min-w-0 flex-1 flex-col">
           <BarreHaute
             sections={sections}
-            parametres={ongletsParametres(user.role, modules)}
-            actions={actionsRapides(user.role, modules, droits)}
+            parametres={ongletsParametres(user, modules)}
+            actions={actionsRapides(user, modules, droits)}
             nonLues={nonLues}
             messagerie={droits.messagerie && modules.messagerie}
             notifications={droits.notifications && modules.notifications}
             accueil={accueil}
             utilisateur={{
               nom: nomComplet(user),
-              role: labelRole(user.role),
+              role: labelRolesCompte(user.role, user.autresRoles),
               initiales: `${user.prenom[0] ?? ""}${user.nom[0] ?? ""}`.toUpperCase(),
             }}
           />

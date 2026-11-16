@@ -56,8 +56,8 @@ const ACTIONS = ACTIONS_AUDIT;
 export default async function TableauDeBordPage() {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
-  const finance = voitFinance(user.role);
-  const direction = voitDirection(user.role);
+  const finance = voitFinance(user);
+  const direction = voitDirection(user);
   const heure = Number(
     new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Abidjan" })
       .formatToParts(new Date())
@@ -119,9 +119,9 @@ async function Priorites({ user }: { user: SessionUser }) {
   const finJour = new Date(debutJourAbidjan().getTime() + 864e5);
   const [etapes, prospects, congesAValider, aRapprocher, modules] = await Promise.all([
     chargerEtapesEnCours(),
-    peutProspects(user.role) ? chargerProspects() : Promise.resolve([]),
-    peutValiderConges(user.role) ? prisma.conge.count({ where: { statut: "DEMANDE" } }) : Promise.resolve(0),
-    voitCompta(user.role) ? prisma.paiement.count({ where: { statut: "ENCAISSE" } }) : Promise.resolve(0),
+    peutProspects(user) ? chargerProspects() : Promise.resolve([]),
+    peutValiderConges(user) ? prisma.conge.count({ where: { statut: "DEMANDE" } }) : Promise.resolve(0),
+    voitCompta(user) ? prisma.paiement.count({ where: { statut: "ENCAISSE" } }) : Promise.resolve(0),
     lireModules(),
   ]);
   const miennes = etapes.filter((etape) => etape.responsableId === user.id);
@@ -200,7 +200,7 @@ async function KpisActivite({ user }: { user: SessionUser }) {
       <Kpi titre="Dossiers actifs" valeur={dossiers.filter((d) => d.statut !== "REORIENTE").length} detail={`${clients} clients au total`} icone={FolderOpen} href="/dossiers" />
       <Kpi titre="Ouverts ce mois" valeur={ouvertsMois} evolution={variation(ouvertsMois, ouverts.get(cleMois(debutMois(-1))) ?? 0)} detail="vs mois dernier" ton="desk" icone={FolderPlus} href="/dossiers" />
       <Kpi titre="Étapes en retard" valeur={retards} detail={`${etapes.length} étapes en cours`} ton={retards ? "cap" : "vert"} icone={AlarmClock} href="/dossiers?retard=1" />
-      {(peutProspects(user.role) || voitDirection(user.role)) && modules.prospects ? (
+      {(peutProspects(user) || voitDirection(user)) && modules.prospects ? (
         <Kpi titre="Conversion prospects" valeur={taux} format="pourcent" detail={`${convertis} convertis sur ${prospects.length}`} ton="edu" icone={Target} href="/prospects" />
       ) : (
         <Kpi
@@ -277,7 +277,7 @@ async function BlocRepartition({ user }: { user: SessionUser }) {
       <Panneau titre="Destinations" icone={FolderOpen}>
         <BarresHorizontales donnees={compterPar(actifs, (d) => d.procedure.destination).map(([label, valeur]) => ({ label, valeur }))} vide="Aucun dossier actif." />
       </Panneau>
-      {(peutProspects(user.role) || voitDirection(user.role)) && modules.prospects ? (
+      {(peutProspects(user) || voitDirection(user)) && modules.prospects ? (
         <Panneau titre="Origine des prospects" icone={Target} action={{ href: "/prospects", label: "Prospects" }}>
           <BarresHorizontales ton="edu" donnees={compterPar(prospects, (p) => labelSource(p.source)).map(([label, valeur]) => ({ label, valeur }))} vide="Aucun prospect." />
         </Panneau>

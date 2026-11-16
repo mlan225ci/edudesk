@@ -39,7 +39,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
   const client = devis.dossier.client;
   const ouvert = devis.statut === "EMIS" && !devis.facture;
   const modules = await lireModules();
-  const facturable = modules.factures && peutFacturer(user.role) && !devis.facture && devis.statut !== "REFUSE";
+  const facturable = modules.factures && peutFacturer(user) && !devis.facture && devis.statut !== "REFUSE";
 
   const details: [string, React.ReactNode][] = [
     ["Client", client.email ? `${devis.clientNom} · ${client.email}` : devis.clientNom],
@@ -127,7 +127,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
                 <span className="block text-xs text-ink/50">Transformé en facture le {formatJour(devis.facture.creeLe)}</span>
                 <span className="block font-semibold">{devis.facture.numero}</span>
               </span>
-              {modules.factures && voitFinance(user.role) ? (
+              {modules.factures && voitFinance(user) ? (
                 <Link href={`/facturation/factures/${devis.facture.id}`} className="text-sm font-semibold text-desk after:absolute after:inset-0">
                   Ouvrir
                 </Link>

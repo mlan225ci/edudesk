@@ -24,7 +24,7 @@ export default async function EcolesPage({
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
   const { q, pays, type, nouveau } = await searchParams;
-  const gestion = peutEcoles(user.role);
+  const gestion = peutEcoles(user);
 
   const [ecoles, toutes, procedures] = await Promise.all([
     prisma.ecole.findMany({

@@ -31,7 +31,7 @@ async function journaliser(userId: string, detail: string) {
 
 export async function modifierEntreprise(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const valeurs = Object.fromEntries(CHAMPS_ENTREPRISE.map((champ) => [champ, texte(formData, champ)]));
   if (!valeurs.nom) return { error: "Indiquez le nom de l'entreprise." };
   if (valeurs.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valeurs.email)) return { error: "L'adresse e-mail n'est pas valide." };
@@ -47,7 +47,7 @@ function bloc(formData: FormData, champ: string) {
 
 export async function modifierDocuments(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const couleurPrincipale = texte(formData, "couleurPrincipale").toLowerCase();
   const couleurAccent = texte(formData, "couleurAccent").toLowerCase();
   if (![couleurPrincipale, couleurAccent].every((couleur) => /^#[0-9a-f]{6}$/.test(couleur))) return { error: "Choisissez des couleurs valides." };
@@ -86,7 +86,7 @@ async function supprimerAncienLogo(nouveau: string) {
 
 export async function importerLogoDocuments(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const fichier = formData.get("logo");
   if (!(fichier instanceof File) || fichier.size === 0) return { error: "Choisissez une image." };
   if (fichier.size > 8 * 1024 * 1024) return { error: "L'image dépasse 8 Mo." };
@@ -111,7 +111,7 @@ export async function importerLogoDocuments(_etat: EtatAction, formData: FormDat
 
 export async function choisirLogoDocuments(formData: FormData) {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return;
+  if (!peutParametrer(user)) return;
   const choix = String(formData.get("choix") ?? "");
   if (choix !== "defaut" && choix !== "aucun") return;
   await supprimerAncienLogo("");
@@ -121,7 +121,7 @@ export async function choisirLogoDocuments(formData: FormData) {
 
 export async function modifierApplication(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const url = texte(formData, "urlPublique");
   if (url && !/^https?:\/\/[^\s/]+/i.test(url)) return { error: "L'adresse doit commencer par https:// (ou http://)." };
   await ecrireParametres("application", { urlPublique: url ? url.replace(/\/+$/, "") : null });
@@ -131,7 +131,7 @@ export async function modifierApplication(_etat: EtatAction, formData: FormData)
 
 export async function modifierOperateurSms(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const url = texte(formData, "url");
   const token = texte(formData, "token");
   const expediteur = texte(formData, "expediteur");
@@ -148,7 +148,7 @@ export async function modifierOperateurSms(_etat: EtatAction, formData: FormData
 
 export async function envoyerSmsTest(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const telephone = normaliserTelephone(texte(formData, "telephone"));
   if (!telephoneValide(telephone)) return { error: "Numéro international invalide, par exemple +2250700000000." };
   const config = await configSms();
@@ -172,7 +172,7 @@ export async function envoyerSmsTest(_etat: EtatAction, formData: FormData): Pro
 
 export async function modifierServeurMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const hote = texte(formData, "hote").replace(/^(?:smtp|https?):\/\//i, "").replace(/\/.*$/, "");
   const port = texte(formData, "port") || "587";
   const utilisateur = texte(formData, "utilisateur");
@@ -198,7 +198,7 @@ export async function modifierServeurMail(_etat: EtatAction, formData: FormData)
 
 export async function envoyerMailTest(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const destinataire = texte(formData, "email");
   if (!emailValide(destinataire)) return { error: "Adresse e-mail invalide." };
   const entreprise = await lireEntreprise();
@@ -221,7 +221,7 @@ export async function envoyerMailTest(_etat: EtatAction, formData: FormData): Pr
 
 export async function modifierAutomatisation(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction." };
   const minutes = Number(texte(formData, "minutes"));
   if (![5, 15, 30, 60, 120].includes(minutes)) return { error: "Fréquence invalide." };
   const actif = formData.get("actif") === "on";
@@ -232,14 +232,14 @@ export async function modifierAutomatisation(_etat: EtatAction, formData: FormDa
 
 export async function lancerAutomatisation() {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return;
+  if (!peutParametrer(user)) return;
   await executerAutomatisation("manuel", true);
   revalidatePath("/", "layout");
 }
 
 export async function enregistrerModules(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const coches = new Set(formData.getAll("modules").map(String));
   await ecrireParametres("modules", Object.fromEntries(MODULES.map((module) => [module.id, coches.has(module.id) ? "1" : "0"])));
   const coupes = MODULES.filter((module) => !coches.has(module.id)).map((module) => module.label);
@@ -249,7 +249,7 @@ export async function enregistrerModules(_etat: EtatAction, formData: FormData):
 
 export async function modifierModeleMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const code = texte(formData, "code");
   const sujet = texte(formData, "sujet");
   const corpsMail = String(formData.get("corpsMail") ?? "").replace(/\r/g, "").trim();

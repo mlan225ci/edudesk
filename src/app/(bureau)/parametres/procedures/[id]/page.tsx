@@ -112,7 +112,7 @@ function LigneElement({ sorte, id, libelle, obligatoire }: { sorte: "tache" | "p
 
 export default async function ProcedurePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!peutProcedures(user.role)) redirect("/missions");
+  if (!peutProcedures(user)) redirect("/missions");
   const { id } = await params;
   const procedure = await prisma.procedure.findUnique({
     where: { id },

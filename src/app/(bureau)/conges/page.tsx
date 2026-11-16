@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { CalendarCheck, CalendarDays, CalendarPlus, Check, Palmtree, X } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { debutJourAbidjan, formatJour, nomComplet } from "@/lib/format";
-import { STATUTS_CONGE, TYPES_CONGE, labelRole, labelTypeConge } from "@/lib/labels";
+import { STATUTS_CONGE, TYPES_CONGE, labelRolesCompte, labelTypeConge } from "@/lib/labels";
 import { BoutonEnvoi, FormAction, Formulaire } from "@/components/formulaire";
 import { Kpi, Panneau } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
@@ -23,7 +23,7 @@ export default async function CongesPage({ searchParams }: { searchParams: Promi
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
   const { nouveau } = await searchParams;
-  const valideur = peutValiderConges(user.role);
+  const valideur = peutValiderConges(user);
   const aujourdhui = debutJourAbidjan();
   const debutAnnee = new Date(Date.UTC(aujourdhui.getUTCFullYear(), 0, 1));
 
@@ -77,7 +77,7 @@ export default async function CongesPage({ searchParams }: { searchParams: Promi
                   <div key={conge.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-ink/[0.06] p-3 text-sm">
                     <Avatar prenom={conge.user.prenom} nom={conge.user.nom} />
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{nomComplet(conge.user)} <span className="font-normal text-ink/45">· {labelRole(conge.user.role)}</span></p>
+                      <p className="font-semibold">{nomComplet(conge.user)} <span className="font-normal text-ink/45">· {labelRolesCompte(conge.user.role, conge.user.autresRoles)}</span></p>
                       <p className="text-xs text-ink/60">
                         {labelTypeConge(conge.type)} · {formatJour(conge.debut)} → {formatJour(conge.fin)} · <span className="font-semibold">{jours(conge.debut, conge.fin)} j</span>
                       </p>

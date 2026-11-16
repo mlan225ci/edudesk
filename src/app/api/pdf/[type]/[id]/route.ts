@@ -7,7 +7,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
   const user = await getUser();
   if (!user || user.role === "PARTENAIRE") return new NextResponse("Non autorise", { status: 401 });
   const { type, id } = await context.params;
-  if (type === "facture" && !voitFinance(user.role)) return new NextResponse("Non autorise", { status: 403 });
+  if (type === "facture" && !voitFinance(user)) return new NextResponse("Non autorise", { status: 403 });
   const fichier =
     type === "apercu"
       ? id === "devis" || id === "facture"

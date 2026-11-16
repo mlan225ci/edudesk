@@ -11,7 +11,7 @@ const RESULTATS_MAX = 12;
 
 export async function GET(request: Request) {
   const user = await getUser();
-  if (!user || !peutDevis(user.role)) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!user || !peutDevis(user)) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
 
   const q = (new URL(request.url).searchParams.get("q") ?? "").trim().slice(0, 80);
   const chiffres = q.replace(/[\s.+-]/g, "");

@@ -60,7 +60,7 @@ export default async function DossiersPage({
         icone={FolderOpen}
         description="Chaque dossier suit les étapes de sa procédure. Cliquez sur une ligne pour voir l'étape en cours."
         actions={
-          peutCreerClient(user.role) ? (
+          peutCreerClient(user) ? (
             <Link href="/clients?nouveau=1" className="bouton">
               Nouveau dossier
             </Link>

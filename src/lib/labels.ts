@@ -44,6 +44,11 @@ export function labelRoles(roles: string) {
     .join(", ");
 }
 
+/** Affiche le rôle principal et les rôles additionnels d'un compte. */
+export function labelRolesCompte(role: Role, autresRoles: readonly Role[] = []) {
+  return [...new Set([role, ...autresRoles])].map(labelRole).join(" · ");
+}
+
 export const ACTIONS_AUDIT: Record<string, string> = {
   OUVERTURE: "Dossier ouvert",
   CONVERSION: "Prospect converti",

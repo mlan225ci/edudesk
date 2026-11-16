@@ -42,7 +42,7 @@ async function urlDuSite() {
 
 async function gestionnaire() {
   const user = await requireUser();
-  if (!peutEcoles(user.role)) throw new Error("Action non autorisée.");
+  if (!peutEcoles(user)) throw new Error("Action non autorisée.");
   return user;
 }
 
@@ -126,13 +126,13 @@ export async function supprimerEcole(formData: FormData) {
 
 async function collaborateur() {
   const user = await requireUser();
-  if (!peutCandidatures(user.role)) throw new Error("Action non autorisée.");
+  if (!peutCandidatures(user)) throw new Error("Action non autorisée.");
   return user;
 }
 
 export async function proposerEcole(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutCandidatures(user.role)) return { error: "Action réservée à l'équipe des dossiers." };
+  if (!peutCandidatures(user)) return { error: "Action réservée à l'équipe des dossiers." };
   const dossierId = texte(formData, "dossierId");
   const ecoleId = texte(formData, "ecoleId");
   const formation = facultatif(formData, "formation");

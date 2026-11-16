@@ -25,6 +25,8 @@ import {
   peutReaffecter,
   peutSigner,
   peutValiderConges,
+  aLeRole,
+  filtreParRoles,
   voitCompta,
   voitDepenses,
   voitDirection,
@@ -196,7 +198,7 @@ export async function deplacerProspect(formData: FormData) {
   if (!ETAPES_DEPLACABLES.includes(etape as (typeof ETAPES_DEPLACABLES)[number])) return;
   const prospect = await prisma.prospect.findUnique({ where: { id } });
   if (!prospect || prospect.converti) return;
-  if (user.role === "COMMERCIAL" && prospect.creeParId !== user.id) return;
+  if (aLeRole(user, "COMMERCIAL") && !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE") && prospect.creeParId !== user.id) return;
   await prisma.prospect.update({ where: { id }, data: { etape, activiteLe: new Date() } });
   rafraichir();
 }
@@ -219,7 +221,7 @@ export async function recevoirProspectPublic(_etat: EtatAction, formData: FormDa
     if (doublon) return { error: "Cet e-mail est déjà enregistré." };
   }
   const responsable = await prisma.user.findFirst({
-    where: { actif: true, role: { in: ["RESPONSABLE_COMMERCIALE", "CEO"] } },
+    where: { actif: true, ...filtreParRoles(["RESPONSABLE_COMMERCIALE", "CEO"]) },
     orderBy: { role: "desc" },
   });
   if (!responsable) return { error: "Le formulaire est momentanément indisponible." };
@@ -249,7 +251,7 @@ export async function recevoirProspectPublic(_etat: EtatAction, formData: FormDa
 
 export async function signerContrat(formData: FormData) {
   const user = await requireUser();
-  if (!peutSigner(user.role)) return;
+  if (!peutSigner(user)) return;
   const dossierId = String(formData.get("dossierId") ?? "");
   const dossier = await prisma.dossier.findUnique({ where: { id: dossierId }, select: { id: true, reference: true, contratSigneLe: true } });
   if (!dossier || dossier.contratSigneLe) return;
@@ -276,7 +278,7 @@ export async function signalerManquante(formData: FormData) {
 
 export async function creerClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutCreerClient(user.role)) return { error: "Vous ne pouvez pas créer de client." };
+  if (!peutCreerClient(user)) return { error: "Vous ne pouvez pas créer de client." };
   const prenom = String(formData.get("prenom") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
   const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
@@ -302,7 +304,7 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
       email: email || null,
       paysVise: String(formData.get("paysVise") ?? "").trim() || procedure?.destination || null,
       partenaireId: String(formData.get("partenaireId") ?? "") || null,
-      responsableId: user.role === "COMMERCIAL" ? user.id : null,
+      responsableId: aLeRole(user, "COMMERCIAL") ? user.id : null,
       garantNom: String(formData.get("garantNom") ?? "").trim() || null,
       garantTelephone: normaliserTelephone(String(formData.get("garantTelephone") ?? "")) || null,
     },
@@ -345,7 +347,7 @@ export async function modifierClient(_etat: EtatAction, formData: FormData): Pro
 
 export async function attribuerClient(formData: FormData) {
   const user = await requireUser();
-  if (!peutAttribuerClient(user.role)) return;
+  if (!peutAttribuerClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const responsableId = String(formData.get("responsableId") ?? "") || null;
   const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
@@ -368,7 +370,7 @@ export async function attribuerClient(formData: FormData) {
 
 export async function archiverClient(formData: FormData) {
   const user = await requireUser();
-  if (!peutArchiverClient(user.role)) return;
+  if (!peutArchiverClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
   if (!client || client.archiveLe) return;
@@ -382,7 +384,7 @@ export async function archiverClient(formData: FormData) {
 
 export async function supprimerClient(formData: FormData) {
   const user = await requireUser();
-  if (!peutArchiverClient(user.role)) return;
+  if (!peutArchiverClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({
     where: { id },
@@ -422,7 +424,7 @@ export async function supprimerClient(formData: FormData) {
 
 export async function restaurerClient(formData: FormData) {
   const user = await requireUser();
-  if (!peutArchiverClient(user.role)) return;
+  if (!peutArchiverClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
   if (!client?.archiveLe) return;
@@ -435,7 +437,7 @@ export async function restaurerClient(formData: FormData) {
 
 export async function ouvrirDossier(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutCreerClient(user.role)) return { error: "Vous ne pouvez pas ouvrir de dossier." };
+  if (!peutCreerClient(user)) return { error: "Vous ne pouvez pas ouvrir de dossier." };
   const clientId = String(formData.get("clientId") ?? "");
   const procedureId = String(formData.get("procedureId") ?? "");
   const cree = await creerDossier({ clientId, procedureId, actor: user });
@@ -477,7 +479,7 @@ export async function changerMotDePasse(_etat: EtatAction, formData: FormData): 
 
 export async function reinitialiserMotDePasse(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+  if (!peutGererEquipe(user)) return { error: "Réservé à la direction." };
   const motDePasse = String(formData.get("motDePasse") ?? "");
   if (motDePasse.length < 8) return { error: "Le mot de passe contient au moins 8 caractères." };
   await prisma.user.update({
@@ -514,18 +516,18 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
         email: prospect.email,
         partenaireId: prospect.partenaireId,
         paysVise: procedure?.destination ?? null,
-        responsableId: user.role === "COMMERCIAL" ? user.id : null,
+        responsableId: aLeRole(user, "COMMERCIAL") ? user.id : null,
       },
     });
   } else if (!client.paysVise && procedure) {
     client = await prisma.client.update({ where: { id: client.id }, data: { paysVise: procedure.destination } });
   }
-  if (!client.convertiLe || (user.role === "COMMERCIAL" && !client.responsableId)) {
+  if (!client.convertiLe || (aLeRole(user, "COMMERCIAL") && !client.responsableId)) {
     client = await prisma.client.update({
       where: { id: client.id },
       data: {
         ...(!client.convertiLe ? { convertiLe: new Date(), convertiParId: user.id } : {}),
-        ...(user.role === "COMMERCIAL" && !client.responsableId ? { responsableId: user.id } : {}),
+        ...(aLeRole(user, "COMMERCIAL") && !client.responsableId ? { responsableId: user.id } : {}),
       },
     });
   }
@@ -558,7 +560,7 @@ export async function basculerTache(formData: FormData) {
     include: { etape: true },
   });
   if (!tache || tache.etape.statut !== "EN_COURS") return;
-  if (estProduction(user.role) && !chargeEtape(user.role, tache.etape.roles) && tache.etape.responsableId !== user.id) return;
+  if (estProduction(user) && !chargeEtape(user, tache.etape.roles) && tache.etape.responsableId !== user.id) return;
   if (!tache.faite && (await bloqueParAcompte(tache.libelle, tache.etape))) {
     throw new Error("Encaissez d'abord l'acompte : la lettre d'admission définitive en dépend.");
   }
@@ -693,11 +695,11 @@ export async function renvoyerCodeSuivi(_etat: EtatAction, formData: FormData): 
 
 export async function reaffecter(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutReaffecter(user.role)) return { error: "Vous ne pouvez pas réaffecter un dossier." };
+  if (!peutReaffecter(user)) return { error: "Vous ne pouvez pas réaffecter un dossier." };
   const etape = await prisma.dossierEtape.findUnique({ where: { id: String(formData.get("etapeId") ?? "") } });
   const cible = await prisma.user.findUnique({ where: { id: String(formData.get("userId") ?? "") } });
   if (!etape || etape.statut !== "EN_COURS" || !cible?.actif) return { error: "Réaffectation impossible." };
-  const delegation = !etape.roles.split(",").includes(cible.role);
+  const delegation = !chargeEtape(cible, etape.roles);
   await prisma.dossierEtape.update({
     where: { id: etape.id },
     data: { responsableId: cible.id, delegation },
@@ -735,7 +737,7 @@ export async function reaffecter(_etat: EtatAction, formData: FormData): Promise
 
 export async function encaisser(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutEncaisser(user.role) && !(await aLeDroit(user, "caisse"))) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
+  if (!peutEncaisser(user) && !(await aLeDroit(user, "caisse"))) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
   const montant = Number(String(formData.get("montant") ?? "").replace(/\s/g, ""));
   const jour = String(formData.get("date") ?? "");
   const resultat = await enregistrerPaiement({
@@ -755,7 +757,7 @@ export async function encaisser(_etat: EtatAction, formData: FormData): Promise<
 
 export async function rapprocher(formData: FormData) {
   const user = await requireUser();
-  if (!voitCompta(user.role)) return;
+  if (!voitCompta(user)) return;
   await prisma.paiement.update({
     where: { id: String(formData.get("paiementId") ?? "") },
     data: { statut: "RAPPROCHE" },
@@ -777,7 +779,7 @@ export async function reorienter(_etat: EtatAction, formData: FormData): Promise
 
 export async function modifierDelai(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const brut = String(formData.get("delaiHeures") ?? "").trim();
   const delaiHeures = brut === "" ? null : Number(brut);
   if (delaiHeures != null && (!Number.isInteger(delaiHeures) || delaiHeures < 0)) {
@@ -794,7 +796,7 @@ export async function modifierDelai(_etat: EtatAction, formData: FormData): Prom
 
 export async function modifierLimite(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutReaffecter(user.role) && user.role !== "ASSISTANTE_ADMINISTRATIVE") {
+  if (!peutReaffecter(user) && user.role !== "ASSISTANTE_ADMINISTRATIVE") {
     return { error: "Vous ne pouvez pas modifier cette échéance." };
   }
   const valeur = String(formData.get("limite") ?? "");
@@ -817,7 +819,7 @@ export async function modifierLimite(_etat: EtatAction, formData: FormData): Pro
 
 export async function ajouterEtape(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return { error: "Réservé à la direction et à l'administrateur." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const procedureId = String(formData.get("procedureId") ?? "");
   const titre = String(formData.get("titre") ?? "").trim();
   const tache = String(formData.get("tache") ?? "").trim();
@@ -862,7 +864,7 @@ export async function ajouterEtape(_etat: EtatAction, formData: FormData): Promi
 
 export async function ajouterElementModele(formData: FormData) {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) return;
+  if (!peutParametrer(user)) return;
   const etapeId = String(formData.get("etapeId") ?? "");
   const sorte = String(formData.get("sorte") ?? "");
   const libelle = String(formData.get("libelle") ?? "").trim();
@@ -908,7 +910,7 @@ function jourSaisi(valeur: FormDataEntryValue | null) {
 
 export async function modifierMontantConvenu(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutModifierMontant(user.role)) return { error: "Vous ne pouvez pas modifier le montant convenu." };
+  if (!peutModifierMontant(user)) return { error: "Vous ne pouvez pas modifier le montant convenu." };
   const montant = entier(formData.get("montantConvenu"));
   if (montant == null || montant < 0) return { error: "Montant invalide." };
   const dossier = await prisma.dossier.update({
@@ -924,7 +926,7 @@ export async function modifierMontantConvenu(_etat: EtatAction, formData: FormDa
 
 export async function creerDepense(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDepenses(user.role)) return { error: "Vous ne pouvez pas saisir de dépense." };
+  if (!voitDepenses(user)) return { error: "Vous ne pouvez pas saisir de dépense." };
   const categorie = String(formData.get("categorie") ?? "") as CategorieDepense;
   const mode = String(formData.get("mode") ?? "") as ModePaiement;
   if (!CATEGORIES_DEPENSE.some((item) => item.value === categorie)) return { error: "Choisissez une catégorie." };
@@ -948,7 +950,7 @@ export async function creerDepense(_etat: EtatAction, formData: FormData): Promi
 
 export async function annulerDepense(formData: FormData) {
   const user = await requireUser();
-  if (!peutAnnulerDepense(user.role)) return;
+  if (!peutAnnulerDepense(user)) return;
   const depense = await prisma.depense.findUnique({ where: { id: String(formData.get("depenseId") ?? "") } });
   if (!depense) return;
   await prisma.$transaction([
@@ -963,7 +965,7 @@ export async function annulerDepense(formData: FormData) {
 
 export async function creerPartenaire(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitPartenaires(user.role)) return { error: "Réservé à la direction et au commercial." };
+  if (!voitPartenaires(user)) return { error: "Réservé à la direction et au commercial." };
   const nom = String(formData.get("nom") ?? "").trim();
   const type = String(formData.get("type") ?? "").trim() || "Apporteur";
   const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
@@ -977,7 +979,7 @@ export async function creerPartenaire(_etat: EtatAction, formData: FormData): Pr
 
 export async function verserCommission(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDepenses(user.role)) return { error: "Le versement passe par la comptabilité ou la direction." };
+  if (!voitDepenses(user)) return { error: "Le versement passe par la comptabilité ou la direction." };
   const partenaire = await prisma.partenaire.findUnique({ where: { id: String(formData.get("partenaireId") ?? "") } });
   if (!partenaire) return { error: "Partenaire introuvable." };
   const mode = String(formData.get("mode") ?? "") as ModePaiement;
@@ -999,7 +1001,7 @@ export async function verserCommission(_etat: EtatAction, formData: FormData): P
 
 export async function ajouterMateriel(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutInventaire(user.role)) return { error: "Réservé aux moyens généraux." };
+  if (!peutInventaire(user)) return { error: "Réservé aux moyens généraux." };
   const designation = String(formData.get("designation") ?? "").trim();
   const categorie = String(formData.get("categorie") ?? "").trim() || "Divers";
   const valeur = entier(formData.get("valeurXof"));
@@ -1025,7 +1027,7 @@ export async function ajouterMateriel(_etat: EtatAction, formData: FormData): Pr
 
 export async function modifierMateriel(formData: FormData) {
   const user = await requireUser();
-  if (!peutInventaire(user.role)) return;
+  if (!peutInventaire(user)) return;
   const etat = String(formData.get("etat") ?? "") as EtatMateriel;
   if (!ETATS_MATERIEL.some((item) => item.value === etat)) return;
   await prisma.materiel.update({
@@ -1046,7 +1048,7 @@ export async function demanderConge(_etat: EtatAction, formData: FormData): Prom
   if (fin < debut) return { error: "La fin précède le début." };
   const motif = String(formData.get("motif") ?? "").trim();
   await prisma.conge.create({ data: { userId: user.id, type, debut, fin, motif: motif || null } });
-  const valideurs = await prisma.user.findMany({ where: { actif: true, role: { in: ["CEO", "ADMINISTRATEUR"] }, NOT: { id: user.id } } });
+  const valideurs = await prisma.user.findMany({ where: { actif: true, ...filtreParRoles(["CEO", "ADMINISTRATEUR"]), NOT: { id: user.id } } });
   await prisma.notificationInterne.createMany({
     data: valideurs.map((valideur) => ({
       userId: valideur.id,
@@ -1061,7 +1063,7 @@ export async function demanderConge(_etat: EtatAction, formData: FormData): Prom
 
 export async function traiterConge(formData: FormData) {
   const user = await requireUser();
-  if (!peutValiderConges(user.role)) return;
+  if (!peutValiderConges(user)) return;
   const decision = String(formData.get("decision") ?? "");
   if (decision !== "VALIDE" && decision !== "REFUSE") return;
   const conge = await prisma.conge.findUnique({ where: { id: String(formData.get("congeId") ?? "") } });
@@ -1092,11 +1094,31 @@ function lireIdentiteCompte(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const telephone = normaliserTelephone(String(formData.get("telephone") ?? ""));
   const role = String(formData.get("role") ?? "") as Role;
+  const autresRoles = [
+    ...new Set(
+      formData
+        .getAll("autresRoles")
+        .map(String)
+        .filter((valeur): valeur is Role => valeur !== role && valeur !== "PARTENAIRE" && ROLES.some((item) => item.value === valeur))
+        .map((valeur) => valeur as Role),
+    ),
+  ];
   const superieurId = String(formData.get("superieurId") ?? "") || null;
-  return { prenom, nom, email, telephone, role, superieurId };
+  return {
+    prenom,
+    nom,
+    email,
+    telephone,
+    role,
+    autresRoles: role === "PARTENAIRE" ? [] : autresRoles,
+    superieurId,
+  };
 }
 
-function validerIdentiteCompte(donnees: { prenom: string; nom: string; email: string; telephone: string; role: Role; superieurId: string | null }, userId?: string) {
+function validerIdentiteCompte(
+  donnees: { prenom: string; nom: string; email: string; telephone: string; role: Role; autresRoles: Role[]; superieurId: string | null },
+  userId?: string,
+) {
   if (!donnees.prenom || !donnees.nom || !donnees.email || !ROLES.some((item) => item.value === donnees.role)) {
     return "Complétez l'identité et le rôle.";
   }
@@ -1108,7 +1130,7 @@ function validerIdentiteCompte(donnees: { prenom: string; nom: string; email: st
 
 export async function creerUtilisateur(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+  if (!peutGererEquipe(user)) return { error: "Réservé à la direction." };
   const donnees = lireIdentiteCompte(formData);
   const motDePasse = String(formData.get("motDePasse") ?? "");
   const erreur = validerIdentiteCompte(donnees);
@@ -1125,7 +1147,13 @@ export async function creerUtilisateur(_etat: EtatAction, formData: FormData): P
     return { error: "Cet e-mail ou ce téléphone est déjà utilisé." };
   }
   await prisma.audit.create({
-    data: { userId: user.id, action: "COMPTE", entite: "User", entiteId: donnees.email, detail: `Compte créé : ${donnees.prenom} ${donnees.nom} (${donnees.role})` },
+    data: {
+      userId: user.id,
+      action: "COMPTE",
+      entite: "User",
+      entiteId: donnees.email,
+      detail: `Compte créé : ${donnees.prenom} ${donnees.nom} (${[donnees.role, ...donnees.autresRoles].join(", ")})`,
+    },
   });
   rafraichir();
   return null;
@@ -1133,9 +1161,9 @@ export async function creerUtilisateur(_etat: EtatAction, formData: FormData): P
 
 export async function modifierUtilisateur(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return { error: "Réservé à la direction." };
+  if (!peutGererEquipe(user)) return { error: "Réservé à la direction." };
   const id = String(formData.get("userId") ?? "");
-  const cible = await prisma.user.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, role: true } });
+  const cible = await prisma.user.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, role: true, autresRoles: true } });
   if (!cible) return { error: "Compte introuvable." };
   const donnees = lireIdentiteCompte(formData);
   const erreur = validerIdentiteCompte(donnees, id);
@@ -1151,7 +1179,7 @@ export async function modifierUtilisateur(_etat: EtatAction, formData: FormData)
       action: "COMPTE",
       entite: "User",
       entiteId: id,
-      detail: `Compte modifié : ${cible.prenom} ${cible.nom} → ${donnees.prenom} ${donnees.nom} (${donnees.role})`,
+      detail: `Compte modifié : ${cible.prenom} ${cible.nom} → ${donnees.prenom} ${donnees.nom} (${[donnees.role, ...donnees.autresRoles].join(", ")})`,
     },
   });
   rafraichir();
@@ -1160,7 +1188,7 @@ export async function modifierUtilisateur(_etat: EtatAction, formData: FormData)
 
 export async function supprimerUtilisateur(formData: FormData) {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return;
+  if (!peutGererEquipe(user)) return;
   const id = String(formData.get("userId") ?? "");
   if (!id || id === user.id) return;
   const cible = await prisma.user.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, role: true, email: true } });
@@ -1198,7 +1226,7 @@ export async function supprimerUtilisateur(formData: FormData) {
 
 export async function basculerActif(formData: FormData) {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) return;
+  if (!peutGererEquipe(user)) return;
   const cible = await prisma.user.findUnique({ where: { id: String(formData.get("userId") ?? "") } });
   if (!cible || cible.id === user.id) return;
   await prisma.user.update({ where: { id: cible.id }, data: { actif: !cible.actif } });
@@ -1207,14 +1235,14 @@ export async function basculerActif(formData: FormData) {
 
 export async function lancerAlertes() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return;
+  if (!voitDirection(user)) return;
   await scannerAlertes();
   rafraichir();
 }
 
 export async function modifierModele(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDirection(user.role)) return { error: "Réservé à la direction." };
+  if (!voitDirection(user)) return { error: "Réservé à la direction." };
   const corps = String(formData.get("corps") ?? "").trim();
   if (!corps) return { error: "Le message est vide." };
   await prisma.modeleSms.update({

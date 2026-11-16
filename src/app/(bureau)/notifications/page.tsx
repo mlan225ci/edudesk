@@ -20,7 +20,7 @@ const STATUT: Record<string, { label: string; ton: "gris" | "vert" | "cap" | "ed
 
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
   const user = await requireUser();
-  const direction = voitDirection(user.role);
+  const direction = voitDirection(user);
   const { vue = "moi" } = await searchParams;
 
   const internes = await prisma.notificationInterne.findMany({ where: { userId: user.id }, orderBy: { creeLe: "desc" }, take: 50 });

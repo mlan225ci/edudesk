@@ -47,12 +47,14 @@ const PARCOURS_DE_BASE = [
 
 async function autoriser() {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) throw new Error("Modification non autorisée.");
+  if (!peutParametrer(user)) throw new Error("Modification non autorisée.");
   return user;
 }
 
-function direction(role: string) {
-  return role === "CEO" || role === "ADMINISTRATEUR";
+function direction(porteur: { role: string; autresRoles?: readonly string[] | null } | string) {
+  if (typeof porteur === "string") return porteur === "CEO" || porteur === "ADMINISTRATEUR";
+  const roles = [porteur.role, ...(porteur.autresRoles ?? [])];
+  return roles.includes("CEO") || roles.includes("ADMINISTRATEUR");
 }
 
 function texte(formData: FormData, cle: string) {
@@ -135,8 +137,8 @@ export async function creerProcedure(_etat: EtatAction, formData: FormData): Pro
         destination,
         actif: false,
         ecoles: formData.get("ecoles") === "on" || Boolean(modele?.ecoles),
-        tarifXof: direction(user.role) ? tarifXof : modele?.tarifXof ?? 0,
-        commissionXof: direction(user.role) ? commissionXof : modele?.commissionXof ?? 0,
+        tarifXof: direction(user) ? tarifXof : modele?.tarifXof ?? 0,
+        commissionXof: direction(user) ? commissionXof : modele?.commissionXof ?? 0,
       },
     });
     const etapes = modele
@@ -193,7 +195,7 @@ export async function modifierProcedure(_etat: EtatAction, formData: FormData): 
     return { error: "Une autre procédure porte déjà ce nom." };
   }
   const data: Prisma.ProcedureUpdateInput = { nom, destination, ecoles: formData.get("ecoles") === "on", version: { increment: 1 } };
-  if (direction(user.role)) {
+  if (direction(user)) {
     const tarifXof = montant(formData, "tarifXof");
     const commissionXof = montant(formData, "commissionXof");
     if (tarifXof == null || commissionXof == null) return { error: "Les montants sont des nombres entiers de francs CFA." };

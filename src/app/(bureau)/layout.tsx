@@ -16,7 +16,7 @@ export default async function BureauLayout({ children }: { children: React.React
   const chemin = (await headers()).get("x-pathname") ?? "";
   const cheminNu = chemin.split("?")[0] ?? chemin;
   const accueil = user.role === "PARTENAIRE" ? (droits.dossiers ? "/dossiers" : droits.notifications ? "/notifications" : "/profil") : "/tableau-de-bord";
-  if (cheminNu.startsWith("/parametres") && !peutParametrer(user.role)) redirect(accueil);
+  if (cheminNu.startsWith("/parametres") && !peutParametrer(user)) redirect(accueil);
   const documentsCoupes = cheminNu === "/parametres/documents" && !modules.devis && !modules.factures;
   const coupe = moduleDuChemin(chemin);
   const interdit = accesDuChemin(chemin);

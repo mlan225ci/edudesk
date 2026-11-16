@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Role } from "@prisma/client";
 import { KeyRound, Mail, Pencil, Phone, Trash2, UserPlus, UsersRound } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { nomComplet } from "@/lib/format";
@@ -13,14 +14,14 @@ import {
   reinitialiserMotDePasse,
   supprimerUtilisateur,
 } from "@/server/actions";
-import { peutGererEquipe } from "@/server/permissions";
+import { peutGererEquipe, rolesEffectifs } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Utilisateurs · Paramètres" };
 
 export default async function EquipePage({ searchParams }: { searchParams: Promise<{ nouveau?: string }> }) {
   const user = await requireUser();
-  if (!peutGererEquipe(user.role)) redirect("/missions");
+  if (!peutGererEquipe(user)) redirect("/missions");
   const { nouveau } = await searchParams;
   const equipe = await prisma.user.findMany({ orderBy: [{ actif: "desc" }, { role: "asc" }, { prenom: "asc" }], include: { superieur: true } });
   const actifs = equipe.filter((item) => item.actif);
@@ -31,7 +32,7 @@ export default async function EquipePage({ searchParams }: { searchParams: Promi
         titre="Utilisateurs"
         icone={UsersRound}
         surTitre="Paramètres"
-        description={`${actifs.length} collaborateurs actifs. Le rôle détermine ce que chacun voit et peut faire.`}
+        description={`${actifs.length} collaborateurs actifs. Un compte peut cumuler plusieurs rôles (ex. coach et traducteur).`}
         actions={
           <Tiroir label="Nouveau collaborateur" icone={<UserPlus size={16} />} titre="Nouveau compte" description="La personne pourra se connecter immédiatement." ouvertParDefaut={nouveau === "1"}>
             <Formulaire action={creerUtilisateur} submit="Créer le compte" succes="Compte créé" className="grid gap-4">
@@ -57,7 +58,9 @@ export default async function EquipePage({ searchParams }: { searchParams: Promi
                     {nomComplet(item)} {soi ? <span className="text-xs font-normal text-ink/45">(vous)</span> : null}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    <Badge ton="desk">{labelRole(item.role)}</Badge>
+                    {rolesEffectifs(item).map((role) => (
+                      <Badge key={role} ton="desk">{labelRole(role)}</Badge>
+                    ))}
                     {!item.actif ? <Badge ton="cap">Désactivé</Badge> : null}
                   </div>
                 </div>
@@ -72,7 +75,7 @@ export default async function EquipePage({ searchParams }: { searchParams: Promi
                 {item.superieur ? <p className="text-ink/45">Rattaché à {nomComplet(item.superieur)}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2 border-t border-ink/[0.06] pt-3">
-                <Tiroir label="Modifier" variante="second" icone={<Pencil size={14} />} titre={`Modifier ${nomComplet(item)}`} description="Identité, rôle et rattachement hiérarchique.">
+                <Tiroir label="Modifier" variante="second" icone={<Pencil size={14} />} titre={`Modifier ${nomComplet(item)}`} description="Identité, rôles et rattachement hiérarchique.">
                   <Formulaire action={modifierUtilisateur} submit="Enregistrer" succes="Compte mis à jour" className="grid gap-4">
                     <input type="hidden" name="userId" value={item.id} />
                     <ChampsCompte actifs={superieurs} valeurs={item} />
@@ -122,8 +125,9 @@ function ChampsCompte({
   valeurs,
 }: {
   actifs: { id: string; prenom: string; nom: string }[];
-  valeurs?: { prenom: string; nom: string; email: string; telephone: string; role: string; superieurId: string | null };
+  valeurs?: { prenom: string; nom: string; email: string; telephone: string; role: Role; autresRoles: Role[]; superieurId: string | null };
 }) {
+  const autres = new Set(valeurs?.autresRoles ?? []);
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -140,7 +144,7 @@ function ChampsCompte({
       <Champ label="Téléphone" aide="Reçoit les alertes de mission par SMS.">
         <input className="champ" name="telephone" defaultValue={valeurs?.telephone ?? "+225"} required />
       </Champ>
-      <Champ label="Rôle">
+      <Champ label="Rôle principal" aide="Détermine l’espace d’accueil (bureau ou portail partenaire).">
         <select className="champ" name="role" required defaultValue={valeurs?.role ?? ""}>
           {!valeurs ? <option value="" disabled>Choisir…</option> : null}
           {ROLES.map((role) => (
@@ -149,6 +153,22 @@ function ChampsCompte({
             </option>
           ))}
         </select>
+      </Champ>
+      <Champ label="Rôles additionnels" aide="Cochez les autres postes tenus en parallèle (ex. traducteur). Le portail partenaire ne se cumule pas.">
+        <div className="grid gap-2 rounded-2xl border border-ink/[0.08] bg-white/60 p-3 sm:grid-cols-2">
+          {ROLES.filter((role) => role.value !== "PARTENAIRE").map((role) => (
+            <label key={role.value} className="flex items-center gap-2 text-sm text-ink/80">
+              <input
+                type="checkbox"
+                name="autresRoles"
+                value={role.value}
+                defaultChecked={autres.has(role.value) && role.value !== valeurs?.role}
+                className="size-4 rounded border-ink/20 text-desk focus:ring-desk"
+              />
+              {role.label}
+            </label>
+          ))}
+        </div>
       </Champ>
       <Champ label="Supérieur hiérarchique">
         <select className="champ" name="superieurId" defaultValue={valeurs?.superieurId ?? ""}>

@@ -14,8 +14,8 @@ const VARIABLES = ["prenom", "client", "reference", "destination", "etape", "cod
 
 export default async function ParametresEmailPage() {
   const user = await requireUser();
-  if (!voitDirection(user.role)) redirect("/parametres");
-  const gestion = peutParametrer(user.role);
+  if (!voitDirection(user)) redirect("/parametres");
+  const gestion = peutParametrer(user);
   const [config, modeles] = await Promise.all([
     configMail(),
     prisma.modeleSms.findMany({ where: { OR: [{ code: { startsWith: "client_" } }, { code: { in: ["partenaire", "paiement"] } }] }, orderBy: { libelle: "asc" } }),

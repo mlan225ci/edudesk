@@ -8,6 +8,8 @@ import {
   peutHistorique,
   peutInventaire,
   peutProspects,
+  rolesEffectifs,
+  type PorteurRoles,
   voitCompta,
   voitDepenses,
   voitDirection,
@@ -103,13 +105,23 @@ function appliquer(base: AccesEffectif, lignes: { cle: string; autorise: boolean
   return base;
 }
 
-export const lireAcces = cache(async function lireAcces(user: { id: string; role: Role }): Promise<AccesEffectif> {
+function fusionnerAccesRoles(porteur: PorteurRoles, lignes: { role: Role; cle: string; autorise: boolean }[]): AccesEffectif {
+  const effectifs = rolesEffectifs(porteur);
+  const bases = effectifs.map((role) => appliquer(accesParDefaut(role), lignes.filter((ligne) => ligne.role === role)));
+  const fusion = {} as AccesEffectif;
+  for (const acces of ACCES) {
+    fusion[acces.id] = bases.some((base) => base[acces.id]);
+  }
+  return fusion;
+}
+
+export const lireAcces = cache(async function lireAcces(user: { id: string; role: Role; autresRoles?: Role[] | null }): Promise<AccesEffectif> {
+  const effectifs = rolesEffectifs(user);
   const [roles, comptes] = await Promise.all([
-    prisma.accesRole.findMany({ where: { role: user.role } }),
+    prisma.accesRole.findMany({ where: { role: { in: effectifs } } }),
     prisma.accesCompte.findMany({ where: { userId: user.id } }),
   ]);
-  const droits = appliquer(accesParDefaut(user.role), roles);
-  return appliquer(droits, comptes);
+  return appliquer(fusionnerAccesRoles(user, roles), comptes);
 });
 
 export async function lireReglageRole(role: Role) {
@@ -118,18 +130,21 @@ export async function lireReglageRole(role: Role) {
 }
 
 export async function lireReglageCompte(userId: string) {
-  const compte = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, prenom: true, nom: true, actif: true } });
+  const compte = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, autresRoles: true, prenom: true, nom: true, actif: true },
+  });
   if (!compte) return null;
   const [roles, exceptions] = await Promise.all([
-    prisma.accesRole.findMany({ where: { role: compte.role } }),
+    prisma.accesRole.findMany({ where: { role: { in: rolesEffectifs(compte) } } }),
     prisma.accesCompte.findMany({ where: { userId } }),
   ]);
-  const duRole = appliquer(accesParDefaut(compte.role), roles);
+  const duRole = fusionnerAccesRoles(compte, roles);
   const effectif = appliquer({ ...duRole }, exceptions);
   const personnalises = new Set(exceptions.map((ligne) => ligne.cle).filter(estAccesId));
   return { compte, duRole, effectif, personnalises };
 }
 
-export async function aLeDroit(user: { id: string; role: Role }, id: AccesId) {
+export async function aLeDroit(user: { id: string; role: Role; autresRoles?: Role[] | null }, id: AccesId) {
   return (await lireAcces(user))[id];
 }

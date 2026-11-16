@@ -14,7 +14,7 @@ import { lireLignes, type LigneDocument } from "../lib/facturation";
 import { ajouterHeures, compterSegments, delaiCourt, nomComplet, rendreModele, xof } from "../lib/format";
 import { compteCharge, compteTresorerie, labelMode, labelTypePaiement, typePourAcompte } from "../lib/labels";
 import { genererCodeSuivi, lienSuivi } from "../lib/suivi";
-import type { SessionUser } from "./permissions";
+import { aLeRole, chargeEtape, filtreParRoles, type SessionUser } from "./permissions";
 import { emailValide, expedierMail } from "./mail";
 import { lireEntreprise, urlPublique } from "./parametres";
 import { envoyerSms } from "./sms";
@@ -46,15 +46,17 @@ async function prochainNumero(tx: Tx, cle: string, prefixe: string) {
 }
 
 async function choisirResponsable(tx: Tx, roles: string[], preferId?: string) {
+  const liste = roles.filter(Boolean) as Role[];
+  if (!liste.length) return null;
   if (preferId) {
     const prefere = await tx.user.findFirst({
-      where: { id: preferId, actif: true, role: { in: roles as Role[] } },
+      where: { id: preferId, actif: true, ...filtreParRoles(liste) },
     });
     if (prefere) return prefere;
   }
-  for (const role of roles) {
+  for (const role of liste) {
     const user = await tx.user.findFirst({
-      where: { actif: true, role: role as Role },
+      where: { actif: true, ...filtreParRoles([role]) },
       orderBy: { prenom: "asc" },
     });
     if (user) return user;
@@ -156,7 +158,7 @@ async function planifier(
 }
 
 async function notifierDirection(tx: Tx, outbox: string[], texte: string, dossierId: string, lien: string) {
-  const directions = await tx.user.findMany({ where: { role: "CEO", actif: true } });
+  const directions = await tx.user.findMany({ where: { actif: true, ...filtreParRoles(["CEO"]) } });
   for (const user of directions) {
     await planifier(tx, outbox, {
       telephone: user.telephone,
@@ -432,12 +434,10 @@ export async function cloturerEtape(input: {
       return { ok: false as const, error: "Cette étape n'est pas l'étape en cours." };
     }
 
-    const roles = etape.roles.split(",").filter(Boolean);
     const autorise =
-      input.actor.role === "CEO" ||
-      input.actor.role === "ADMINISTRATEUR" ||
+      aLeRole(input.actor, "CEO", "ADMINISTRATEUR") ||
       etape.responsableId === input.actor.id ||
-      roles.includes(input.actor.role);
+      chargeEtape(input.actor, etape.roles);
     if (!autorise) return { ok: false as const, error: "Vous ne pouvez pas clôturer cette étape." };
 
     let issue: { libelle: string; effet: EffetIssue } | null = null;
@@ -536,12 +536,12 @@ export async function cloturerEtape(input: {
       });
       const texteInterne = await texteModele(tx, "relance_interne", vars);
       const internes = await tx.user.findMany({
-        where: { actif: true, role: { in: ["ASSISTANTE_ADMINISTRATIVE", "ADMINISTRATEUR", "CEO"] } },
+        where: { actif: true, ...filtreParRoles(["ASSISTANTE_ADMINISTRATIVE", "ADMINISTRATEUR", "CEO"]) },
       });
       for (const user of internes) {
         await planifier(tx, outbox, {
           telephone: user.telephone,
-          type: user.role === "CEO" ? "DIRECTION" : "COLLABORATEUR",
+          type: aLeRole(user, "CEO") ? "DIRECTION" : "COLLABORATEUR",
           dossierId: dossier.id,
           texte: texteInterne,
           userId: user.id,
@@ -1175,7 +1175,7 @@ export async function enregistrerPaiement(input: {
         pieceJointe: `facture:${facture.id}`,
       },
     });
-    const comptables = await tx.user.findMany({ where: { role: "COMPTABLE", actif: true } });
+    const comptables = await tx.user.findMany({ where: { actif: true, ...filtreParRoles(["COMPTABLE"]) } });
     for (const user of comptables) {
       await planifier(tx, outbox, {
         telephone: user.telephone,

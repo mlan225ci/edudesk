@@ -30,7 +30,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
   let contenu: string;
 
   if (type === "paiements") {
-    if (!voitFinance(user.role)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitFinance(user)) return new NextResponse("Non autorise", { status: 403 });
     const paiements = await prisma.paiement.findMany({
       where: { dateEncaissement: periode },
       include: { client: true, dossier: true, facture: true, factureReglee: true },
@@ -44,7 +44,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
       ]),
     );
   } else if (type === "depenses") {
-    if (!voitDepenses(user.role) && !voitRapports(user.role)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitDepenses(user) && !voitRapports(user)) return new NextResponse("Non autorise", { status: 403 });
     const depenses = await prisma.depense.findMany({ where: { date: periode }, include: { partenaire: true }, orderBy: { date: "asc" } });
     contenu = csv(
       ["Date", "Numéro", "Catégorie", "Motif", "Fournisseur", "Partenaire", "Moyen", "Référence", "Montant XOF"],
@@ -53,7 +53,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
       ]),
     );
   } else if (type === "ecritures") {
-    if (!voitCompta(user.role)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitCompta(user)) return new NextResponse("Non autorise", { status: 403 });
     const ecritures = await prisma.ecriture.findMany({ where: { date: periode }, orderBy: [{ date: "asc" }, { journal: "asc" }] });
     contenu = csv(
       ["Date", "Journal", "Compte", "Libellé", "Débit", "Crédit"],
@@ -64,7 +64,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
       include: { client: true, procedure: true, paiements: { select: { montant: true } } },
       orderBy: { ouvertLe: "asc" },
     });
-    const finance = voitFinance(user.role);
+    const finance = voitFinance(user);
     contenu = csv(
       ["Référence", "Ouvert le", "Client", "Téléphone", "Procédure", "Destination", "Statut", ...(finance ? ["Convenu XOF", "Payé XOF", "Reste XOF"] : [])],
       dossiers.map((d) => {

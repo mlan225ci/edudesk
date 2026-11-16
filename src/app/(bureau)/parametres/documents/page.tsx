@@ -30,7 +30,7 @@ function Case({ name, label, aide, coche }: { name: string; label: string; aide?
 
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ apercu?: string }> }) {
   const user = await requireUser();
-  if (!peutParametrer(user.role)) redirect("/parametres");
+  if (!peutParametrer(user)) redirect("/parametres");
   const apercu = (await searchParams).apercu === "facture" ? "facture" : "devis";
   const [reglages, entreprise] = await Promise.all([lireDocuments(), lireEntreprise()]);
   const version = empreinte(JSON.stringify([reglages, entreprise]));

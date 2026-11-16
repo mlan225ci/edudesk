@@ -5,7 +5,7 @@ import { EcrireCourrier } from "@/components/courrier";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
-import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRole, labelRoles, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
+import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRoles, labelRolesCompte, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
 import { FriseEtapes } from "@/components/frise";
 import { Formulaire, FormAction, BoutonEnvoi } from "@/components/formulaire";
 import { Avatar, Badge, Champ, Choix, Progression } from "@/components/ui";
@@ -19,7 +19,7 @@ import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyer
 import { relancerPieces, textesCourrier } from "@/server/communication-actions";
 import { lireModules } from "@/server/modules";
 import { lireDocuments } from "@/server/parametres";
-import { estProduction, peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, peutSigner, voitFinance } from "@/server/permissions";
+import { aLeRole, estProduction, peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, peutSigner, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 const ACTIONS = ACTIONS_AUDIT;
@@ -123,7 +123,7 @@ export default async function DossierPage({
   if (user.role === "PARTENAIRE" && dossier.client.partenaireId !== user.partenaireId) notFound();
   const modules = await lireModules();
   const avecEcoles = modules.ecoles && (dossier.procedure.ecoles || dossier.candidatures.length > 0);
-  const gereCandidatures = avecEcoles && peutCandidatures(user.role);
+  const gereCandidatures = avecEcoles && peutCandidatures(user);
 
   const [audits, utilisateurs, procedures, reportees, origine, ecoles] = await Promise.all([
     prisma.audit.findMany({
@@ -147,7 +147,7 @@ export default async function DossierPage({
   const pourcentage = Math.round((cloturees / Math.max(dossier.etapes.length, 1)) * 100);
   const typeRequis = courante ? typePourAcompte(courante.acompte) : null;
   const paiementPresent = typeRequis ? dossier.paiements.some((paiement) => paiement.type === typeRequis) : true;
-  const finance = voitFinance(user.role);
+  const finance = voitFinance(user);
   const lectureSeule = user.role === "PARTENAIRE";
   const convenu = dossier.montantConvenu ?? dossier.procedure.tarifXof;
   const totalPaye = dossier.paiements.reduce((somme, paiement) => somme + paiement.montant, 0);
@@ -184,7 +184,7 @@ export default async function DossierPage({
   ];
   const manquantes = documents.filter((document) => !document.recue && !document.fichier).length;
   const aVerifier = documents.filter((document) => document.aVerifier).length;
-  const traducteurs = utilisateurs.filter((item) => item.role === "TRADUCTEUR");
+  const traducteurs = utilisateurs.filter((item) => aLeRole(item, "TRADUCTEUR"));
   const courrier = lectureSeule ? null : await textesCourrier(dossier.client.id);
   const contexteCourrier = courrier?.contextes.filter((contexte) => contexte.id === dossier.id) ?? [];
 
@@ -237,7 +237,7 @@ export default async function DossierPage({
           </div>
           {dossier.contratSigneLe ? (
             <Badge ton="vert" point>Signé</Badge>
-          ) : peutSigner(user.role) ? (
+          ) : peutSigner(user) ? (
             <FormAction action={signerContrat} succes="Contrat signé" confirmer="Signer ce contrat ? L'action est enregistrée dans l'historique.">
               <input type="hidden" name="dossierId" value={dossier.id} />
               <BoutonEnvoi className="bouton">Signer le contrat</BoutonEnvoi>
@@ -298,7 +298,7 @@ export default async function DossierPage({
                   attentePaiement={typeRequis && !paiementPresent ? labelTypePaiement(typeRequis) : null}
                   peutAgir={peutAgir}
                   peutCloturer={peutCloturer(user, courante)}
-                  peutEncaisser={peutEncaisser(user.role)}
+                  peutEncaisser={peutEncaisser(user)}
                 />
               )}
             </article>
@@ -360,7 +360,7 @@ export default async function DossierPage({
                   </Formulaire>
                 ) : null}
               </div>
-              <ListeDocuments documents={documents} vide="Aucun document attendu pour l'instant." peutJoindre peutSignaler={estProduction(user.role) || user.role === "ASSISTANTE_ADMINISTRATIVE"} />
+              <ListeDocuments documents={documents} vide="Aucun document attendu pour l'instant." peutJoindre peutSignaler={estProduction(user) || aLeRole(user, "ASSISTANTE_ADMINISTRATIVE")} />
             </article>
           ) : null}
 
@@ -373,13 +373,13 @@ export default async function DossierPage({
             />
           ) : null}
 
-          {!lectureSeule && modules.devis && (peutDevis(user.role) || dossier.devis.length > 0) ? (
+          {!lectureSeule && modules.devis && (peutDevis(user) || dossier.devis.length > 0) ? (
             <PanneauDevis
               dossierId={dossier.id}
               devis={dossier.devis}
               procedure={dossier.procedure}
               emailClient={dossier.client.email}
-              peutAgir={peutDevis(user.role)}
+              peutAgir={peutDevis(user)}
               defauts={await lireDocuments()}
             />
           ) : null}
@@ -461,7 +461,7 @@ export default async function DossierPage({
                 <p className="mt-3 rounded-xl bg-edu/15 px-3 py-2 text-xs font-medium">Cette étape attend : {labelTypePaiement(typeRequis)}.</p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                {peutEncaisser(user.role) ? (
+                {peutEncaisser(user) ? (
                   <Tiroir
                     label="Encaisser"
                     icone={<Wallet size={16} />}
@@ -504,7 +504,7 @@ export default async function DossierPage({
                     </Formulaire>
                   </Tiroir>
                 ) : null}
-                {peutModifierMontant(user.role) ? (
+                {peutModifierMontant(user) ? (
                   <Tiroir label="Montant convenu" variante="second" titre="Montant convenu" description="Prix total facturé au client pour ce dossier.">
                     <Formulaire action={modifierMontantConvenu} submit="Enregistrer" succes="Montant convenu mis à jour" reinitialiser={false}>
                       <input type="hidden" name="dossierId" value={dossier.id} />
@@ -553,7 +553,7 @@ export default async function DossierPage({
             </article>
           ) : null}
 
-          {courante && !lectureSeule && (peutReaffecter(user.role) || user.role === "ASSISTANTE_ADMINISTRATIVE") ? (
+          {courante && !lectureSeule && (peutReaffecter(user) || aLeRole(user, "ASSISTANTE_ADMINISTRATIVE")) ? (
             <article className="carte grid gap-4">
               <h2 className="flex items-center gap-2 font-semibold"><AlarmClock size={18} className="text-ink/40" /> Pilotage de l'étape</h2>
               <Formulaire action={modifierLimite} submit="Changer l'échéance" succes="Échéance mise à jour" boutonClassName="bouton-second">
@@ -562,13 +562,13 @@ export default async function DossierPage({
                   <input className="champ" type="datetime-local" name="limite" />
                 </Champ>
               </Formulaire>
-              {peutReaffecter(user.role) ? (
+              {peutReaffecter(user) ? (
                 <Formulaire action={reaffecter} submit="Réaffecter" succes="Étape réaffectée, la personne est prévenue" boutonClassName="bouton-second">
                   <input type="hidden" name="etapeId" value={courante.id} />
                   <Champ label="Confier l'étape à">
                     <select className="champ" name="userId" required defaultValue={courante.responsableId ?? ""}>
                       {utilisateurs.map((item) => (
-                        <option key={item.id} value={item.id}>{nomComplet(item)} · {labelRole(item.role)}</option>
+                        <option key={item.id} value={item.id}>{nomComplet(item)} · {labelRolesCompte(item.role, item.autresRoles)}</option>
                       ))}
                     </select>
                   </Champ>

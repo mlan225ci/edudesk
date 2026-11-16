@@ -6,7 +6,7 @@ import { lirePeriode } from "@/server/statistiques";
 
 export async function GET(request: Request) {
   const user = await getUser();
-  if (!user || !voitRapports(user.role)) return new NextResponse("Non autorise", { status: 401 });
+  if (!user || !voitRapports(user)) return new NextResponse("Non autorise", { status: 401 });
   const parametres = new URL(request.url).searchParams;
   const periode = lirePeriode(parametres.get("periode") ?? undefined, parametres.get("cle") ?? undefined);
   const fichier = await pdfRapport(periode);

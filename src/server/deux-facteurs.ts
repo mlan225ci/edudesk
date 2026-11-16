@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ROLES } from "@/lib/labels";
 import { envoyerMailDirect } from "@/server/mail";
 import { ecrireParametres } from "@/server/parametres";
+import { rolesEffectifs } from "@/server/permissions";
 import { fermerAttenteCode, lireAttenteCode, ouvrirAttenteCode } from "@/server/session";
 
 const DUREE_CODE = 10 * 60 * 1000;
@@ -76,9 +77,10 @@ export const lireRolesDoubleAuth = cache(async function lireRolesDoubleAuth(): P
   ) as Record<Role, boolean>;
 });
 
-export async function exigeDoubleAuth(user: { role: Role; doubleAuth: boolean | null }) {
+export async function exigeDoubleAuth(user: { role: Role; autresRoles?: Role[] | null; doubleAuth: boolean | null }) {
   if (user.doubleAuth !== null) return user.doubleAuth;
-  return (await lireRolesDoubleAuth())[user.role];
+  const roles = await lireRolesDoubleAuth();
+  return rolesEffectifs(user).some((role) => roles[role]);
 }
 
 export async function enregistrerRolesDoubleAuth(roles: Iterable<Role>) {
