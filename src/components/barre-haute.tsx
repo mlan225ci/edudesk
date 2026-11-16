@@ -178,7 +178,7 @@ export function BarreHaute({
       {menuMobile ? (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 animate-apparition bg-ink/40 backdrop-blur-[2px]" onClick={() => setMenuMobile(false)} />
-          <aside className="relative flex h-full w-72 animate-glisse-gauche flex-col overflow-y-auto bg-ink px-4 py-5">
+          <aside className="scroll-menu relative flex h-full w-72 animate-glisse-gauche flex-col overflow-y-auto bg-ink px-4 py-5">
             <div className="mb-6 flex items-center justify-between">
               <Link href={accueil}>
                 <img src="/logo-edudesk.png" alt="EduDesk" className="h-11 w-auto" />

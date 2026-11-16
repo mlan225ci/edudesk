@@ -207,6 +207,45 @@ body {
   }
 }
 
+/* Barre de défilement du menu latéral — bleu EduDesk
+   (scrollbar-color pour Windows 11 / Chrome natif ; webkit en complément) */
+.scroll-menu {
+  color-scheme: dark;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #4d8fe8 #101c36;
+}
+.scroll-menu:hover {
+  scrollbar-color: #6aa4f2 #101c36;
+}
+.scroll-menu::-webkit-scrollbar {
+  width: 10px;
+}
+.scroll-menu::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.scroll-menu::-webkit-scrollbar-track {
+  margin: 6px 0;
+  background: #101c36;
+  border-radius: 999px;
+}
+.scroll-menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid #101c36;
+  background: linear-gradient(180deg, #6aa4f2, #1f4f99 60%, #163a73);
+}
+.scroll-menu:hover::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #8bb8f7, #2f6fed 55%, #1f4f99);
+}
+.scroll-menu::-webkit-scrollbar-thumb:active {
+  background: #2f6fed;
+}
+.scroll-menu::-webkit-scrollbar-corner {
+  background: #101c36;
+}
+
 .grid > * {
   min-width: 0;
 }
