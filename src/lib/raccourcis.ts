@@ -44,22 +44,24 @@ export const RACCOURCIS: DefinitionRaccourci[] = [
   { id: "profil", label: "Mon profil", description: "Ouvre mon profil et les réglages de raccourcis.", groupe: "Compte", href: "/profil" },
 ];
 
+/** Ctrl+Alt évite les conflits navigateur (Ctrl+Maj+N = navigation privée, etc.). */
 export const RACCOURCIS_DEFAUT: Record<RaccourciId, Combinaison | null> = {
   recherche: { key: "k", ctrl: true },
-  nouveau: { key: "n", ctrl: true, shift: true },
-  accueil: { key: "h", ctrl: true, shift: true },
-  missions: { key: "m", ctrl: true, shift: true },
-  messages: { key: "i", ctrl: true, shift: true },
-  notifications: { key: "b", ctrl: true, shift: true },
-  dossiers: { key: "d", ctrl: true, shift: true },
-  clients: { key: "c", ctrl: true, shift: true },
-  prospects: { key: "p", ctrl: true, shift: true },
-  facturation: { key: "f", ctrl: true, shift: true },
+  nouveau: { key: "n", ctrl: true, alt: true },
+  accueil: { key: "h", ctrl: true, alt: true },
+  missions: { key: "m", ctrl: true, alt: true },
+  messages: { key: "i", ctrl: true, alt: true },
+  notifications: { key: "b", ctrl: true, alt: true },
+  dossiers: { key: "d", ctrl: true, alt: true },
+  clients: { key: "c", ctrl: true, alt: true },
+  prospects: { key: "p", ctrl: true, alt: true },
+  facturation: { key: "f", ctrl: true, alt: true },
   aide: { key: "/", ctrl: true },
-  profil: { key: "u", ctrl: true, shift: true },
+  profil: { key: "u", ctrl: true, alt: true },
 };
 
-const STOCKAGE = "edudesk.raccourcis";
+const STOCKAGE = "edudesk.raccourcis.v2";
+const STOCKAGE_ANCIEN = "edudesk.raccourcis";
 
 export function normaliserTouche(key: string) {
   if (key === " ") return "space";
@@ -110,6 +112,9 @@ export function lireRaccourcis(): Record<RaccourciId, Combinaison | null> {
   const base = { ...RACCOURCIS_DEFAUT };
   if (typeof window === "undefined") return base;
   try {
+    if (!window.localStorage.getItem(STOCKAGE) && window.localStorage.getItem(STOCKAGE_ANCIEN)) {
+      window.localStorage.removeItem(STOCKAGE_ANCIEN);
+    }
     const brut = window.localStorage.getItem(STOCKAGE);
     if (!brut) return base;
     const lu = JSON.parse(brut) as Partial<Record<RaccourciId, Combinaison | null>>;

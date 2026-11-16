@@ -48,7 +48,7 @@ export function Shell({
             <p className="font-semibold text-white/85">Astuce</p>
             <p>
               <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl + K</kbd> recherche ·{" "}
-              <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl + Maj + …</kbd> navigation. Personnalisez dans{" "}
+              <kbd className="rounded bg-white/10 px-1 text-white/80">Ctrl + Alt + …</kbd> navigation. Personnalisez dans{" "}
               <Link href="/profil" className="font-semibold text-white/85 underline decoration-white/25 underline-offset-2 hover:text-white">
                 Mon profil
               </Link>

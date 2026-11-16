@@ -54,7 +54,7 @@ export function ConfigRaccourcis() {
   return (
     <Panneau titre="Raccourcis clavier" icone={Keyboard} className="md:col-span-2">
       <p className="mb-4 text-sm text-ink/55">
-        Cliquez sur une combinaison, puis appuyez sur les touches souhaitées (avec Ctrl ou Alt). Effacer avec Retour arrière. Échap annule.
+        Cliquez sur une combinaison, puis appuyez sur les touches (préférez Ctrl + Alt pour éviter les raccourcis du navigateur). Effacer avec Retour arrière. Échap annule.
       </p>
       <div className="grid gap-5">
         {groupesRaccourcis().map((groupe) => (
