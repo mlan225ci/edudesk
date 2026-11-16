@@ -77,10 +77,14 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
       }),
     );
   } else if (type === "clients") {
-    const clients = await prisma.client.findMany({ include: { partenaire: true, _count: { select: { dossiers: true } } }, orderBy: { nom: "asc" } });
+    const clients = await prisma.client.findMany({
+      where: { archiveLe: null },
+      include: { partenaire: true, responsable: { select: { prenom: true, nom: true } }, _count: { select: { dossiers: true } } },
+      orderBy: { nom: "asc" },
+    });
     contenu = csv(
-      ["Nom", "Prénom", "Téléphone", "E-mail", "Pays visé", "Partenaire", "Dossiers", "Créé le"],
-      clients.map((c) => [c.nom, c.prenom, c.telephone, c.email, c.paysVise, c.partenaire?.nom, c._count.dossiers, jour(c.creeLe)]),
+      ["Nom", "Prénom", "Téléphone", "E-mail", "Pays visé", "Responsable", "Partenaire", "Dossiers", "Créé le"],
+      clients.map((c) => [c.nom, c.prenom, c.telephone, c.email, c.paysVise, c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : "", c.partenaire?.nom, c._count.dossiers, jour(c.creeLe)]),
     );
   } else if (type === "prospects") {
     const prospects = await prisma.prospect.findMany({ include: { partenaire: true }, orderBy: { creeLe: "asc" } });

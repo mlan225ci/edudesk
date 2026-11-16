@@ -122,7 +122,7 @@ export async function calculerStatistiques(periode: Periode) {
     prisma.paiement.findMany({ where: { dateEncaissement: intervalle }, select: { montant: true, type: true, mode: true, dateEncaissement: true } }),
     prisma.depense.findMany({ where: { date: intervalle }, select: { montant: true, categorie: true, date: true } }),
     prisma.prospect.findMany({ where: { creeLe: intervalle }, select: { source: true, converti: true } }),
-    prisma.client.count({ where: { creeLe: intervalle } }),
+    prisma.client.count({ where: { creeLe: intervalle, archiveLe: null } }),
     prisma.dossier.findMany({ where: { ouvertLe: intervalle }, select: { procedure: { select: { nom: true } } } }),
     prisma.dossierEtape.findMany({
       where: { statut: "CLOTUREE", clotureLe: intervalle },

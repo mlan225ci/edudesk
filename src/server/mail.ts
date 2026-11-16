@@ -51,8 +51,10 @@ ${entreprise.slogan ? `<div style="font-size:12px;color:#7a8296;margin-top:2px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden">
 ${entete}
 <tr><td style="height:4px;background:#f2b705"></td></tr>
+<tr><td style="background:#14284b;padding:14px 28px">
+<div style="font-size:16px;font-weight:700;line-height:1.4;color:#ffffff">${echapper(sujet)}</div>
+</td></tr>
 <tr><td style="padding:28px;font-size:15px;line-height:1.6">
-<h1 style="font-size:18px;margin:0 0 18px">${echapper(sujet)}</h1>
 ${enrichir(corps, code)}
 </td></tr>
 <tr><td style="padding:16px 28px;border-top:1px solid #eceae4;font-size:11px;line-height:1.5;color:#7a8296">${echapper(entreprise.nom)}${coordonnees ? ` · ${coordonnees}` : ""}<br>Message lié au suivi de votre dossier.</td></tr>

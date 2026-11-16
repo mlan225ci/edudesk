@@ -184,7 +184,7 @@ async function KpisActivite({ user }: { user: SessionUser }) {
     chargerProspects(),
     chargerEtapesEnCours(),
     chargerClotures(),
-    prisma.client.count(),
+    prisma.client.count({ where: { archiveLe: null } }),
     lireModules(),
   ]);
   const maintenant = new Date();

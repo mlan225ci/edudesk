@@ -7,6 +7,7 @@ import { Icone } from "@/components/icones";
 import { Badge, EnTete, type Ton } from "@/components/ui";
 import { CHAMPS_ENTREPRISE, configMail, configSms, lireDocuments, lireEntreprise, urlPublique } from "@/server/parametres";
 import { configAutomatisation } from "@/server/automatisation";
+import { lireRolesDoubleAuth } from "@/server/deux-facteurs";
 import { lireModules } from "@/server/modules";
 import { ongletsParametres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -19,7 +20,7 @@ export default async function ParametresPage() {
   const user = await requireUser();
   const modules = await lireModules();
   const onglets = new Set(ongletsParametres(user.role, modules).map((onglet) => onglet.href));
-  const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, historique] = await Promise.all([
+  const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, roles2fa, historique] = await Promise.all([
     lireEntreprise(),
     lireDocuments(),
     urlPublique(),
@@ -30,6 +31,7 @@ export default async function ParametresPage() {
     prisma.user.count({ where: { actif: true } }),
     prisma.modeleSms.count(),
     prisma.ecole.count({ where: { actif: true } }),
+    lireRolesDoubleAuth(),
     prisma.audit.findMany({
       where: { action: { in: ["PARAMETRES", "PROCEDURE"] } },
       include: { user: { select: { prenom: true, nom: true } } },
@@ -37,6 +39,7 @@ export default async function ParametresPage() {
       take: 8,
     }),
   ]);
+  const rolesProteges = Object.values(roles2fa).filter(Boolean).length;
   const renseignes = CHAMPS_ENTREPRISE.filter((champ) => entreprise[champ]).length;
   const actives = procedures.find((groupe) => groupe.actif)?._count ?? 0;
   const inactives = procedures.find((groupe) => !groupe.actif)?._count ?? 0;
@@ -81,6 +84,14 @@ export default async function ParametresPage() {
       texte: "Fonctionnalités visibles pour un rôle, ou retirées pour un compte en particulier.",
       etat: "Par rôle ou par compte",
       ton: "desk",
+    },
+    {
+      href: "/parametres/securite",
+      icone: "securite",
+      titre: "Sécurité",
+      texte: "Double authentification par code e-mail, pour un rôle entier ou pour un compte.",
+      etat: `${rolesProteges} rôle${rolesProteges > 1 ? "s" : ""} protégé${rolesProteges > 1 ? "s" : ""}`,
+      ton: rolesProteges ? "vert" : "edu",
     },
     {
       href: "/parametres/sms",

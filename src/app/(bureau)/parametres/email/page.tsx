@@ -45,8 +45,8 @@ export default async function ParametresEmailPage() {
           {gestion ? (
             <Formulaire action={modifierServeurMail} submit="Enregistrer le serveur" succes="Serveur enregistré" reinitialiser={false} className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-[1fr_7rem]">
-                <Champ label="Serveur SMTP" aide="Laisser vide pour débrancher. Ex. smtp.gmail.com, ssl0.ovh.net…">
-                  <input className="champ" name="hote" defaultValue={config.source === "parametres" ? (config.hote ?? "") : ""} placeholder="smtp.exemple.com" />
+                <Champ label="Serveur SMTP" aide="Le nom réel du serveur : mail.exemple.com, smtp.exemple.com, ssl0.ovh.net… Laisser vide pour débrancher.">
+                  <input className="champ" name="hote" defaultValue={config.source === "parametres" ? (config.hote ?? "") : ""} placeholder="mail.exemple.com" />
                 </Champ>
                 <Champ label="Port">
                   <input className="champ" name="port" inputMode="numeric" defaultValue={config.source === "parametres" ? config.port : 587} />
@@ -68,7 +68,7 @@ export default async function ParametresEmailPage() {
                 </label>
               ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
-                <Champ label="Adresse d'expédition" aide="Par défaut, l'identifiant.">
+                <Champ label="Adresse d'expédition" aide="La même adresse que l'identifiant SMTP. Une autre adresse est souvent classée en indésirable.">
                   <input className="champ" name="expediteur" type="email" defaultValue={config.source === "parametres" ? (config.expediteur ?? "") : ""} />
                 </Champ>
                 <Champ label="Nom affiché">

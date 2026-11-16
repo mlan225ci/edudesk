@@ -1,21 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, FileStack, FolderOpen, FolderPlus, Globe2, Handshake, Mail, MessagesSquare, Pencil, Phone, ScrollText, ShieldCheck } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, FileStack, FolderOpen, FolderPlus, Globe2, Handshake, Mail, MessagesSquare, Pencil, Phone, ScrollText, ShieldCheck, UserRound } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { formatJour, nomComplet, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
-import { modifierClient, ouvrirDossier } from "@/server/actions";
+import { archiverClient, attribuerClient, modifierClient, ouvrirDossier, restaurerClient } from "@/server/actions";
 import { textesCourrier } from "@/server/communication-actions";
 import { EcrireCourrier } from "@/components/courrier";
 import { Journal } from "@/components/journal";
 import { lireJournal } from "@/server/historique";
 import { lireModules } from "@/server/modules";
 import { ouvrirGroupeClient } from "@/server/groupes-actions";
-import { peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
+import { peutArchiverClient, peutAttribuerClient, peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { ListeDocuments, type DocumentVue } from "@/components/documents";
-import { Formulaire } from "@/components/formulaire";
+import { FormAction, Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Avatar, Badge, Champ, Progression, Vide } from "@/components/ui";
 
@@ -32,6 +32,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     where: { id },
     include: {
       partenaire: true,
+      responsable: { select: { id: true, prenom: true, nom: true } },
       dossiers: {
         include: { procedure: true, paiements: { select: { montant: true } }, etapes: { select: { statut: true, titre: true }, orderBy: { rang: "asc" } } },
         orderBy: { ouvertLe: "desc" },
@@ -39,13 +40,23 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     },
   });
   if (!client) notFound();
+  if (client.archiveLe && !peutArchiverClient(user.role)) notFound();
   if (user.role === "PARTENAIRE" && client.partenaireId !== user.partenaireId) notFound();
+  if (user.role === "COMMERCIAL" && client.responsableId !== user.id) notFound();
 
   const collaborateur = user.role !== "PARTENAIRE";
   const creation = peutCreerClient(user.role);
-  const [partenaires, procedures] = await Promise.all([
+  const attribution = peutAttribuerClient(user.role) && !client.archiveLe;
+  const [partenaires, procedures, responsables] = await Promise.all([
     collaborateur ? prisma.partenaire.findMany({ select: { id: true, nom: true }, orderBy: { nom: "asc" } }) : [],
     creation ? prisma.procedure.findMany({ where: { actif: true }, select: { id: true, nom: true }, orderBy: { nom: "asc" } }) : [],
+    attribution
+      ? prisma.user.findMany({
+          where: { actif: true, role: { in: ["COMMERCIAL", "RESPONSABLE_COMMERCIALE"] } },
+          select: { id: true, prenom: true, nom: true },
+          orderBy: { prenom: "asc" },
+        })
+      : [],
   ]);
   const pieces = collaborateur
     ? await prisma.pieceDossier.findMany({
@@ -103,7 +114,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               {client.convertiLe ? ` · devenu client le ${formatJour(client.convertiLe)}${auteurConversion ? ` grâce à ${nomComplet(auteurConversion)}` : ""}` : ""}
             </p>
             <div className="flex flex-wrap gap-2">
-              {creation ? (
+              {creation && !client.archiveLe ? (
                 <Tiroir label="Ouvrir un dossier" icone={<FolderPlus size={16} />} titre="Nouveau dossier" description={`Pour ${nomComplet(client)}`}>
                   <Formulaire action={ouvrirDossier} submit="Ouvrir le dossier" succes="Dossier ouvert" className="grid gap-4">
                     <input type="hidden" name="clientId" value={client.id} />
@@ -124,7 +135,36 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               </form>
             ) : null}
             {courrier ? <EcrireCourrier clientId={client.id} email={courrier.email} contextes={courrier.contextes} /> : null}
-            {collaborateur ? (
+            {attribution ? (
+              <Tiroir label="Attribuer" variante="second" icone={<UserRound size={15} />} titre="Responsable du client" description={nomComplet(client)}>
+                <FormAction action={attribuerClient} succes="Responsable mis à jour" className="grid gap-4">
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <Champ label="Responsable" aide="Commercial ou responsable commerciale. Le commercial ne voit ensuite que ses clients.">
+                    <select className="champ" name="responsableId" defaultValue={client.responsableId ?? ""}>
+                      <option value="">Aucun</option>
+                      {responsables.map((personne) => (
+                        <option key={personne.id} value={personne.id}>{nomComplet(personne)}</option>
+                      ))}
+                    </select>
+                  </Champ>
+                  <button className="bouton" type="submit">Enregistrer</button>
+                </FormAction>
+              </Tiroir>
+            ) : null}
+            {peutArchiverClient(user.role) ? (
+              client.archiveLe ? (
+                <FormAction action={restaurerClient} succes="Client restauré">
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <button className="bouton-second" type="submit"><ArchiveRestore size={15} /> Restaurer</button>
+                </FormAction>
+              ) : (
+                <FormAction action={archiverClient} confirmer="Archiver ce client ? Ses dossiers et ses paiements sont conservés." succes="Client archivé">
+                  <input type="hidden" name="clientId" value={client.id} />
+                  <button className="bouton-danger" type="submit"><Archive size={15} /> Archiver</button>
+                </FormAction>
+              )
+            ) : null}
+            {collaborateur && !client.archiveLe ? (
               <Tiroir label="Modifier" variante="second" icone={<Pencil size={15} />} titre="Modifier le client">
                   <Formulaire action={modifierClient} submit="Enregistrer les modifications" succes="Fiche mise à jour" reinitialiser={false} className="grid gap-4">
                     <input type="hidden" name="clientId" value={client.id} />
@@ -134,6 +174,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               ) : null}
             </div>
           </div>
+        {client.archiveLe ? (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">Archivé le {formatJour(client.archiveLe)}. Les dossiers et les paiements sont toujours là.</p>
+        ) : null}
         <dl className="mt-5 grid gap-4 border-t border-ink/[0.06] pt-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex items-center gap-2.5">
             <Phone size={16} className="text-ink/35" />
@@ -146,6 +189,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center gap-2.5">
             <Globe2 size={16} className="text-ink/35" />
             <span>{client.paysVise || <span className="text-ink/40">Pays non précisé</span>}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <UserRound size={16} className="text-ink/35" />
+            <span>{client.responsable ? nomComplet(client.responsable) : <span className="text-ink/40">Sans responsable</span>}</span>
           </div>
           <div className="flex items-center gap-2.5">
             <Handshake size={16} className="text-ink/35" />

@@ -103,6 +103,14 @@ export function peutSigner(role: Role) {
   return role === "CEO" || role === "ADMINISTRATEUR";
 }
 
+export function peutArchiverClient(role: Role) {
+  return role === "CEO" || role === "ADMINISTRATEUR";
+}
+
+export function peutAttribuerClient(role: Role) {
+  return role === "CEO" || role === "ADMINISTRATEUR" || role === "RESPONSABLE_COMMERCIALE";
+}
+
 export function peutEncaisser(role: Role) {
   return ENCAISSER.has(role);
 }
@@ -151,6 +159,7 @@ export function ongletsParametres(role: Role, modules?: ModulesActifs): Lien[] {
     { href: "/parametres/procedures", label: "Procédures", icone: "procedures" },
     { href: "/parametres/equipe", label: "Utilisateurs", icone: "equipe" },
     { href: "/parametres/acces", label: "Accès", icone: "acces" },
+    { href: "/parametres/securite", label: "Sécurité", icone: "securite" },
     { href: "/parametres/sms", label: "SMS", icone: "sms" },
     { href: "/parametres/email", label: "E-mail", icone: "email" },
     { href: "/parametres/automatisation", label: "Automatisation", icone: "automatisation" },

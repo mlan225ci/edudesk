@@ -1,49 +1,31 @@
-import { BellRing, CheckCircle2, Wallet } from "lucide-react";
+import { CodeConnexion } from "@/components/code-connexion";
 import { LoginForm } from "@/components/login-form";
+import { prisma } from "@/lib/db";
+import { masquerEmail } from "@/server/deux-facteurs";
+import { lireAttenteCode } from "@/server/session";
 
 export const metadata = { title: "Connexion" };
 
-const ATOUTS = [
-  { icone: CheckCircle2, texte: "Chaque dossier avance étape par étape, avec un responsable et un délai." },
-  { icone: BellRing, texte: "Les bonnes personnes sont prévenues par SMS au bon moment." },
-  { icone: Wallet, texte: "Caisse, factures, dépenses et comptabilité tenues automatiquement." },
-];
+export default async function LoginPage() {
+  const attente = await lireAttenteCode();
+  const compte = attente ? await prisma.user.findUnique({ where: { id: attente.userId }, select: { email: true, actif: true } }) : null;
+  const emailMasque = compte?.actif ? masquerEmail(compte.email) : null;
 
-export default function LoginPage() {
   return (
-    <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <section className="relative hidden overflow-hidden bg-ink px-12 py-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-desk/40 blur-3xl" />
-        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-edu/20 blur-3xl" />
-        <span className="relative self-start rounded-2xl bg-white px-4 py-2.5 shadow-lg shadow-black/20">
-          <img src="/logo-edudesk.png" alt="EduDesk" className="h-10 w-auto" />
-        </span>
-        <div className="relative max-w-lg animate-entree">
-          <p className="text-sm font-semibold tracking-[0.2em] text-edu uppercase">Bureau d'éducation à l'international</p>
-          <h1 className="mt-4 text-[42px] leading-[1.1] font-bold tracking-tight">Tout le bureau, dans un seul outil simple.</h1>
-          <ul className="mt-8 grid gap-4 entree-cascade">
-            {ATOUTS.map(({ icone: Icone, texte }) => (
-              <li key={texte} className="flex items-start gap-3 text-white/80">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-edu">
-                  <Icone size={18} />
-                </span>
-                <span className="pt-1.5">{texte}</span>
-              </li>
-            ))}
-          </ul>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-paper px-6 py-16">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30"
+        style={{ backgroundImage: "url(/motif-etudes.svg)", backgroundSize: "360px 360px" }}
+        aria-hidden
+      />
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-desk/[0.07] blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-edu/10 blur-3xl" />
+      <div className="relative w-full max-w-[400px] animate-entree">
+        <img src="/logo-edudesk.png" alt="EduDesk" className="mx-auto mb-10 h-16 w-auto" />
+        <div className="rounded-[28px] border border-white/80 bg-white px-7 py-8 shadow-[0_1px_1px_rgba(20,40,75,0.04),0_30px_70px_-36px_rgba(20,40,75,0.45)]">
+          {emailMasque ? <CodeConnexion email={emailMasque} /> : <LoginForm demonstration={process.env.NODE_ENV !== "production"} />}
         </div>
-        <p className="relative text-sm text-white/45">Irlande · Canada · France · Résidence permanente</p>
-      </section>
-      <section className="flex items-center bg-paper px-6 py-12">
-        <div className="mx-auto w-full max-w-md animate-entree">
-          <img src="/logo-edudesk.png" alt="EduDesk" className="mb-8 h-11 w-auto lg:hidden" />
-          <h2 className="text-3xl font-bold tracking-tight">Bon retour</h2>
-          <p className="mt-1.5 mb-8 text-ink/60">Connectez-vous à votre espace EduDesk.</p>
-          <div className="rounded-3xl border border-ink/[0.06] bg-card p-7 shadow-[0_1px_2px_rgba(20,40,75,0.04),0_20px_50px_-24px_rgba(20,40,75,0.25)]">
-            <LoginForm demonstration={process.env.NODE_ENV !== "production"} />
-          </div>
-        </div>
-      </section>
+      </div>
     </main>
   );
 }

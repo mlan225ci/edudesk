@@ -17,7 +17,11 @@ export async function GET(request: Request) {
     { prenom: { contains: mot, mode: "insensitive" as const } },
     { telephone: { contains: mot.replace(/\s/g, "") } },
   ];
-  const portee: Prisma.ClientWhereInput = user.role === "PARTENAIRE" ? { partenaireId: user.partenaireId ?? "__aucun__" } : {};
+  const portee: Prisma.ClientWhereInput = {
+    archiveLe: null,
+    ...(user.role === "PARTENAIRE" ? { partenaireId: user.partenaireId ?? "__aucun__" } : {}),
+    ...(user.role === "COMMERCIAL" ? { responsableId: user.id } : {}),
+  };
 
   const [clients, dossiers, prospects] = await Promise.all([
     prisma.client.findMany({

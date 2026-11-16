@@ -12,7 +12,7 @@ const CHAPITRES = [
     pageLabel: "Ouvrir la connexion",
     image: "/aide/connexion.png",
     alt: "Page de connexion EduDesk",
-    texte: "Chaque collaborateur entre avec son adresse et son mot de passe. Après cinq échecs, le compte reste fermé pendant quinze minutes. Les raccourcis de démonstration n'apparaissent pas sur le site en ligne.",
+    texte: "Chaque collaborateur entre avec son adresse et son mot de passe. Le code à 6 chiffres n'est demandé que 24 heures après la première connexion, puis à chaque connexion suivante. Il est envoyé sur la même adresse et reste valable dix minutes. Après cinq échecs, le compte reste fermé pendant quinze minutes. Les raccourcis de démonstration n'apparaissent pas sur le site en ligne.",
   },
   {
     id: "tableau",
@@ -48,7 +48,7 @@ const CHAPITRES = [
     pageLabel: "Ouvrir les clients",
     image: "/aide/clients.png",
     alt: "Liste des clients et de leur dernier dossier",
-    texte: "La recherche accepte le nom, le prénom, le téléphone, le numéro de dossier, le pays ou la procédure. La fiche d'un client indique depuis quand il est suivi, le jour où il est devenu client et la personne qui l'a converti.",
+    texte: "La recherche accepte le nom, le prénom, le téléphone, le numéro de dossier, le pays ou la procédure. Un client peut être confié à un commercial, qui ne voit ensuite que ses clients. La direction ou l'administrateur peut archiver une fiche : elle quitte la liste, mais les dossiers et les paiements restent. La fiche indique depuis quand la personne est suivie, le jour où elle est devenue cliente et qui l'a convertie.",
   },
   {
     id: "dossiers",

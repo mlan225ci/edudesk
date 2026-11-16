@@ -173,13 +173,13 @@ export async function envoyerSmsTest(_etat: EtatAction, formData: FormData): Pro
 export async function modifierServeurMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
   if (!peutParametrer(user.role)) return { error: "Réservé à la direction." };
-  const hote = texte(formData, "hote");
+  const hote = texte(formData, "hote").replace(/^(?:smtp|https?):\/\//i, "").replace(/\/.*$/, "");
   const port = texte(formData, "port") || "587";
   const utilisateur = texte(formData, "utilisateur");
   const motDePasse = texte(formData, "motDePasse");
   const expediteur = texte(formData, "expediteur");
   const nomExpediteur = texte(formData, "nomExpediteur");
-  if (hote && !/^[a-z0-9.-]+$/i.test(hote)) return { error: "Le serveur SMTP s'écrit comme smtp.exemple.com." };
+  if (hote && !/^[a-z0-9.-]+$/i.test(hote)) return { error: "Indiquez le nom du serveur, par exemple mail.exemple.com ou smtp.exemple.com." };
   if (!/^\d{2,5}$/.test(port)) return { error: "Le port est un nombre (587, 465 ou 25)." };
   if (expediteur && !emailValide(expediteur)) return { error: "L'adresse d'expédition n'est pas valide." };
   if (hote && !expediteur && !emailValide(utilisateur)) return { error: "Indiquez l'adresse e-mail d'expédition." };

@@ -146,8 +146,13 @@ model User {
   motDePasseHash String
   role              Role
   actif             Boolean   @default(true)
-  echecsConnexion   Int       @default(0)
-  verrouilleJusquau DateTime?
+  echecsConnexion      Int       @default(0)
+  verrouilleJusquau    DateTime?
+  codeConnexionHash    String?
+  codeConnexionExpire  DateTime?
+  codeConnexionEnvoie  DateTime?
+  codeConnexionEssais  Int       @default(0)
+  doubleAuth           Boolean?
   superieurId    String?
   superieur      User?     @relation("hierarchie", fields: [superieurId], references: [id])
   equipe         User[]    @relation("hierarchie")
@@ -166,6 +171,7 @@ model User {
   membresGroupe   MembreGroupe[]
   messagesGroupe  MessageGroupe[]
   acces           AccesCompte[]
+  clientsSuivis   Client[] @relation("clientsSuivis")
 }
 
 model AccesRole {
@@ -232,12 +238,18 @@ model Client {
   garantTelephone  String?
   convertiLe       DateTime?
   convertiParId    String?
+  responsableId    String?
+  responsable      User?       @relation("clientsSuivis", fields: [responsableId], references: [id])
+  archiveLe        DateTime?
+  archiveParId     String?
   creeLe           DateTime    @default(now())
   dossiers         Dossier[]
   paiements        Paiement[]
   groupe           Groupe?
 
   @@index([telephone])
+  @@index([responsableId])
+  @@index([archiveLe])
 }
 
 model Procedure {

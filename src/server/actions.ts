@@ -12,6 +12,8 @@ import { normaliserTelephone, telephoneValide } from "@/lib/format";
 import { CATEGORIES_DEPENSE, ETATS_MATERIEL, MODES, ROLES, TYPES_CONGE, categorieDocument, estLettreDefinitive, typePourAcompte } from "@/lib/labels";
 import {
   peutAnnulerDepense,
+  peutArchiverClient,
+  peutAttribuerClient,
   peutCreerClient,
   peutEncaisser,
   peutGererEquipe,
@@ -30,7 +32,8 @@ import {
   type SessionUser,
 } from "@/server/permissions";
 import { aLeDroit } from "@/server/acces";
-import { fermerSession, ouvrirSession, requireUser } from "@/server/session";
+import { demarrerVerification, exigeDoubleAuth, renvoyerCodeConnexion, verifierCodeConnexion } from "@/server/deux-facteurs";
+import { fermerAttenteCode, fermerSession, lireAttenteCode, ouvrirSession, requireUser } from "@/server/session";
 import {
   cloturerEtape,
   creerDossier,
@@ -44,7 +47,7 @@ import {
   scannerAlertes,
 } from "@/server/engine";
 
-export type EtatAction = { error: string; manques?: string[] } | null;
+export type EtatAction = { error?: string; info?: string; manques?: string[] } | null;
 
 function rafraichir() {
   revalidatePath("/", "layout");
@@ -88,9 +91,44 @@ export async function login(_etat: EtatAction, formData: FormData): Promise<Etat
     }
     return { error: "Identifiants incorrects, ou compte désactivé." };
   }
+  const souvenir = formData.get("souvenir") === "on";
   await prisma.user.update({ where: { id: user.id }, data: { echecsConnexion: 0, verrouilleJusquau: null } });
-  await ouvrirSession(user.id, formData.get("souvenir") === "on");
-  redirect(user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord");
+  if (!(await exigeDoubleAuth(user))) {
+    await ouvrirSession(user.id, souvenir);
+    redirect(user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord");
+  }
+  const envoi = await demarrerVerification(user, souvenir);
+  if ("error" in envoi) return envoi;
+  if (envoi.ok === "direct") {
+    await ouvrirSession(user.id, souvenir);
+    redirect(user.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord");
+  }
+  redirect("/login?verification=1");
+}
+
+export async function confirmerCode(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const resultat = await verifierCodeConnexion(String(formData.get("code") ?? ""));
+  if ("error" in resultat) return resultat;
+  await ouvrirSession(resultat.userId, resultat.souvenir);
+  redirect(resultat.role === "PARTENAIRE" ? "/dossiers" : "/tableau-de-bord");
+}
+
+export async function renvoyerCode(_etat: EtatAction, _formData: FormData): Promise<EtatAction> {
+  const resultat = await renvoyerCodeConnexion();
+  if ("error" in resultat) return resultat;
+  return { info: "Un nouveau code a été envoyé." };
+}
+
+export async function annulerCode() {
+  const attente = await lireAttenteCode();
+  if (attente) {
+    await prisma.user.updateMany({
+      where: { id: attente.userId },
+      data: { codeConnexionHash: null, codeConnexionExpire: null, codeConnexionEnvoie: null, codeConnexionEssais: 0 },
+    });
+  }
+  await fermerAttenteCode();
+  redirect("/login");
 }
 
 export async function logout() {
@@ -246,7 +284,13 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
   if (!prenom || !nom) return { error: "Le nom et le prénom sont obligatoires." };
   if (!telephoneValide(telephone)) return { error: "Le téléphone doit être au format international, par exemple +2250700000000." };
   const existant = await prisma.client.findFirst({ where: { telephone } });
-  if (existant) return { error: `Ce téléphone appartient déjà à ${existant.prenom} ${existant.nom}. Ouvrez sa fiche pour lui créer un dossier.` };
+  if (existant) {
+    return {
+      error: existant.archiveLe
+        ? `Ce téléphone appartient à ${existant.prenom} ${existant.nom}, dont la fiche est archivée.`
+        : `Ce téléphone appartient déjà à ${existant.prenom} ${existant.nom}. Ouvrez sa fiche pour lui créer un dossier.`,
+    };
+  }
   const procedure = procedureId ? await prisma.procedure.findUnique({ where: { id: procedureId }, select: { destination: true } }) : null;
 
   const client = await prisma.client.create({
@@ -257,6 +301,7 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
       email: email || null,
       paysVise: String(formData.get("paysVise") ?? "").trim() || procedure?.destination || null,
       partenaireId: String(formData.get("partenaireId") ?? "") || null,
+      responsableId: user.role === "COMMERCIAL" ? user.id : null,
       garantNom: String(formData.get("garantNom") ?? "").trim() || null,
       garantTelephone: normaliserTelephone(String(formData.get("garantTelephone") ?? "")) || null,
     },
@@ -295,6 +340,96 @@ export async function modifierClient(_etat: EtatAction, formData: FormData): Pro
   });
   rafraichir();
   return null;
+}
+
+export async function attribuerClient(formData: FormData) {
+  const user = await requireUser();
+  if (!peutAttribuerClient(user.role)) return;
+  const id = String(formData.get("clientId") ?? "");
+  const responsableId = String(formData.get("responsableId") ?? "") || null;
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
+  if (!client || client.archiveLe) return;
+  if (responsableId) {
+    const responsable = await prisma.user.findUnique({ where: { id: responsableId }, select: { id: true, prenom: true, nom: true, role: true, actif: true } });
+    if (!responsable?.actif || (responsable.role !== "COMMERCIAL" && responsable.role !== "RESPONSABLE_COMMERCIALE")) return;
+    await prisma.client.update({ where: { id }, data: { responsableId } });
+    await prisma.audit.create({
+      data: { userId: user.id, action: "CLIENT_ATTRIBUE", entite: "Client", entiteId: id, detail: `${client.prenom} ${client.nom} → ${responsable.prenom} ${responsable.nom}` },
+    });
+  } else {
+    await prisma.client.update({ where: { id }, data: { responsableId: null } });
+    await prisma.audit.create({
+      data: { userId: user.id, action: "CLIENT_ATTRIBUE", entite: "Client", entiteId: id, detail: `${client.prenom} ${client.nom} sans responsable` },
+    });
+  }
+  rafraichir();
+}
+
+export async function archiverClient(formData: FormData) {
+  const user = await requireUser();
+  if (!peutArchiverClient(user.role)) return;
+  const id = String(formData.get("clientId") ?? "");
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
+  if (!client || client.archiveLe) return;
+  await prisma.client.update({ where: { id }, data: { archiveLe: new Date(), archiveParId: user.id } });
+  await prisma.audit.create({
+    data: { userId: user.id, action: "CLIENT_ARCHIVE", entite: "Client", entiteId: id, detail: `${client.prenom} ${client.nom}` },
+  });
+  rafraichir();
+  redirect("/clients");
+}
+
+export async function supprimerClient(formData: FormData) {
+  const user = await requireUser();
+  if (!peutArchiverClient(user.role)) return;
+  const id = String(formData.get("clientId") ?? "");
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: { id: true, prenom: true, nom: true, dossiers: { select: { id: true } }, groupe: { select: { id: true } } },
+  });
+  if (!client) return;
+  const dossierIds = client.dossiers.map((dossier) => dossier.id);
+  await prisma.$transaction(async (tx) => {
+    const paiements = await tx.paiement.findMany({
+      where: { OR: [{ clientId: id }, ...(dossierIds.length ? [{ dossierId: { in: dossierIds } }] : [])] },
+      select: { id: true },
+    });
+    const paiementIds = paiements.map((paiement) => paiement.id);
+    const factures = dossierIds.length
+      ? await tx.facture.findMany({ where: { dossierId: { in: dossierIds } }, select: { id: true } })
+      : [];
+    const factureIds = factures.map((facture) => facture.id);
+    if (paiementIds.length) await tx.paiement.updateMany({ where: { id: { in: paiementIds } }, data: { factureRegleeId: null } });
+    if (factureIds.length) await tx.facture.updateMany({ where: { id: { in: factureIds } }, data: { paiementId: null } });
+    if (paiementIds.length || factureIds.length) {
+      await tx.ecriture.deleteMany({
+        where: { OR: [...(paiementIds.length ? [{ paiementId: { in: paiementIds } }] : []), ...(factureIds.length ? [{ factureId: { in: factureIds } }] : [])] },
+      });
+    }
+    if (factureIds.length) await tx.facture.deleteMany({ where: { id: { in: factureIds } } });
+    if (paiementIds.length) await tx.paiement.deleteMany({ where: { id: { in: paiementIds } } });
+    if (dossierIds.length) await tx.dossier.deleteMany({ where: { id: { in: dossierIds } } });
+    if (client.groupe) await tx.groupe.delete({ where: { id: client.groupe.id } });
+    await tx.prospect.updateMany({ where: { clientId: id }, data: { clientId: null } });
+    await tx.audit.create({
+      data: { userId: user.id, action: "CLIENT_SUPPRIME", entite: "Client", entiteId: id, detail: `${client.prenom} ${client.nom}` },
+    });
+    await tx.client.delete({ where: { id } });
+  });
+  rafraichir();
+}
+
+export async function restaurerClient(formData: FormData) {
+  const user = await requireUser();
+  if (!peutArchiverClient(user.role)) return;
+  const id = String(formData.get("clientId") ?? "");
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
+  if (!client?.archiveLe) return;
+  await prisma.client.update({ where: { id }, data: { archiveLe: null, archiveParId: null } });
+  await prisma.audit.create({
+    data: { userId: user.id, action: "CLIENT_RESTAURE", entite: "Client", entiteId: id, detail: `${client.prenom} ${client.nom}` },
+  });
+  rafraichir();
 }
 
 export async function ouvrirDossier(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
@@ -368,6 +503,7 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
 
   const procedure = await prisma.procedure.findUnique({ where: { id: procedureId }, select: { destination: true } });
   let client = await prisma.client.findFirst({ where: { telephone: prospect.telephone } });
+  if (client?.archiveLe) return { error: "Ce téléphone correspond à un client archivé. Restaurez sa fiche avant de le convertir." };
   if (!client) {
     client = await prisma.client.create({
       data: {
@@ -377,15 +513,19 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
         email: prospect.email,
         partenaireId: prospect.partenaireId,
         paysVise: procedure?.destination ?? null,
+        responsableId: user.role === "COMMERCIAL" ? user.id : null,
       },
     });
   } else if (!client.paysVise && procedure) {
     client = await prisma.client.update({ where: { id: client.id }, data: { paysVise: procedure.destination } });
   }
-  if (!client.convertiLe) {
+  if (!client.convertiLe || (user.role === "COMMERCIAL" && !client.responsableId)) {
     client = await prisma.client.update({
       where: { id: client.id },
-      data: { convertiLe: new Date(), convertiParId: user.id },
+      data: {
+        ...(!client.convertiLe ? { convertiLe: new Date(), convertiParId: user.id } : {}),
+        ...(user.role === "COMMERCIAL" && !client.responsableId ? { responsableId: user.id } : {}),
+      },
     });
   }
 
