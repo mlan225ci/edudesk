@@ -5,7 +5,7 @@ export const REGLES = [
   {
     id: "evolutionEmail",
     label: "Évolution par e-mail",
-    description: "Le client reçoit l'avancement de sa procédure par e-mail. Le SMS de cette évolution est coupé.",
+    description: "Le client reçoit l'avancement de sa procédure par e-mail. Le SMS de cette évolution est désactivé.",
     defaut: true,
   },
   {

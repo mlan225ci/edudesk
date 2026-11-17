@@ -720,7 +720,7 @@ export async function ajouterDocuments(_etat: EtatAction, formData: FormData): P
   if (refus) return { error: refus };
   const etape = await prisma.dossierEtape.findUnique({ where: { id: String(formData.get("etapeId") ?? "") } });
   if (!etape || etape.statut !== "EN_COURS") return { error: "Cette étape n'est pas ouverte." };
-  if (!(await regleActive("documentsMultiples"))) return { error: "L'ajout de plusieurs documents est coupé dans les règles de gestion." };
+  if (!(await regleActive("documentsMultiples"))) return { error: "L'ajout de plusieurs documents est désactivé dans les règles de gestion." };
   if (!peutPiece(user, etape)) return { error: "Vous ne déposez pas de documents sur cette étape." };
   const fichiers = formData.getAll("fichiers").filter((fichier): fichier is File => fichier instanceof File && fichier.size > 0);
   if (fichiers.length === 0) return { error: "Choisissez au moins un fichier." };

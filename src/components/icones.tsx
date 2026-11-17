@@ -32,6 +32,7 @@ import {
   FileSignature,
   ReceiptText,
   ScrollText,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -69,6 +70,7 @@ export const ICONES: Record<string, LucideIcon> = {
   facture: ReceiptText,
   historique: ScrollText,
   page: FileText,
+  regles: SlidersHorizontal,
 };
 
 export function Icone({ nom, size = 18, className }: { nom: string; size?: number; className?: string }) {

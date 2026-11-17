@@ -127,7 +127,7 @@ export async function enregistrerRegle(_etat: EtatAction, formData: FormData): P
   if (!estRegleId(id)) return { error: "Règle inconnue." };
   const actif = formData.get("actif") === "1";
   await ecrireParametres("regle", { [id]: actif ? "1" : "0" });
-  await journaliser(user.id, actif ? `Règle activée : ${id}` : `Règle coupée : ${id}`);
+  await journaliser(user.id, actif ? `Règle activée : ${id}` : `Règle désactivée : ${id}`);
   return null;
 }
 

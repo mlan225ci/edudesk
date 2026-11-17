@@ -30,15 +30,13 @@ import { ACTIONS_AUDIT, COMPTES, STATUTS, labelCategorie, labelSource, labelType
 import { DetailAudit, Montant } from "@/components/montant";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { Anneau, BarresHorizontales, BarresMensuelles, Kpi, Panneau } from "@/components/graphiques";
-import { ReglesGestion } from "@/components/regles-gestion";
 import { SuiviClient } from "@/components/suivi-client";
 import { Avatar, Progression } from "@/components/ui";
 import { lancerAlertes } from "@/server/actions";
 import { aLeDroit } from "@/server/acces";
 import { lienSi, lireModules } from "@/server/modules";
 import { suiviClientActif } from "@/server/parametres";
-import { estLectureSeule, peutParametrer, peutProspects, peutRegles, peutValiderConges, voitCompta, voitDirection, voitFinance, type SessionUser } from "@/server/permissions";
-import { fraisVisaXof, lireRegles } from "@/server/regles";
+import { estLectureSeule, peutParametrer, peutProspects, peutValiderConges, voitCompta, voitDirection, voitFinance, type SessionUser } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { COMPTES_TRESORERIE, compterPar, cumulParMois, moisGlissants, situationDossiers, tresorerie } from "@/server/stats";
 import {
@@ -71,9 +69,7 @@ export default async function TableauDeBordPage() {
   const pilotage = await aLeDroit(user, "direction");
   const modules = await lireModules();
   const reglage = peutParametrer(user);
-  const regles = peutRegles(user);
   const suiviOuvert = reglage ? await suiviClientActif() : true;
-  const [listeRegles, fraisVisa] = regles ? await Promise.all([lireRegles(), fraisVisaXof()]) : [[], 0];
   const heure = Number(
     new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Abidjan" })
       .formatToParts(new Date())
@@ -107,8 +103,6 @@ export default async function TableauDeBordPage() {
       </header>
 
       {reglage ? <SuiviClient actif={suiviOuvert} /> : null}
-
-      {regles ? <ReglesGestion regles={listeRegles} fraisVisa={fraisVisa} /> : null}
 
       {finance ? (
         <Suspense fallback={<SqueletteKpis />}>

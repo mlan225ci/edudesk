@@ -213,6 +213,7 @@ export function ongletsParametres(porteur: PorteurRoles, modules?: ModulesActifs
   if (!peutParametrer(porteur)) return [];
   const onglets: Lien[] = [
     { href: "/parametres/entreprise", label: "Entreprise", icone: "entreprise" },
+    ...(peutRegles(porteur) ? [{ href: "/parametres/regles", label: "Règles de gestion", icone: "regles" }] : []),
     { href: "/parametres/documents", label: "Devis et factures", icone: "facturation" },
     { href: "/parametres/procedures", label: "Procédures", icone: "procedures" },
     { href: "/parametres/equipe", label: "Utilisateurs", icone: "equipe" },

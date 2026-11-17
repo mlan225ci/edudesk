@@ -9,7 +9,8 @@ import { CHAMPS_ENTREPRISE, configMail, configSms, lireDocuments, lireEntreprise
 import { configAutomatisation } from "@/server/automatisation";
 import { lireRolesDoubleAuth } from "@/server/deux-facteurs";
 import { lireModules } from "@/server/modules";
-import { ongletsParametres } from "@/server/permissions";
+import { ongletsParametres, peutRegles } from "@/server/permissions";
+import { lireRegles } from "@/server/regles";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Paramètres" };
@@ -20,7 +21,7 @@ export default async function ParametresPage() {
   const user = await requireUser();
   const modules = await lireModules();
   const onglets = new Set(ongletsParametres(user, modules).map((onglet) => onglet.href));
-  const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, roles2fa, historique] = await Promise.all([
+  const [entreprise, documents, url, sms, mail, automatisation, procedures, utilisateurs, modeles, ecoles, roles2fa, historique, regles] = await Promise.all([
     lireEntreprise(),
     lireDocuments(),
     urlPublique(),
@@ -38,6 +39,7 @@ export default async function ParametresPage() {
       orderBy: { creeLe: "desc" },
       take: 8,
     }),
+    peutRegles(user) ? lireRegles() : Promise.resolve([]),
   ]);
   const rolesProteges = Object.values(roles2fa).filter(Boolean).length;
   const renseignes = CHAMPS_ENTREPRISE.filter((champ) => entreprise[champ]).length;
@@ -52,6 +54,14 @@ export default async function ParametresPage() {
       texte: "Raison sociale, coordonnées, RCCM et NCC repris sur les devis, les factures et le portail client.",
       etat: `${renseignes}/${CHAMPS_ENTREPRISE.length} informations${url ? "" : " · adresse publique à définir"}`,
       ton: renseignes >= 6 && url ? "vert" : "edu",
+    },
+    {
+      href: "/parametres/regles",
+      icone: "regles",
+      titre: "Règles de gestion",
+      texte: "Suivi par e-mail, notifications internes, suppression, retour d'étape et frais de visa.",
+      etat: `${regles.filter((regle) => regle.actif).length} actives sur ${regles.length}`,
+      ton: "desk",
     },
     {
       href: "/parametres/documents",
