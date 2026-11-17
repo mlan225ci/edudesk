@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { sessionMasqueChiffres } from "@/server/voile";
 import { notFound } from "next/navigation";
-import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
+import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, Mail, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
 import { EcrireCourrier } from "@/components/courrier";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
@@ -449,10 +449,10 @@ export default async function DossierPage({
                     {suiviOuvert ? (
                       <Formulaire
                         action={renvoyerCodeSuivi}
-                        submit="Renvoyer par SMS"
-                        succes="Code de suivi renvoyé au client"
+                        submit="Renvoyer par MAIL"
+                        succes="Code de suivi renvoyé par e-mail"
                         boutonClassName="bouton-second mt-3 w-full"
-                        icone={<MessageSquareText size={15} />}
+                        icone={<Mail size={15} />}
                       >
                         <input type="hidden" name="dossierId" value={dossier.id} />
                       </Formulaire>
@@ -460,7 +460,7 @@ export default async function DossierPage({
                   </>
                 ) : (
                   <p className="mt-1.5 text-xs text-ink/55">
-                    Envoyé automatiquement par SMS à l'ouverture formelle du dossier, dès la signature du contrat et l'encaissement de l'acompte.
+                    Envoyé automatiquement par MAIL à l'ouverture formelle du dossier, dès la signature du contrat et l'encaissement de l'acompte.
                   </p>
                 )}
               </div>

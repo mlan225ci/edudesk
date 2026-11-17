@@ -608,14 +608,14 @@ export async function cloturerEtape(input: {
     const codeSuivi = ouvertureFormelle ? dossier.codeSuivi ?? (await attribuerCodeSuivi(tx, dossier.id)) : null;
     if (codeSuivi) {
       await planifier(tx, outbox, {
-        telephone: dossier.client.telephone,
+        telephone: "",
         type: "CLIENT",
         dossierId: dossier.id,
         texte: await messageOuverture(tx, dossier, codeSuivi, input.baseUrl),
         mail: await mailOuverture(dossier, codeSuivi, input.baseUrl),
       });
       await tx.audit.create({
-        data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi envoyé par SMS" },
+        data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi envoyé par e-mail" },
       });
     }
 
@@ -682,16 +682,17 @@ export async function envoyerCodeSuivi(input: { dossierId: string; actor: Sessio
     const dossier = await tx.dossier.findUnique({ where: { id: input.dossierId }, include: dossierInclude });
     if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
     if (!(await suiviClientActif())) return { ok: false as const, error: "Le suivi par lien est désactivé." };
+    if (!emailValide(dossier.client.email)) return { ok: false as const, error: "Ce client n'a pas d'adresse e-mail." };
     const code = dossier.codeSuivi ?? (await attribuerCodeSuivi(tx, dossier.id));
     await planifier(tx, outbox, {
-      telephone: dossier.client.telephone,
+      telephone: "",
       type: "CLIENT",
       dossierId: dossier.id,
       texte: await messageOuverture(tx, dossier, code, input.baseUrl),
       mail: await mailOuverture(dossier, code, input.baseUrl),
     });
     await tx.audit.create({
-      data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi renvoyé par SMS" },
+      data: { userId: input.actor.id, action: "CODE_SUIVI", entite: "Dossier", entiteId: dossier.id, detail: "Code de suivi renvoyé par e-mail" },
     });
     return { ok: true as const, dossierId: dossier.id };
   });

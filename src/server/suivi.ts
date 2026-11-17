@@ -36,7 +36,7 @@ export async function consulterSuivi(_etat: EtatSuivi, formData: FormData): Prom
   if (!code || !dossier) {
     const actuel = compteur && maintenant - compteur.depuis < FENETRE ? compteur : { nombre: 0, depuis: maintenant };
     echecs.set(ip, { nombre: actuel.nombre + 1, depuis: actuel.depuis });
-    return { error: "Code inconnu. Vérifiez le code reçu par SMS, par exemple K7MP-4XRT.", saisie };
+    return { error: "Code inconnu. Vérifiez le code reçu par e-mail, par exemple K7MP-4XRT.", saisie };
   }
 
   echecs.delete(ip);

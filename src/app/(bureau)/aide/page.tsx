@@ -119,7 +119,7 @@ const CHAPITRES = [
     page: "/suivi",
     pageLabel: "Ouvrir le suivi",
     image: "/aide/suivi.png",
-    alt: "Page publique de suivi avec le code reçu par SMS",
+    alt: "Page publique de suivi avec le code reçu par e-mail",
     texte: "Le client n'a pas de compte. À l'ouverture du dossier, il reçoit un code par SMS. Sur /suivi, ce code montre l'avancement, les pièces et les paiements. Le secrétariat peut renvoyer le code depuis la fiche du dossier.",
   },
 ] as const;

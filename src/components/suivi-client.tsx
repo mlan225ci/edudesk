@@ -22,7 +22,7 @@ export function SuiviClient({ actif }: { actif: boolean }) {
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-ink/60">
           {actif
-            ? "Activé. Un client ouvre son dossier sur la page /suivi avec le code reçu par SMS."
+            ? "Activé. Un client ouvre son dossier sur la page /suivi avec le code reçu par e-mail."
             : "Désactivé. La page /suivi ne montre plus aucun dossier, même avec un code valide."}
         </p>
       </div>

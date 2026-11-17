@@ -126,7 +126,7 @@ export default async function SuiviPage() {
           <section className="animate-entree">
             <p className="text-sm font-semibold tracking-[0.18em] text-desk uppercase">Espace client</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">Suivez votre dossier</h1>
-            <p className="mt-2 mb-7 text-ink/60">Saisissez le code de suivi reçu par SMS à l'ouverture de votre dossier.</p>
+            <p className="mt-2 mb-7 text-ink/60">Saisissez le code de suivi reçu par e-mail à l'ouverture de votre dossier.</p>
             <div className="rounded-3xl border border-ink/[0.06] bg-card p-6 shadow-[0_1px_2px_rgba(20,40,75,0.04),0_20px_50px_-24px_rgba(20,40,75,0.25)]">
               <FormulaireSuivi />
             </div>
