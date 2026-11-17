@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   BellRing,
   ChevronDown,
@@ -15,6 +15,7 @@ import {
   Paperclip,
   Pause,
   Play,
+  ArrowLeft,
   Reply,
   RotateCcw,
   Search,
@@ -686,7 +687,7 @@ export function Conversation({
 
   return (
     <article
-      className="carte relative flex flex-col p-0"
+      className="carte relative grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0"
       onDragOver={(event) => {
         if (![...event.dataTransfer.types].includes("Files")) return;
         event.preventDefault();
@@ -702,10 +703,14 @@ export function Conversation({
         envoyerFichiers(event.dataTransfer.files);
       }}
     >
-      <header className="flex items-center gap-3 border-b border-ink/[0.06] px-5 py-3.5">
+      <div className="min-w-0">
+      <header className="flex items-center gap-2 border-b border-ink/[0.06] px-3 py-2">
+        <Link href="/messages?liste=1" className="bouton-fantome h-9 w-9 shrink-0 justify-center p-0 md:hidden" aria-label="Retour aux discussions">
+          <ArrowLeft size={18} />
+        </Link>
         <AvatarPresence userId={correspondant.id} prenom={correspondant.prenom} nom={correspondant.nom} />
-        <div className="min-w-0">
-          <p className="font-semibold">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">
             {correspondant.prenom} {correspondant.nom}
           </p>
           <p className="text-xs text-ink/50" suppressHydrationWarning>
@@ -722,7 +727,7 @@ export function Conversation({
         </div>
         <button
           type="button"
-          className={`bouton-fantome ml-auto h-9 w-9 shrink-0 justify-center p-0 ${recherche !== null ? "bg-desk/10 text-desk" : ""}`}
+          className={`bouton-fantome h-9 w-9 shrink-0 justify-center p-0 ${recherche !== null ? "bg-desk/10 text-desk" : ""}`}
           onClick={() => {
             if (recherche !== null) fermerRecherche();
             else {
@@ -792,14 +797,16 @@ export function Conversation({
           </button>
         </div>
       ) : null}
+      </div>
       <div
         ref={fil}
         onScroll={(event) => {
           const element = event.currentTarget;
           presDuBas.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120;
         }}
-        className="flex h-[58vh] min-h-72 flex-col gap-2 overflow-y-auto px-5 py-4 [scrollbar-width:thin]"
+        className="min-h-0 overflow-y-auto px-4 py-4 [scrollbar-width:thin]"
       >
+        <div className="flex min-h-full flex-col justify-end gap-2">
         {messages.length === 0 ? (
           <p className="m-auto text-sm text-ink/45">Aucun message. Écrivez le premier, joignez un fichier ou enregistrez une note vocale.</p>
         ) : (
@@ -856,7 +863,7 @@ export function Conversation({
                   <button
                     type="button"
                     onClick={() => repondre(message)}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink/40 opacity-0 transition group-hover:opacity-100 hover:bg-ink/5 hover:text-desk focus-visible:opacity-100"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink/40 hover:bg-ink/5 hover:text-desk md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     title="Répondre"
                     aria-label="Répondre à ce message"
                   >
@@ -874,10 +881,11 @@ export function Conversation({
             </span>
           </div>
         ) : null}
+        </div>
       </div>
 
       {enregistre != null ? (
-        <div className="flex items-center gap-3 border-t border-ink/[0.06] px-4 py-3">
+        <div className="flex shrink-0 items-center gap-3 border-t border-ink/[0.06] bg-white px-3 py-3">
           <button type="button" className="bouton-fantome text-cap" onClick={() => arreterEnregistrement(true)} aria-label="Annuler la note vocale">
             <Trash2 size={18} />
           </button>
@@ -891,7 +899,7 @@ export function Conversation({
           </button>
         </div>
       ) : (
-        <div className="relative border-t border-ink/[0.06]">
+        <div className="relative shrink-0 border-t border-ink/[0.06] bg-white">
         {mention ? (
           <div className="carte absolute right-4 bottom-full left-4 z-20 mb-2 p-1.5 shadow-lg sm:right-auto sm:w-[26rem]">
             <p className="flex items-center gap-1.5 px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">
@@ -944,7 +952,8 @@ export function Conversation({
           </div>
         ) : null}
         <form
-          className="flex items-end gap-2 px-4 py-3"
+          data-autoriser="oui"
+          className="flex min-w-0 items-end gap-2 px-3 py-3"
           onSubmit={(event) => {
             event.preventDefault();
             envoyer();
@@ -966,10 +975,11 @@ export function Conversation({
           </button>
           <textarea
             ref={champ}
-            className="champ min-h-11 flex-1 resize-none"
-            rows={2}
+            className="champ max-h-28 min-h-11 min-w-0 flex-1 basis-0 resize-none"
+            rows={1}
             maxLength={4000}
-            placeholder="Écrire un message… (@ pour mentionner un dossier, Maj+Entrée pour aller à la ligne)"
+            placeholder="Écrire un message…"
+            title="Entrée envoie. Maj+Entrée passe à la ligne. @ mentionne un dossier."
             aria-label="Message"
             aria-autocomplete="list"
             aria-controls={mention ? "suggestions-dossiers" : undefined}
@@ -1020,8 +1030,9 @@ export function Conversation({
           <button type="button" className="bouton-second h-11 w-11 shrink-0 justify-center p-0" onClick={() => void demarrerEnregistrement()} title="Enregistrer une note vocale" aria-label="Enregistrer une note vocale">
             <Mic size={18} />
           </button>
-          <button className="bouton h-11 shrink-0" type="submit">
-            <Send size={15} /> <span className="hidden sm:inline">Envoyer</span>
+          <button className="bouton h-11 shrink-0 px-3" type="submit" aria-label="Envoyer">
+            <Send size={15} />
+            <span className="hidden sm:inline">Envoyer</span>
           </button>
         </form>
         </div>
@@ -1053,7 +1064,17 @@ function trierContacts(contacts: Contact[]) {
   );
 }
 
-export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; actifId: string | null; initiaux: Contact[] }) {
+export function ListeContacts({
+  moiId,
+  actifId,
+  initiaux,
+  contenuAvant,
+}: {
+  moiId: string;
+  actifId: string | null;
+  initiaux: Contact[];
+  contenuAvant?: ReactNode;
+}) {
   const [contacts, setContacts] = useState(initiaux);
   const [ecrivent, setEcrivent] = useState<Set<string>>(() => new Set());
   const [filtre, setFiltre] = useState("");
@@ -1146,8 +1167,8 @@ export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; act
   const visibles = enRecherche ? contacts.filter((contact) => correspond(`${contact.prenom} ${contact.nom} ${contact.role}`, filtre)) : contacts;
 
   return (
-    <div className="carte flex max-h-[70vh] flex-col p-0">
-      <div className="border-b border-ink/[0.06] p-2">
+    <div className="carte flex h-full min-h-0 flex-col overflow-hidden p-0">
+      <div className="shrink-0 border-b border-ink/[0.06] p-2">
         <label className="flex items-center gap-2 rounded-xl bg-paper px-3 py-2 focus-within:ring-2 focus-within:ring-desk/30">
           <Search size={15} className="shrink-0 text-ink/40" />
           <input
@@ -1165,8 +1186,9 @@ export function ListeContacts({ moiId, actifId, initiaux }: { moiId: string; act
           {chargement ? <Loader2 size={14} className="shrink-0 animate-spin text-ink/40" /> : null}
         </label>
       </div>
-    <nav className="overflow-y-auto p-2 [scrollbar-width:thin]" aria-label="Conversations">
-      {enRecherche ? <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Collègues</p> : null}
+    <nav className="min-h-0 flex-1 overflow-y-auto p-2 [scrollbar-width:thin]" aria-label="Conversations">
+      {contenuAvant}
+      <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Collègues</p>
       {enRecherche && visibles.length === 0 ? <p className="px-3 pb-2 text-xs text-ink/45">Aucun collègue ne correspond.</p> : null}
       {visibles.map((contact) => {
         const actif = contact.id === actifId;
@@ -1241,7 +1263,7 @@ export function ReglagesAlertes() {
     <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
-        className="bouton-second"
+        className="bouton-second h-9 w-9 shrink-0 p-0"
         title={son ? "Couper le son des nouveaux messages" : "Activer le son des nouveaux messages"}
         onClick={() => {
           reglerSon(!son);
@@ -1250,18 +1272,20 @@ export function ReglagesAlertes() {
         }}
       >
         {son ? <Volume2 size={16} /> : <VolumeX size={16} />}
-        {son ? "Son activé" : "Son coupé"}
+        <span className="sr-only">{son ? "Son activé" : "Son coupé"}</span>
       </button>
       {permission === "default" ? (
         <button
           type="button"
-          className="bouton-second"
+          className="bouton-second h-9 w-9 shrink-0 p-0"
+          title="Alertes sur le bureau"
           onClick={async () => {
             const resultat = await Notification.requestPermission();
             setPermission(resultat);
           }}
         >
-          <BellRing size={16} /> Alertes sur le bureau
+          <BellRing size={16} />
+          <span className="sr-only">Alertes sur le bureau</span>
         </button>
       ) : null}
     </div>

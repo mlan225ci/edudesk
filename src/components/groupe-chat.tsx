@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Hash, Loader2, Mic, Paperclip, RotateCcw, Send, Square, Trash2, Upload, Users } from "lucide-react";
+import { ArrowLeft, Hash, Loader2, Mic, Paperclip, RotateCcw, Search, Send, Square, Trash2, Upload, Users } from "lucide-react";
 import { Formulaire } from "@/components/formulaire";
-import { EVENEMENT_FLUX, definirConversationOuverte, enLecture, type EvenementClient } from "@/components/centre-messages";
-import { AvatarPresence, ContenuFichier, ListeContacts, type Contact } from "@/components/messagerie";
+import { EVENEMENT_FLUX, definirConversationOuverte, enLecture, useIdsEnLigne, type EvenementClient } from "@/components/centre-messages";
+import { AvatarPresence, ContenuFichier, ReglagesAlertes, type Contact } from "@/components/messagerie";
 import { envoyerMessageGroupe, inviterDansGroupe } from "@/server/groupes-actions";
 import { decouperGroupe, jetonEnCours } from "@/lib/mentions-groupe";
 import { formatDate } from "@/lib/format";
@@ -93,11 +93,13 @@ export function ConversationGroupe({
   groupe,
   messages,
   collegues,
+  peutInviter = true,
 }: {
   moiId: string;
   groupe: { id: string; nom: string; general: boolean; client: { id: string; nom: string } | null; membres: Membre[] };
   messages: MessageGroupeVue[];
   collegues: Collegue[];
+  peutInviter?: boolean;
 }) {
   const [fil, setFil] = useState<Ligne[]>(messages);
   const [texte, setTexte] = useState("");
@@ -111,7 +113,8 @@ export function ConversationGroupe({
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const champ = useRef<HTMLTextAreaElement>(null);
   const selecteur = useRef<HTMLInputElement>(null);
-  const bas = useRef<HTMLDivElement>(null);
+  const zone = useRef<HTMLDivElement>(null);
+  const [inviter, setInviter] = useState(false);
   const envoisFichiers = useRef(new Map<string, EnvoiFichier>());
   const enregistrement = useRef<{ enregistreur: MediaRecorder; flux: MediaStream; debut: number; annule: boolean } | null>(null);
   const noms = groupe.membres.map((membre) => membre.nom);
@@ -123,7 +126,9 @@ export function ConversationGroupe({
     return () => definirConversationOuverte(null);
   }, [groupe.id]);
   useEffect(() => {
-    bas.current?.scrollIntoView({ block: "end" });
+    const element = zone.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
   }, [fil.length]);
 
   useEffect(() => {
@@ -322,7 +327,7 @@ export function ConversationGroupe({
 
   return (
     <article
-      className="carte relative flex min-h-[70vh] flex-col overflow-hidden p-0"
+      className="carte relative grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0"
       onDragOver={(event) => {
         if (![...event.dataTransfer.types].includes("Files")) return;
         event.preventDefault();
@@ -338,7 +343,11 @@ export function ConversationGroupe({
         envoyerFichiers(event.dataTransfer.files);
       }}
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-ink/[0.06] px-5 py-4">
+      <div className="min-w-0">
+      <header className="flex items-center gap-2 border-b border-ink/[0.06] px-3 py-2">
+        <Link href="/messages?liste=1" className="bouton-fantome h-9 w-9 shrink-0 justify-center p-0 md:hidden" aria-label="Retour aux discussions">
+          <ArrowLeft size={18} />
+        </Link>
         {groupe.general ? (
           <img src="/icon.png" alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
         ) : (
@@ -358,26 +367,32 @@ export function ConversationGroupe({
             ) : null}
           </p>
         </div>
+        {peutInviter && !groupe.general && absents.length > 0 ? (
+          <button type="button" className="bouton-second h-9 shrink-0 px-2.5" onClick={() => setInviter((ouvert) => !ouvert)} aria-expanded={inviter}>
+            <Users size={15} /> <span className="hidden sm:inline">Inviter</span>
+          </button>
+        ) : null}
       </header>
 
-      {!groupe.general && absents.length > 0 ? (
-        <details className="border-b border-ink/[0.06] px-5 py-3 text-sm">
-          <summary className="cursor-pointer font-semibold text-ink/70">Ajouter un collègue</summary>
-          <Formulaire action={inviterDansGroupe} submit="Ajouter" succes="Collègues ajoutés" className="mt-3 grid gap-3">
+      {inviter && !groupe.general ? (
+        <div className="shrink-0 border-b border-ink/[0.06] bg-paper/60 px-4 py-3">
+          <Formulaire action={inviterDansGroupe} submit="Ajouter" succes="Collègues ajoutés" className="grid gap-3">
             <input type="hidden" name="groupeId" value={groupe.id} />
-            <div className="grid max-h-36 gap-1 overflow-y-auto">
+            <div className="grid max-h-28 gap-1 overflow-y-auto">
               {absents.map((collegue) => (
-                <label key={collegue.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-paper">
+                <label key={collegue.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-white">
                   <input type="checkbox" name="membre" value={collegue.id} />
                   <span>{collegue.nom}</span>
                 </label>
               ))}
             </div>
           </Formulaire>
-        </details>
+        </div>
       ) : null}
+      </div>
 
-      <div className="flex h-[52vh] min-h-72 flex-col gap-2 overflow-y-auto px-5 py-4 [scrollbar-width:thin]">
+      <div ref={zone} className="min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+        <div className="flex min-h-full flex-col justify-end gap-2 px-4 py-4">
         {fil.length === 0 ? <p className="m-auto text-sm text-ink/45">Aucun message. Écrivez, joignez un fichier ou enregistrez une note vocale. @ mentionne un collègue, # un dossier.</p> : null}
         {fil.map((message) => {
           const moi = message.deId === moiId;
@@ -408,11 +423,11 @@ export function ConversationGroupe({
             </div>
           );
         })}
-        <div ref={bas} />
+        </div>
       </div>
 
       {enregistre != null ? (
-        <div className="flex items-center gap-3 border-t border-ink/[0.06] px-4 py-3">
+        <div className="flex shrink-0 items-center gap-3 border-t border-ink/[0.06] bg-white px-4 py-3">
           <button type="button" className="bouton-fantome text-cap" onClick={() => arreterEnregistrement(true)} aria-label="Annuler la note vocale">
             <Trash2 size={18} />
           </button>
@@ -426,7 +441,7 @@ export function ConversationGroupe({
           </button>
         </div>
       ) : (
-        <div className="relative border-t border-ink/[0.06]">
+        <div className="relative min-w-0 shrink-0 border-t border-ink/[0.06] bg-white">
           {jeton && (personnes.length > 0 || suggestionsDossiers.length > 0) ? (
             <ul className="carte absolute right-4 bottom-full left-4 z-20 mb-2 max-h-56 overflow-y-auto p-1.5 shadow-lg" role="listbox">
               {personnes.map((personne, index) => (
@@ -447,7 +462,8 @@ export function ConversationGroupe({
             </ul>
           ) : null}
           <form
-            className="flex items-end gap-2 px-4 py-3"
+            data-autoriser="oui"
+            className="flex min-w-0 items-end gap-2 px-3 py-3"
             onSubmit={(event) => {
               event.preventDefault();
               void envoyer();
@@ -469,11 +485,13 @@ export function ConversationGroupe({
             </button>
             <textarea
               ref={champ}
-              className="champ min-h-11 flex-1 resize-none"
-              rows={2}
+              className="champ max-h-28 min-h-11 min-w-0 flex-1 basis-0 resize-none"
+              rows={1}
               maxLength={4000}
               value={texte}
-              placeholder="@ un collègue, # un dossier, Entrée pour envoyer"
+              autoFocus
+              placeholder="Écrire un message…"
+              title="Entrée envoie. Maj+Entrée passe à la ligne. @ mentionne un collègue, # un dossier."
               aria-label="Message au groupe"
               onChange={(event) => {
                 setTexte(event.target.value);
@@ -508,7 +526,7 @@ export function ConversationGroupe({
             <button type="button" className="bouton-second h-11 w-11 shrink-0 justify-center p-0" onClick={() => void demarrerEnregistrement()} title="Enregistrer une note vocale" aria-label="Enregistrer une note vocale">
               <Mic size={18} />
             </button>
-            <button className="bouton h-11 shrink-0" type="submit" disabled={envoi}>
+            <button className="bouton h-11 shrink-0 px-3" type="submit" disabled={envoi || !texte.trim()} aria-label="Envoyer">
               {envoi ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               <span className="hidden sm:inline">Envoyer</span>
             </button>
@@ -549,39 +567,6 @@ function TexteGroupe({ texte, noms, membres, moi }: { texte: string; noms: strin
   });
 }
 
-type MemoireOuverte = { id: string; sorte: "avec" | "groupe"; ouvertLe: number };
-
-function cleOuvertes(moiId: string) {
-  return `edudesk-ouvertes-${moiId}`;
-}
-
-function lireOuvertes(moiId: string): MemoireOuverte[] {
-  try {
-    const brut = localStorage.getItem(cleOuvertes(moiId));
-    const donnees: unknown = brut ? JSON.parse(brut) : [];
-    if (!Array.isArray(donnees)) return [];
-    return donnees.filter((entree): entree is MemoireOuverte => {
-      if (!entree || typeof entree !== "object") return false;
-      const ligne = entree as MemoireOuverte;
-      return (ligne.sorte === "avec" || ligne.sorte === "groupe") && typeof ligne.id === "string" && typeof ligne.ouvertLe === "number";
-    });
-  } catch {
-    return [];
-  }
-}
-
-function ecrireOuvertes(moiId: string, entrees: MemoireOuverte[]) {
-  try {
-    localStorage.setItem(cleOuvertes(moiId), JSON.stringify(entrees.slice(0, 40)));
-  } catch {
-    /* le navigateur peut refuser le stockage */
-  }
-}
-
-function toucherOuverte(liste: MemoireOuverte[], id: string, sorte: MemoireOuverte["sorte"]): MemoireOuverte[] {
-  return [{ id, sorte, ouvertLe: Date.now() }, ...liste.filter((entree) => entree.id !== id || entree.sorte !== sorte)];
-}
-
 function LigneOuverte({
   href,
   actif,
@@ -599,7 +584,7 @@ function LigneOuverte({
 }) {
   const nombre = actif ? 0 : nonLus;
   return (
-    <Link href={href} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${actif ? "bg-desk/[0.08]" : "hover:bg-paper"}`}>
+    <Link href={href} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${actif ? "bg-desk/10 ring-1 ring-desk/30" : "hover:bg-paper"}`}>
       {visuel}
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
@@ -627,21 +612,10 @@ export function ColonneDiscussions({
 }) {
   const [groupesLive, setGroupesLive] = useState(groupes);
   const [contactsLive, setContactsLive] = useState(contacts);
-  const [memoires, setMemoires] = useState<MemoireOuverte[]>([]);
-  const groupesRef = useRef(groupes);
-  groupesRef.current = groupes;
+  const [filtre, setFiltre] = useState("");
 
   useEffect(() => setGroupesLive(groupes), [groupes]);
   useEffect(() => setContactsLive(contacts), [contacts]);
-
-  useEffect(() => {
-    let suivantes = lireOuvertes(moiId);
-    if (collegueActif) suivantes = toucherOuverte(suivantes, collegueActif, "avec");
-    const groupe = groupesRef.current.find((ligne) => ligne.id === groupeActif);
-    if (groupe && !groupe.general) suivantes = toucherOuverte(suivantes, groupe.id, "groupe");
-    ecrireOuvertes(moiId, suivantes);
-    setMemoires(suivantes);
-  }, [moiId, collegueActif, groupeActif]);
 
   useEffect(() => {
     const recevoir = (event: Event) => {
@@ -684,64 +658,82 @@ export function ColonneDiscussions({
     return () => window.removeEventListener(EVENEMENT_FLUX, recevoir);
   }, [moiId, groupeActif, collegueActif]);
 
-  const souvenir = (id: string, sorte: MemoireOuverte["sorte"]) => memoires.find((entree) => entree.id === id && entree.sorte === sorte);
-  const ouverteGroupe = (groupe: GroupeListe) => groupe.general || groupe.id === groupeActif || !!groupe.apercu || !!souvenir(groupe.id, "groupe");
-  const ouverteCollegue = (contact: Contact) => contact.id === collegueActif || !!contact.apercu || !!souvenir(contact.id, "avec");
-  const rang = (id: string, sorte: MemoireOuverte["sorte"], creeLe?: string | null) => souvenir(id, sorte)?.ouvertLe ?? (creeLe ? Date.parse(creeLe) : 0);
-
-  const ouvertes = [
-    ...groupesLive.filter(ouverteGroupe).map((groupe) => ({
-      cle: `groupe-${groupe.id}`,
-      rang: groupe.general ? Number.POSITIVE_INFINITY : rang(groupe.id, "groupe"),
-      ligne: (
-        <LigneOuverte
-          href={`/messages?groupe=${groupe.id}`}
-          actif={groupe.id === groupeActif}
-          nom={groupe.nom}
-          detail={groupe.apercu ?? (groupe.general ? "Tous les collaborateurs" : groupe.client)}
-          nonLus={groupe.nonLus}
-          visuel={
-            groupe.general ? (
-              <img src="/icon.png" alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-            ) : (
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-desk/10 text-desk">
-                <Users size={16} />
-              </span>
-            )
-          }
-        />
-      ),
-    })),
-    ...contactsLive.filter(ouverteCollegue).map((contact) => ({
-      cle: `avec-${contact.id}`,
-      rang: rang(contact.id, "avec", contact.apercu?.creeLe),
-      ligne: (
-        <LigneOuverte
-          href={`/messages?avec=${contact.id}`}
-          actif={contact.id === collegueActif}
-          nom={`${contact.prenom} ${contact.nom}`}
-          detail={contact.apercu ? `${contact.apercu.moi ? "Vous : " : ""}${contact.apercu.texte}` : contact.role}
-          nonLus={contact.nonLus}
-          visuel={<AvatarPresence userId={contact.id} prenom={contact.prenom} nom={contact.nom} />}
-        />
-      ),
-    })),
-  ].sort((a, b) => b.rang - a.rang);
+  const enLigne = useIdsEnLigne();
+  const recherche = filtre.trim().toLocaleLowerCase("fr");
+  const correspond = (contact: Contact) => !recherche || `${contact.prenom} ${contact.nom} ${contact.role} ${contact.apercu?.texte ?? ""}`.toLocaleLowerCase("fr").includes(recherche);
+  const connectes = contactsLive.filter((contact) => enLigne.has(contact.id) && correspond(contact)).sort((a, b) => a.prenom.localeCompare(b.prenom, "fr") || a.nom.localeCompare(b.nom, "fr"));
+  const horsLigne = contactsLive.filter((contact) => !enLigne.has(contact.id) && correspond(contact));
+  const groupesVisibles = groupesLive.filter((groupe) => {
+    if (!recherche) return true;
+    return `${groupe.nom} ${groupe.client ?? ""} ${groupe.apercu ?? ""}`.toLocaleLowerCase("fr").includes(recherche);
+  });
+  const ligneContact = (contact: Contact) => (
+    <LigneOuverte
+      key={contact.id}
+      href={`/messages?avec=${contact.id}`}
+      actif={contact.id === collegueActif}
+      nom={`${contact.prenom} ${contact.nom}`}
+      detail={contact.apercu ? `${contact.apercu.moi ? "Vous : " : ""}${contact.apercu.texte}` : contact.role}
+      nonLus={contact.nonLus}
+      visuel={<AvatarPresence userId={contact.id} prenom={contact.prenom} nom={contact.nom} />}
+    />
+  );
 
   return (
-    <div>
-      {ouvertes.length > 0 ? (
-        <div className="carte mb-3 p-2">
-          <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Ouvertes</p>
-          <nav aria-label="Conversations ouvertes" className="grid">
-            {ouvertes.map((entree) => (
-              <div key={entree.cle}>{entree.ligne}</div>
-            ))}
-          </nav>
-        </div>
-      ) : null}
-      <ListeGroupes groupes={groupesLive.filter((groupe) => !ouverteGroupe(groupe))} actifId={groupeActif} moiId={moiId} />
-      <ListeContacts moiId={moiId} actifId={collegueActif} initiaux={contactsLive.filter((contact) => !ouverteCollegue(contact))} />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex shrink-0 items-center gap-2">
+      <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-ink/10 bg-white px-3 py-2">
+        <Search size={15} className="shrink-0 text-ink/40" />
+        <input
+          type="search"
+          value={filtre}
+          maxLength={100}
+          onChange={(event) => setFiltre(event.target.value)}
+          placeholder="Rechercher un groupe ou un collègue"
+          aria-label="Rechercher un groupe ou un collègue"
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink/40"
+        />
+      </label>
+      <ReglagesAlertes />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-ink/[0.06] bg-card p-2 [scrollbar-width:thin]">
+        {connectes.length > 0 ? (
+          <>
+            <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-vert uppercase">En ligne · {connectes.length}</p>
+            <nav aria-label="Collègues en ligne" className="grid">
+              {connectes.map(ligneContact)}
+            </nav>
+          </>
+        ) : null}
+        <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Groupes</p>
+        <nav aria-label="Groupes" className="grid">
+          {groupesVisibles.map((groupe) => (
+            <LigneOuverte
+              key={groupe.id}
+              href={`/messages?groupe=${groupe.id}`}
+              actif={groupe.id === groupeActif}
+              nom={groupe.nom}
+              detail={groupe.apercu ?? (groupe.general ? "Tous les collaborateurs" : groupe.client)}
+              nonLus={groupe.nonLus}
+              visuel={
+                groupe.general ? (
+                  <img src="/icon.png" alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-desk/10 text-desk">
+                    <Users size={16} />
+                  </span>
+                )
+              }
+            />
+          ))}
+          {groupesVisibles.length === 0 ? <p className="px-3 pb-2 text-xs text-ink/45">Aucun groupe.</p> : null}
+        </nav>
+        <p className="mt-3 px-3 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-ink/45 uppercase">Collègues</p>
+        <nav aria-label="Collègues" className="grid">
+          {horsLigne.map(ligneContact)}
+        </nav>
+        {connectes.length + horsLigne.length === 0 ? <p className="px-3 pb-2 text-xs text-ink/45">Aucun collègue.</p> : null}
+      </div>
     </div>
   );
 }

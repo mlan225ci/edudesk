@@ -16,7 +16,8 @@ import { compteCharge, compteTresorerie, labelMode, labelTypePaiement, typePourA
 import { genererCodeSuivi, lienSuivi } from "../lib/suivi";
 import { aLeRole, chargeEtape, filtreParRoles, type SessionUser } from "./permissions";
 import { emailValide, expedierMail } from "./mail";
-import { lireEntreprise, urlPublique } from "./parametres";
+import { lireEntreprise, suiviClientActif, urlPublique } from "./parametres";
+import { regleActive } from "./regles";
 import { envoyerSms } from "./sms";
 
 type Tx = Prisma.TransactionClient;
@@ -78,7 +79,7 @@ async function mailModele(tx: Tx, code: string, variables: Record<string, string
   const vars: Record<string, string> = { entreprise: entreprise.nom, suivi: "", ...variables };
   if (dossierId && !variables.suivi) {
     const dossier = await tx.dossier.findUnique({ where: { id: dossierId }, select: { codeSuivi: true } });
-    if (dossier?.codeSuivi) {
+    if (dossier?.codeSuivi && (await suiviClientActif())) {
       vars.code ||= dossier.codeSuivi;
       vars.lien ||= await lienPublic(null);
       vars.suivi = `Suivez votre dossier à tout moment sur ${vars.lien} avec le code ${vars.code}.`;
@@ -122,6 +123,7 @@ async function planifier(
     titre?: string;
     lien?: string;
     mail?: MailPrevu;
+    sansSms?: boolean;
   },
 ) {
   if (input.mail?.a && emailValide(input.mail.a)) {
@@ -134,7 +136,7 @@ async function planifier(
       pieceJointe: input.mail.pieceJointe,
     });
   }
-  if (!input.telephone) return;
+  if ((input.sansSms && (await regleActive("evolutionEmail"))) || !input.telephone) return;
   const row = await tx.notificationSms.create({
     data: {
       telephone: input.telephone,
@@ -195,6 +197,9 @@ async function attribuerCodeSuivi(tx: Tx, dossierId: string) {
 }
 
 async function messageOuverture(tx: Tx, dossier: DossierPlein, code: string, base?: string | null) {
+  if (!(await suiviClientActif())) {
+    return `EDUDESK: ${dossier.client.prenom}, votre dossier ${dossier.reference} (${dossier.procedure.destination}) est ouvert. Votre agence vous tient informé.`.slice(0, 480);
+  }
   return texteModele(tx, "client_ouverture", {
     ...variablesDossier(dossier, "", ""),
     code,
@@ -203,15 +208,22 @@ async function messageOuverture(tx: Tx, dossier: DossierPlein, code: string, bas
 }
 
 async function lienPublic(base?: string | null) {
+  if (!(await suiviClientActif())) return "";
   return lienSuivi((await urlPublique()) ?? base);
 }
 
 async function mailOuverture(dossier: DossierPlein, code: string, base?: string | null): Promise<MailPrevu> {
-  const lien = await lienPublic(base);
+  const ouvert = await suiviClientActif();
+  const lien = ouvert ? await lienPublic(base) : "";
   return {
     a: dossier.client.email,
     code: "client_ouverture",
-    vars: { ...variablesDossier(dossier, "", ""), code, lien, suivi: "" },
+    vars: {
+      ...variablesDossier(dossier, "", ""),
+      code: ouvert ? code : "",
+      lien,
+      suivi: ouvert ? "" : "Votre agence vous tient informé de l'avancement.",
+    },
   };
 }
 
@@ -330,6 +342,8 @@ export async function creerDossier(input: {
         montantConvenu: procedure.tarifXof > 0 ? procedure.tarifXof : null,
       },
     });
+    const codePublic = await tx.parametre.findUnique({ where: { cle: "regle.codeSuiviPublic" }, select: { valeur: true } });
+    if (procedure.code === "FRANCE_PUBLIC" && codePublic?.valeur !== "0") await attribuerCodeSuivi(tx, dossier.id);
 
     for (const etape of procedure.etapes) {
       await tx.dossierEtape.create({
@@ -515,6 +529,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        sansSms: true,
         mail: { a: dossier.client.email, code: "client_etape", vars: { ...vars, etape: etape.titre } },
       });
       return { ok: true as const, dossierId: dossier.id };
@@ -555,6 +570,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        sansSms: true,
         mail: { a: dossier.client.email, code: "client_relance", vars },
       });
       await tx.audit.create({
@@ -619,6 +635,7 @@ export async function cloturerEtape(input: {
           type: "CLIENT",
           dossierId: dossier.id,
           texte: texteClient,
+          sansSms: true,
           mail: { a: frais.client.email, code: codeClient, vars: varsSuite },
         });
       }
@@ -647,6 +664,7 @@ export async function cloturerEtape(input: {
         type: "CLIENT",
         dossierId: dossier.id,
         texte: texteClient,
+        sansSms: true,
         mail: { a: dossier.client.email, code: "client_etape", vars: { ...vars, etape: "Départ et suivi" } },
       });
     }
@@ -663,6 +681,7 @@ export async function envoyerCodeSuivi(input: { dossierId: string; actor: Sessio
   const resultat = await prisma.$transaction(async (tx) => {
     const dossier = await tx.dossier.findUnique({ where: { id: input.dossierId }, include: dossierInclude });
     if (!dossier) return { ok: false as const, error: "Dossier introuvable." };
+    if (!(await suiviClientActif())) return { ok: false as const, error: "Le suivi par lien est désactivé." };
     const code = dossier.codeSuivi ?? (await attribuerCodeSuivi(tx, dossier.id));
     await planifier(tx, outbox, {
       telephone: dossier.client.telephone,
@@ -879,7 +898,7 @@ export async function envoyerPiecesManquantes(input: { dossierId: string; actor:
       dossierId: dossier.id,
       texte: await texteModele(tx, "client_pieces", {
         ...vars,
-        depot: code ? `Deposez-les sur ${lien} (code ${code}).` : "Merci de les apporter a l'agence.",
+        depot: code && lien ? `Deposez-les sur ${lien} (code ${code}).` : "Merci de les apporter a l'agence.",
       }),
       mail: {
         a: dossier.client.email,
@@ -933,7 +952,7 @@ export async function refuserDepotClient(input: { pieceId: string; actor: Sessio
         type: "CLIENT",
         dossierId: dossier.id,
         sujet: `Document à déposer à nouveau : ${piece.libelle}`,
-        corps: `Bonjour ${dossier.client.prenom},\n\nLe document « ${piece.libelle} » que vous avez déposé pour votre dossier ${dossier.reference} n'a pas pu être accepté (illisible, incomplet ou non conforme).\n\nMerci de le déposer à nouveau sur ${await lienPublic(null)} avec votre code de suivi, ou de l'apporter à l'agence.\n\nCordialement,\nL'équipe ${entreprise.nom}`,
+        corps: `Bonjour ${dossier.client.prenom},\n\nLe document « ${piece.libelle} » que vous avez déposé pour votre dossier ${dossier.reference} n'a pas pu être accepté (illisible, incomplet ou non conforme).\n\n${(await lienPublic(null)) ? `Merci de le déposer à nouveau sur ${await lienPublic(null)} avec votre code de suivi, ou de l'apporter à l'agence.` : "Merci de l'apporter à nouveau à l'agence."}\n\nCordialement,\nL'équipe ${entreprise.nom}`,
       });
     }
     return piece.fichierChemin;
@@ -1028,6 +1047,7 @@ export async function reorienterDossier(input: {
       type: "CLIENT",
       dossierId: cree.dossierId,
       texte,
+      sansSms: true,
       mail: { a: source.client.email, code: "client_reorientation", vars },
     });
   });

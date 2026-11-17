@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { normaliserCodeSuivi } from "@/lib/suivi";
 import { pdfFacture } from "@/server/pdf-commercial";
+import { suiviClientActif } from "@/server/parametres";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!(await suiviClientActif())) return new NextResponse("Le suivi en ligne est fermé.", { status: 403 });
   const code = normaliserCodeSuivi((await cookies()).get("edudesk_suivi")?.value ?? "");
   if (!code) return new NextResponse("Session expirée : saisissez à nouveau votre code de suivi.", { status: 401 });
   const { id } = await context.params;

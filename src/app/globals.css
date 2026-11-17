@@ -24,6 +24,9 @@
   --animate-coche: coche 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   --animate-trait: trait 0.35s ease-out both;
   --animate-chargement: chargement 1.2s ease-in-out infinite;
+  --animate-interdit-halo: interdit-halo 2.6s ease-in-out infinite;
+  --animate-interdit-cercle: interdit-cercle 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  --animate-interdit-barre: interdit-barre 0.42s cubic-bezier(0.34, 1.45, 0.64, 1) 0.62s both;
 
   @keyframes secousse {
     0%,
@@ -122,6 +125,33 @@
       transform: scaleX(1);
     }
   }
+  @keyframes interdit-halo {
+    0%,
+    100% {
+      transform: scale(0.9);
+      opacity: 0.45;
+    }
+    50% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+  }
+  @keyframes interdit-cercle {
+    from {
+      stroke-dashoffset: 176;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes interdit-barre {
+    from {
+      stroke-dashoffset: 46;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
   @keyframes monte {
     from {
       transform: scaleY(0);
@@ -129,6 +159,14 @@
     to {
       transform: scaleY(1);
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-interdit-halo,
+  .animate-interdit-cercle,
+  .animate-interdit-barre {
+    animation: none;
   }
 }
 

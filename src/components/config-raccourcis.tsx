@@ -11,7 +11,7 @@ import {
   type RaccourciId,
 } from "@/lib/raccourcis";
 import { groupesRaccourcis, useRaccourcis } from "@/components/raccourcis-bureau";
-import { Panneau } from "@/components/graphiques";
+import { Panneau } from "@/components/panneau";
 import { useToast } from "@/components/toasts";
 
 export function ConfigRaccourcis() {

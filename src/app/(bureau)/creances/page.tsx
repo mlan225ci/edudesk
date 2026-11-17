@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { redirect } from "next/navigation";
 import { AlertCircle, CheckCircle2, CircleDollarSign, HandCoins, Search, Wallet } from "lucide-react";
 import { nomComplet, xof } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
-import { Avatar, Badge, EnTete, Onglets, Progression, Vide } from "@/components/ui";
+import { Avatar, Badge, EnTete, Progression, Vide } from "@/components/ui";
+import { Onglets } from "@/components/onglets";
 import { modifierMontantConvenu } from "@/server/actions";
 import { aLeDroit } from "@/server/acces";
 import { peutEncaisser, peutModifierMontant } from "@/server/permissions";
@@ -17,6 +20,8 @@ export const metadata = { title: "Créances" };
 
 export default async function CreancesPage({ searchParams }: { searchParams: Promise<{ filtre?: string; q?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "creances"))) redirect("/tableau-de-bord");
   const { filtre = "impayes", q = "" } = await searchParams;
   const situation = await situationDossiers();
@@ -94,12 +99,12 @@ export default async function CreancesPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div>
                   <div className="mb-1 flex justify-between text-xs">
-                    <span className="text-ink/50">{xof(regle)} / {du ? xof(du) : "?"}</span>
+                    <span className="text-ink/50"><Montant valeur={regle} /> / {du ? franc(du) : "?"}</span>
                     <span className={`font-bold ${du === 0 ? "text-[#8a6500]" : solde > 0 ? "text-cap" : "text-vert"}`}>
-                      {du === 0 ? "À chiffrer" : solde > 0 ? `− ${xof(solde)}` : "Soldé"}
+                      {du === 0 ? "À chiffrer" : solde > 0 ? `− ${franc(solde)}` : "Soldé"}
                     </span>
                   </div>
-                  <Progression valeur={ratio} ton={solde === 0 && du > 0 ? "vert" : "desk"} />
+                  <Progression valeur={__masque ? 0 : ratio} ton={solde === 0 && du > 0 ? "vert" : "desk"} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   {modifiable ? (

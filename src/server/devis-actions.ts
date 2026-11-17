@@ -1,5 +1,7 @@
 "use server";
 
+import { estLectureSeule } from "@/server/permissions";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { xof } from "@/lib/format";
@@ -15,6 +17,7 @@ function entier(valeur: FormDataEntryValue | null) {
 
 export async function nouveauDevis(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "devis"))) return { error: "Vous ne pouvez pas établir de devis." };
   if (!(await lireModules()).devis) return { error: "Les devis sont désactivés." };
   const libelles = formData.getAll("libelle").map((valeur) => String(valeur).trim());
@@ -45,6 +48,7 @@ export async function nouveauDevis(_etat: EtatAction, formData: FormData): Promi
 
 export async function envoyerDevis(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "devis"))) return { error: "Action non autorisée." };
   if (!(await lireModules()).devis) return { error: "Les devis sont désactivés." };
   const resultat = await envoyerDevisClient({
@@ -58,6 +62,7 @@ export async function envoyerDevis(_etat: EtatAction, formData: FormData): Promi
 
 export async function deciderDevis(devisId: string, decision: "ACCEPTE" | "REFUSE") {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "devis")) || !(await lireModules()).devis) return;
   const devis = await prisma.devis.findUnique({ where: { id: devisId }, include: { dossier: true } });
   if (!devis || devis.statut !== "EMIS") return;
@@ -79,6 +84,7 @@ export async function deciderDevis(devisId: string, decision: "ACCEPTE" | "REFUS
 
 export async function supprimerDevis(devisId: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "devis")) || !(await lireModules()).devis) return;
   const devis = await prisma.devis.findUnique({ where: { id: devisId } });
   if (!devis || devis.statut !== "EMIS") return;

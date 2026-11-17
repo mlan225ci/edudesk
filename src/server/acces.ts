@@ -20,7 +20,7 @@ import {
 } from "@/server/permissions";
 
 export const ACCES = [
-  { id: "direction", groupe: "Pilotage", label: "Direction", icone: "direction", description: "Synthèse des retards, destinations et commissions.", prefixes: ["/direction"] },
+  { id: "direction", groupe: "Pilotage", label: "Pilotage", icone: "direction", description: "Commissions et relance des retards, sur le tableau de bord.", prefixes: ["/direction"] },
   { id: "historique", groupe: "Pilotage", label: "Historique", icone: "historique", description: "Journal des actions de l'application.", prefixes: ["/historique"] },
   { id: "rapports", groupe: "Pilotage", label: "Rapports", icone: "rapports", description: "Statistiques et exports.", prefixes: ["/rapports", "/api/rapport"] },
   { id: "prospects", groupe: "Commercial", label: "Prospects", icone: "prospects", description: "Contacts avant qu'ils deviennent clients.", prefixes: ["/prospects"] },
@@ -52,6 +52,9 @@ export function estAccesId(valeur: string): valeur is AccesId {
 }
 
 export function accesParDefaut(role: Role): AccesEffectif {
+  if (role === "ADMINISTRATEUR_SYSTEME") {
+    return Object.fromEntries(ACCES.map((acces) => [acces.id, true])) as AccesEffectif;
+  }
   const salarie = role !== "PARTENAIRE";
   return {
     direction: voitDirection(role),

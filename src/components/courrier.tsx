@@ -10,6 +10,59 @@ import { envoyerCourrier } from "@/server/communication-actions";
 type ModeleCourrier = { code: string; libelle: string; sujet: string; corps: string };
 type ContexteCourrier = { id: string; libelle: string; modeles: ModeleCourrier[] };
 
+export function FormulaireCourrier({
+  clientId,
+  contextes,
+}: {
+  clientId: string;
+  contextes: ContexteCourrier[];
+}) {
+  const [dossierId, setDossierId] = useState(contextes[0]?.id ?? "");
+  const [code, setCode] = useState("");
+  const contexte = contextes.find((item) => item.id === dossierId) ?? contextes[0];
+  const modele = contexte?.modeles.find((item) => item.code === code);
+  const cle = `${contexte?.id ?? ""}:${code}`;
+
+  return (
+    <Formulaire action={envoyerCourrier} submit="Envoyer l'e-mail" succes="E-mail envoyé" icone={<Mail size={15} />} className="grid gap-4">
+      <input type="hidden" name="clientId" value={clientId} />
+      <input type="hidden" name="dossierId" value={contexte?.id ?? ""} />
+      <input type="hidden" name="modele" value={code} />
+      {contextes.length > 1 ? (
+        <Champ label="Dossier" aide="Les mots du modèle (référence, destination, étape) sont repris de ce dossier.">
+          <select
+            className="champ"
+            value={dossierId}
+            onChange={(event) => {
+              const suivant = contextes.find((item) => item.id === event.target.value);
+              setDossierId(event.target.value);
+              if (code && !suivant?.modeles.some((item) => item.code === code)) setCode("");
+            }}
+          >
+            {contextes.map((item) => (
+              <option key={item.id || "aucun"} value={item.id}>{item.libelle}</option>
+            ))}
+          </select>
+        </Champ>
+      ) : null}
+      <Champ label="Modèle" aide="Le modèle remplit l'objet et le message. Vous pouvez tout modifier avant l'envoi.">
+        <select className="champ" value={code} onChange={(event) => setCode(event.target.value)}>
+          <option value="">Écrire sans modèle</option>
+          {contexte?.modeles.map((item) => (
+            <option key={item.code} value={item.code}>{item.libelle}</option>
+          ))}
+        </select>
+      </Champ>
+      <Champ label="Objet">
+        <input key={`${cle}:sujet`} className="champ" name="sujet" required maxLength={200} defaultValue={modele?.sujet ?? ""} placeholder="Objet de l'e-mail" />
+      </Champ>
+      <Champ label="Message">
+        <textarea key={`${cle}:corps`} className="champ min-h-64" name="corps" required maxLength={8000} rows={12} defaultValue={modele?.corps ?? ""} placeholder="Bonjour," />
+      </Champ>
+    </Formulaire>
+  );
+}
+
 export function EcrireCourrier({
   clientId,
   email,
@@ -23,12 +76,6 @@ export function EcrireCourrier({
   variante?: "principal" | "second";
   className?: string;
 }) {
-  const [dossierId, setDossierId] = useState(contextes[0]?.id ?? "");
-  const [code, setCode] = useState("");
-  const contexte = contextes.find((item) => item.id === dossierId) ?? contextes[0];
-  const modele = contexte?.modeles.find((item) => item.code === code);
-  const cle = `${contexte?.id ?? ""}:${code}`;
-
   return (
     <Tiroir
       label="Écrire un e-mail"
@@ -39,42 +86,7 @@ export function EcrireCourrier({
       largeur="lg"
       className={className}
     >
-      <Formulaire action={envoyerCourrier} submit="Envoyer l'e-mail" succes="E-mail envoyé" icone={<Mail size={15} />} className="grid gap-4">
-        <input type="hidden" name="clientId" value={clientId} />
-        <input type="hidden" name="dossierId" value={contexte?.id ?? ""} />
-        <input type="hidden" name="modele" value={code} />
-        {contextes.length > 1 ? (
-          <Champ label="Dossier" aide="Les mots du modèle (référence, destination, étape) sont repris de ce dossier.">
-            <select
-              className="champ"
-              value={dossierId}
-              onChange={(event) => {
-                const suivant = contextes.find((item) => item.id === event.target.value);
-                setDossierId(event.target.value);
-                if (code && !suivant?.modeles.some((item) => item.code === code)) setCode("");
-              }}
-            >
-              {contextes.map((item) => (
-                <option key={item.id || "aucun"} value={item.id}>{item.libelle}</option>
-              ))}
-            </select>
-          </Champ>
-        ) : null}
-        <Champ label="Modèle" aide="Le modèle remplit l'objet et le message. Vous pouvez tout modifier avant l'envoi.">
-          <select className="champ" value={code} onChange={(event) => setCode(event.target.value)}>
-            <option value="">Écrire sans modèle</option>
-            {contexte?.modeles.map((item) => (
-              <option key={item.code} value={item.code}>{item.libelle}</option>
-            ))}
-          </select>
-        </Champ>
-        <Champ label="Objet">
-          <input key={`${cle}:sujet`} className="champ" name="sujet" required maxLength={200} defaultValue={modele?.sujet ?? ""} placeholder="Objet de l'e-mail" />
-        </Champ>
-        <Champ label="Message">
-          <textarea key={`${cle}:corps`} className="champ min-h-64" name="corps" required maxLength={8000} rows={12} defaultValue={modele?.corps ?? ""} placeholder="Bonjour," />
-        </Champ>
-      </Formulaire>
+      <FormulaireCourrier clientId={clientId} contextes={contextes} />
     </Tiroir>
   );
 }

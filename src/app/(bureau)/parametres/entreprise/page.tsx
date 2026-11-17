@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { Building2, Globe } from "lucide-react";
 import { Formulaire } from "@/components/formulaire";
 import { Champ, EnTete, Info } from "@/components/ui";
-import { lireDocuments, lireEntreprise, urlPublique } from "@/server/parametres";
+import { SuiviClient } from "@/components/suivi-client";
+import { lireDocuments, lireEntreprise, suiviClientActif, urlPublique } from "@/server/parametres";
 import { modifierApplication, modifierEntreprise } from "@/server/parametres-actions";
 import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
@@ -13,7 +14,7 @@ export const metadata = { title: "Entreprise · Paramètres" };
 export default async function EntreprisePage() {
   const user = await requireUser();
   if (!peutParametrer(user)) redirect("/parametres");
-  const [entreprise, documents, url] = await Promise.all([lireEntreprise(), lireDocuments(), urlPublique()]);
+  const [entreprise, documents, url, suiviOuvert] = await Promise.all([lireEntreprise(), lireDocuments(), urlPublique(), suiviClientActif()]);
   const mentions = [entreprise.rccm && `N° RC ${entreprise.rccm}`, entreprise.ncc && `N° CC ${entreprise.ncc}`].filter(Boolean).join(" · ");
   const contact = [entreprise.adresse, entreprise.telephone, entreprise.email, entreprise.siteWeb].filter(Boolean).join(" · ");
 
@@ -80,6 +81,8 @@ export default async function EntreprisePage() {
               {mentions ? <p>{mentions}</p> : null}
             </div>
           </article>
+
+          <SuiviClient actif={suiviOuvert} />
 
           <Formulaire action={modifierApplication} submit="Enregistrer l'adresse" succes="Adresse enregistrée" reinitialiser={false} boutonClassName="bouton-second" className="carte grid gap-4">
             <h2 className="flex items-center gap-2 font-semibold"><Globe size={16} className="text-ink/40" /> Adresse publique</h2>

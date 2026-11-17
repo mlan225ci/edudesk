@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { xofCourt } from "@/lib/format";
 import { Compteur, type FormatCompteur } from "@/components/compteur";
+import { sessionMasqueChiffres } from "@/server/voile";
+
+export { Panneau } from "@/components/panneau";
+
+const ETOILES = "••••";
 
 type Ton = "desk" | "edu" | "cap" | "ink" | "mission" | "vert";
 
@@ -23,7 +28,7 @@ const FONDS: Record<Ton, string> = {
   vert: "bg-vert/10 text-vert",
 };
 
-export function Kpi({
+export async function Kpi({
   titre,
   valeur,
   format = "nombre",
@@ -44,8 +49,12 @@ export function Kpi({
   href?: string;
   icone?: LucideIcon;
 }) {
-  const positif = evolution != null && (inverse ? evolution < 0 : evolution > 0);
-  const negatif = evolution != null && (inverse ? evolution > 0 : evolution < 0);
+  const masquer = await sessionMasqueChiffres();
+  const valeurVue = masquer ? ETOILES : valeur;
+  const evolutionVue = masquer ? null : evolution;
+  const detailVue = masquer && detail && /\d/.test(detail) ? ETOILES : detail;
+  const positif = evolutionVue != null && (inverse ? evolutionVue < 0 : evolutionVue > 0);
+  const negatif = evolutionVue != null && (inverse ? evolutionVue > 0 : evolutionVue < 0);
   const contenu = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -57,18 +66,18 @@ export function Kpi({
         ) : null}
       </div>
       <p className="mt-1 text-[22px] leading-tight font-bold tracking-tight" style={{ color: ton === "ink" || ton === "edu" ? undefined : COULEURS[ton] }}>
-        {typeof valeur === "number" ? <Compteur valeur={valeur} format={format} /> : valeur}
+        {typeof valeurVue === "number" ? <Compteur valeur={valeurVue} format={format} /> : valeurVue}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink/50">
-        {evolution != null ? (
+        {evolutionVue != null ? (
           <span
             className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold ${positif ? "bg-vert/10 text-vert" : negatif ? "bg-cap/10 text-cap" : "bg-ink/5 text-ink/60"}`}
           >
-            {evolution > 0 ? <ArrowUpRight size={13} /> : evolution < 0 ? <ArrowDownRight size={13} /> : null}
-            {Math.abs(evolution)} %
+            {evolutionVue > 0 ? <ArrowUpRight size={13} /> : evolutionVue < 0 ? <ArrowDownRight size={13} /> : null}
+            {Math.abs(evolutionVue)} %
           </span>
         ) : null}
-        {detail ? <span>{detail}</span> : null}
+        {detailVue ? <span>{detailVue}</span> : null}
       </div>
     </>
   );
@@ -81,13 +90,15 @@ export function Kpi({
   );
 }
 
-export function BarresMensuelles({
+export async function BarresMensuelles({
   mois,
   series,
 }: {
   mois: { cle: string; label: string }[];
   series: { nom: string; ton: Ton; valeurs: Map<string, number> }[];
 }) {
+  const masquer = await sessionMasqueChiffres();
+  if (masquer) return <p className="grid h-48 place-items-center text-2xl tracking-[0.4em] text-ink/30">{ETOILES}</p>;
   const largeur = 720;
   const hauteur = 230;
   const marge = { haut: 12, bas: 28, gauche: 48, droite: 8 };
@@ -148,7 +159,7 @@ export function BarresMensuelles({
   );
 }
 
-export function BarresHorizontales({
+export async function BarresHorizontales({
   donnees,
   ton = "desk",
   format = "nombre",
@@ -159,8 +170,9 @@ export function BarresHorizontales({
   format?: "nombre" | "xof";
   vide?: string;
 }) {
+  const masquer = await sessionMasqueChiffres();
   const max = Math.max(1, ...donnees.map((ligne) => Math.abs(ligne.valeur)));
-  const afficher = (valeur: number) => (format === "xof" ? `${valeur.toLocaleString("fr-FR")} F CFA` : valeur.toLocaleString("fr-FR"));
+  const afficher = (valeur: number) => (masquer ? ETOILES : format === "xof" ? `${valeur.toLocaleString("fr-FR")} F CFA` : valeur.toLocaleString("fr-FR"));
   if (donnees.length === 0) return <p className="py-4 text-center text-sm text-ink/45">{vide}</p>;
   return (
     <ul className="grid gap-3">
@@ -175,7 +187,7 @@ export function BarresHorizontales({
               <div
                 className="h-full origin-left animate-pousse rounded-full"
                 style={{
-                  width: `${Math.max((Math.abs(ligne.valeur) / max) * 100, ligne.valeur !== 0 ? 2 : 0)}%`,
+                  width: masquer ? "0%" : `${Math.max((Math.abs(ligne.valeur) / max) * 100, ligne.valeur !== 0 ? 2 : 0)}%`,
                   background: ligne.valeur < 0 ? COULEURS.cap : COULEURS[ligne.ton ?? ton],
                   animationDelay: `${index * 50}ms`,
                 }}
@@ -199,7 +211,7 @@ export function BarresHorizontales({
   );
 }
 
-export function Anneau({
+export async function Anneau({
   segments,
   centre,
   sousTitre,
@@ -208,7 +220,8 @@ export function Anneau({
   centre: string;
   sousTitre?: string;
 }) {
-  const total = segments.reduce((somme, segment) => somme + segment.valeur, 0);
+  const masquer = await sessionMasqueChiffres();
+  const total = masquer ? 0 : segments.reduce((somme, segment) => somme + segment.valeur, 0);
   const rayon = 54;
   const circonference = 2 * Math.PI * rayon;
   let cumul = 0;
@@ -232,7 +245,7 @@ export function Anneau({
                     strokeDasharray={`${Math.max(longueur - 1.5, 0)} ${circonference - Math.max(longueur - 1.5, 0)}`}
                     strokeDashoffset={-cumul}
                   >
-                    <title>{`${segment.label} · ${segment.valeur}`}</title>
+                    <title>{masquer ? segment.label : `${segment.label} · ${segment.valeur}`}</title>
                   </circle>
                 );
                 cumul += longueur;
@@ -241,17 +254,17 @@ export function Anneau({
             : null}
         </g>
         <text x={70} y={sousTitre ? 72 : 78} textAnchor="middle" fontSize={26} fontWeight={700} fill="#14284b">
-          {centre}
+          {masquer ? ETOILES : centre}
         </text>
         {sousTitre ? (
           <text x={70} y={90} textAnchor="middle" fontSize={10} fill="#14284b" fillOpacity={0.5}>
-            {sousTitre}
+            {masquer && sousTitre && /\d/.test(sousTitre) ? ETOILES : sousTitre}
           </text>
         ) : null}
       </svg>
       <ul className="grid min-w-40 flex-1 gap-2 text-sm">
         {segments
-          .filter((segment) => segment.valeur > 0)
+          .filter((segment) => masquer || segment.valeur > 0)
           .map((segment) => (
             <li key={segment.label}>
               <Link href={segment.href ?? "#"} className="flex items-center justify-between gap-3 rounded-lg px-1 transition hover:bg-paper">
@@ -259,11 +272,11 @@ export function Anneau({
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: COULEURS[segment.ton] }} />
                   {segment.label}
                 </span>
-                <span className="font-semibold tabular-nums">{segment.valeur}</span>
+                <span className="font-semibold tabular-nums">{masquer ? ETOILES : segment.valeur}</span>
               </Link>
             </li>
           ))}
-        {total === 0 ? <li className="text-ink/45">Aucun dossier.</li> : null}
+        {!masquer && total === 0 ? <li className="text-ink/45">Aucun dossier.</li> : null}
       </ul>
     </div>
   );
@@ -279,40 +292,6 @@ export function Legende({ elements }: { elements: { nom: string; ton: Ton }[] })
         </span>
       ))}
     </div>
-  );
-}
-
-export function Panneau({
-  titre,
-  action,
-  children,
-  className = "",
-  icone: Icone,
-}: {
-  titre: string;
-  action?: { href: string; label: string } | React.ReactElement | null;
-  children: React.ReactNode;
-  className?: string;
-  icone?: LucideIcon;
-}) {
-  return (
-    <article className={`carte ${className}`}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 font-semibold">
-          {Icone ? <Icone size={18} className="text-ink/40" /> : null}
-          {titre}
-        </h2>
-        {action && "href" in action && "label" in action ? (
-          <Link href={action.href} className="group inline-flex items-center gap-0.5 text-xs font-semibold text-desk">
-            {action.label}
-            <ChevronRight size={14} className="transition group-hover:translate-x-0.5" />
-          </Link>
-        ) : (
-          action
-        )}
-      </div>
-      {children}
-    </article>
   );
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Montant } from "@/components/montant";
 import { notFound } from "next/navigation";
 import { Archive, ArchiveRestore, ArrowLeft, ArrowRight, FileStack, FolderOpen, FolderPlus, Globe2, Handshake, Mail, MessagesSquare, Pencil, Phone, ScrollText, ShieldCheck, UserRound } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -33,6 +34,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     include: {
       partenaire: true,
       responsable: { select: { id: true, prenom: true, nom: true } },
+      garants: { orderBy: { ordre: "asc" } },
+      accesExternes: { orderBy: { ordre: "asc" } },
       dossiers: {
         include: { procedure: true, paiements: { select: { montant: true } }, etapes: { select: { statut: true, titre: true }, orderBy: { rang: "asc" } } },
         orderBy: { ouvertLe: "desc" },
@@ -174,7 +177,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <Tiroir label="Modifier" variante="second" icone={<Pencil size={15} />} titre="Modifier le client">
                   <Formulaire action={modifierClient} submit="Enregistrer les modifications" succes="Fiche mise à jour" reinitialiser={false} className="grid gap-4">
                     <input type="hidden" name="clientId" value={client.id} />
-                    <ChampsClient client={client} partenaires={partenaires} />
+                    <ChampsClient client={client} partenaires={partenaires} garants={client.garants} acces={client.accesExternes} />
                   </Formulaire>
                 </Tiroir>
               ) : null}
@@ -204,16 +207,26 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <Handshake size={16} className="text-ink/35" />
             <span>{client.partenaire?.nom ?? <span className="text-ink/40">Sans partenaire</span>}</span>
           </div>
-          {client.garantNom ? (
-            <div className="flex items-center gap-2.5 sm:col-span-2">
+          {(client.garants.length ? client.garants : client.garantNom ? [{ id: "principal", nom: client.garantNom, telephone: client.garantTelephone }] : []).map((garant) => (
+            <div key={garant.id} className="flex items-center gap-2.5 sm:col-span-2">
               <ShieldCheck size={16} className="text-ink/35" />
-              <span>Garant : {client.garantNom} {client.garantTelephone ? `· ${client.garantTelephone}` : ""}</span>
+              <span>Garant : {garant.nom} {garant.telephone ? `· ${garant.telephone}` : ""}</span>
+            </div>
+          ))}
+          {client.accesCf ? (
+            <div className="flex items-center gap-2.5 sm:col-span-2">
+              <span>Accès CF : {client.accesCf}{client.motDePasseCf ? ` · ${client.motDePasseCf}` : ""}</span>
             </div>
           ) : null}
+          {client.accesExternes.map((acces) => (
+            <div key={acces.id} className="flex items-center gap-2.5 sm:col-span-2">
+              <span>{acces.libelle} : {acces.identifiant}{acces.secret ? ` · ${acces.secret}` : ""}</span>
+            </div>
+          ))}
           {finance ? (
             <div className="flex items-center gap-2.5 sm:col-span-2">
               <span className="text-ink/50">Total encaissé :</span>
-              <span className="font-bold text-vert">{xof(totalPaye)}</span>
+              <span className="font-bold text-vert"><Montant valeur={totalPaye} /></span>
             </div>
           ) : null}
         </dl>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
 import { redirect } from "next/navigation";
 import { ArrowRight, BadgeCheck, GraduationCap, HandCoins, Plus, Search, Send } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -22,6 +23,8 @@ export default async function EcolesPage({
   searchParams: Promise<{ q?: string; pays?: string; type?: string; nouveau?: string }>;
 }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (user.role === "PARTENAIRE") redirect("/dossiers");
   const { q, pays, type, nouveau } = await searchParams;
   const gestion = peutEcoles(user);
@@ -170,7 +173,7 @@ export default async function EcolesPage({
                   </div>
                 ) : null}
                 <p className="flex items-center justify-between text-xs text-ink/45">
-                  {ecole.fraisXof ? `Scolarité ${xof(ecole.fraisXof)} / an` : "Frais non renseignés"}
+                  {ecole.fraisXof ? `Scolarité ${franc(ecole.fraisXof)} / an` : "Frais non renseignés"}
                   <span className="flex items-center gap-1 font-semibold text-desk opacity-0 transition group-hover:opacity-100">Voir <ArrowRight size={14} /></span>
                 </p>
               </Link>

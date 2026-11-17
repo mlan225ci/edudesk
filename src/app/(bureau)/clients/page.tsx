@@ -5,6 +5,7 @@ import { formatJour, nomComplet } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { attribuerClient, creerClient } from "@/server/actions";
 import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient } from "@/server/permissions";
+import { suppressionAutorisee } from "@/server/regles";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { Formulaire } from "@/components/formulaire";
@@ -21,6 +22,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const creation = peutCreerClient(user);
   const attribution = peutAttribuerClient(user);
   const archivage = peutArchiverClient(user);
+  const suppression = await suppressionAutorisee(user);
   const archivesVisibles = archivage && archives === "1";
   const [clients, partenaires, procedures, responsables] = await Promise.all([
     prisma.client.findMany({
@@ -168,7 +170,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                     <td>{dernier ? <Badge ton={TON_STATUT[dernier.statut]} point>{STATUTS[dernier.statut]}</Badge> : <span className="text-ink/40">Aucun</span>}</td>
                     <td className="text-right font-semibold">{client._count.dossiers}</td>
                     <td className="relative z-20 !pr-3 text-right">
-                      {archivage ? <MenuClient clientId={client.id} nom={nomComplet(client)} archive={archivesVisibles} /> : null}
+                      {archivage ? <MenuClient clientId={client.id} nom={nomComplet(client)} archive={archivesVisibles} suppression={suppression} /> : null}
                     </td>
                   </tr>
                 );

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Montant } from "@/components/montant";
 import type { EtatMateriel } from "@prisma/client";
 import { Boxes, CircleDollarSign, MapPin, PackagePlus, Wrench } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -7,7 +8,8 @@ import { ETATS_MATERIEL, labelEtat } from "@/lib/labels";
 import { BoutonEnvoi, FormAction, Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
-import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
+import { Badge, Champ, EnTete, Vide } from "@/components/ui";
+import { Onglets } from "@/components/onglets";
 import { ajouterMateriel, modifierMateriel } from "@/server/actions";
 import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
@@ -104,7 +106,7 @@ export default async function InventairePage({ searchParams }: { searchParams: P
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink/55">
                 {materiel.localisation ? <span className="flex items-center gap-1"><MapPin size={12} /> {materiel.localisation}</span> : null}
-                {materiel.valeurXof ? <span>{xof(materiel.valeurXof)}</span> : null}
+                {materiel.valeurXof ? <span><Montant valeur={materiel.valeurXof} /></span> : null}
                 {materiel.acquisLe ? <span>acquis le {formatJour(materiel.acquisLe)}</span> : null}
               </div>
               <FormAction action={modifierMateriel} succes="Matériel mis à jour" className="grid grid-cols-[1fr_auto_auto] items-center gap-2 border-t border-ink/[0.06] pt-3">

@@ -98,7 +98,7 @@ export function Progression({ valeur, ton = "desk" }: { valeur: number; ton?: "d
   );
 }
 
-export function Onglets({ onglets, actif }: { onglets: { href: string; label: string; nombre?: number }[]; actif: string }) {
+export function Onglets({ onglets, actif }: { onglets: { href: string; label: string; nombre?: number | string }[]; actif: string }) {
   return (
     <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-ink/[0.04] p-1">
       {onglets.map((onglet) => {

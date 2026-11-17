@@ -4,9 +4,10 @@ import { prisma } from "@/lib/db";
 import { labelRole } from "@/lib/labels";
 import { apercuMessage } from "@/lib/messages";
 import { ColonneDiscussions, ConversationGroupe } from "@/components/groupe-chat";
-import { Conversation, ReglagesAlertes, type Contact } from "@/components/messagerie";
-import { EnTete, Vide } from "@/components/ui";
+import { Conversation, type Contact } from "@/components/messagerie";
+import { Vide } from "@/components/ui";
 import { listerGroupes, lireFilGroupe } from "@/server/groupes";
+import { estLectureSeule } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { nomComplet } from "@/lib/format";
 import { diffuser, INCLURE_FLUX, versFlux } from "@/server/temps-reel";
@@ -16,12 +17,12 @@ export const metadata = { title: "Messagerie" };
 const FIL_INITIAL = 300;
 const FIL_MAX = 2000;
 
-export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string; message?: string; q?: string; groupe?: string }> }) {
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ avec?: string; message?: string; q?: string; groupe?: string; liste?: string }> }) {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") redirect("/dossiers");
-  const { avec, message: cibleId, q, groupe: groupeId } = await searchParams;
+  const { avec, message: cibleId, q, groupe: groupeId, liste } = await searchParams;
   const groupes = await listerGroupes(user.id);
-  if (!groupeId && !avec) {
+  if (!groupeId && !avec && liste !== "1") {
     const general = groupes.find((groupe) => groupe.general);
     if (general) redirect(`/messages?groupe=${general.id}`);
   }
@@ -92,16 +93,11 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   });
   contacts.sort((a, b) => (b.apercu?.creeLe ?? "").localeCompare(a.apercu?.creeLe ?? "") || a.prenom.localeCompare(b.prenom));
 
-  return (
-    <section className="grid gap-6">
-      <EnTete
-        titre="Messagerie"
-        icone={MessagesSquare}
-        description="Messages entre collègues, groupe de toute l'équipe, et groupe d'échanges pour un client. Fichiers, images et notes vocales dans chaque conversation. @ mentionne une personne, # un dossier."
-        actions={<ReglagesAlertes />}
-      />
+  const conversationOuverte = Boolean(filGroupe || correspondant);
 
-      <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+  return (
+    <section className="grid h-full min-h-0 min-w-0 grid-cols-1 gap-3 overflow-hidden md:grid-cols-[17.5rem_minmax(0,1fr)]">
+      <div className={`${conversationOuverte ? "hidden md:block" : "block"} h-full min-h-0 overflow-hidden`}>
         <ColonneDiscussions
           groupes={groupes}
           contacts={contacts}
@@ -109,7 +105,9 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
           groupeActif={filGroupe?.id ?? null}
           collegueActif={filGroupe ? null : correspondant?.id ?? null}
         />
+      </div>
 
+      <div className={`${conversationOuverte ? "flex" : "hidden md:flex"} h-full min-h-0 min-w-0 flex-col`}>
         {filGroupe ? (
             <ConversationGroupe
               key={filGroupe.id}
@@ -117,6 +115,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
               groupe={filGroupe}
               messages={filGroupe.messages}
               collegues={collegues.map((collegue) => ({ id: collegue.id, nom: nomComplet(collegue) }))}
+              peutInviter={!estLectureSeule(user)}
             />
           ) : correspondant ? (
             <Conversation
@@ -134,7 +133,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
               rechercheInitiale={cible ? (q ?? "").slice(0, 100) : ""}
             />
           ) : (
-            <Vide icone={MessagesSquare} titre="Choisissez un collègue" texte="Sélectionnez une personne dans la liste pour ouvrir la conversation." />
+            <Vide icone={MessagesSquare} titre="Choisissez une discussion" texte="Ouvrez un groupe ou un collègue pour écrire." />
           )}
       </div>
     </section>

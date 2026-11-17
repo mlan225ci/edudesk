@@ -15,7 +15,7 @@ export const MODULES = [
   { id: "messagerie", groupe: "Ressources", label: "Messagerie interne", icone: "messages", description: "Messages entre collaborateurs.", prefixes: ["/messages", "/api/messages"] },
   { id: "conges", groupe: "Ressources", label: "Congés et absences", icone: "conges", description: "Demandes d'absence et leur validation.", prefixes: ["/conges"] },
   { id: "inventaire", groupe: "Ressources", label: "Inventaire", icone: "inventaire", description: "Stock et matériel.", prefixes: ["/inventaire"] },
-  { id: "direction", groupe: "Pilotage", label: "Direction", icone: "direction", description: "Vue de synthèse : retards, destinations et commissions.", prefixes: ["/direction"] },
+  { id: "direction", groupe: "Pilotage", label: "Pilotage", icone: "direction", description: "Commissions et relance des retards, affichées sur le tableau de bord.", prefixes: ["/direction"] },
   { id: "rapports", groupe: "Pilotage", label: "Rapports", icone: "rapports", description: "Statistiques et exports.", prefixes: ["/rapports", "/api/rapport"] },
   { id: "notifications", groupe: "Communication", label: "Notifications", icone: "sms", description: "Centre des notifications reçues par les collaborateurs.", prefixes: ["/notifications"] },
   { id: "sms", groupe: "Communication", label: "SMS", icone: "sms", description: "Réglage de l'opérateur et des modèles. Les SMS envoyés à l'avancement d'un dossier continuent.", prefixes: ["/parametres/sms"] },

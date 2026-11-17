@@ -57,12 +57,17 @@ class Gabarit {
     readonly reglages: ParametresDocuments,
     private type: string,
     private numero: string,
+    private masquerChiffres = false,
   ) {
     this.encre = hex(reglages.couleurPrincipale);
     this.accent = hex(reglages.couleurAccent);
   }
 
-  static async creer(type: string, numero: string, titre: string, sujet: string) {
+  francs(montant: number) {
+    return this.masquerChiffres ? "••••" : xof(montant);
+  }
+
+  static async creer(type: string, numero: string, titre: string, sujet: string, masquer = false) {
     const doc = await PDFDocument.create();
     const polices = {
       normal: await doc.embedFont(StandardFonts.Helvetica),
@@ -78,7 +83,7 @@ class Gabarit {
     doc.setCreator(texteSur(entreprise.nom));
     doc.setProducer(texteSur(entreprise.nom));
     doc.setLanguage("fr-FR");
-    return new Gabarit(doc, polices, logo, entreprise, reglages, type, numero);
+    return new Gabarit(doc, polices, logo, entreprise, reglages, type, numero, masquer);
   }
 
   largeur(texte: string, taille: number, police: Police = "normal") {
@@ -281,8 +286,8 @@ class Gabarit {
       morceaux.forEach((morceau, rang) => this.texte(morceau, xDesignation + 8, y - rang * 12.5, { taille: 9.5 }));
       mention.forEach((morceau, rang) => this.texte(morceau, xDesignation + 8, y - morceaux.length * 12.5 - rang * 11, { taille: 8, police: "gras" }));
       this.texte(String(ligne.quantite), finQuantite - 10, y, { taille: 9.5, align: "droite" });
-      this.texte(xof(ligne.prixUnitaire), finPrix - 10, y, { taille: 9.5, couleur: GRIS_FONCE, align: "droite" });
-      this.texte(xof(ligne.quantite * ligne.prixUnitaire), finMontant - 12, y, { taille: 9.5, police: "gras", align: "droite" });
+      this.texte(this.francs(ligne.prixUnitaire), finPrix - 10, y, { taille: 9.5, couleur: GRIS_FONCE, align: "droite" });
+      this.texte(this.francs(ligne.quantite * ligne.prixUnitaire), finMontant - 12, y, { taille: 9.5, police: "gras", align: "droite" });
       this.y -= hauteur;
       this.filet(MARGE, this.y, UTILE, TRAIT, 0.6);
     });
@@ -292,7 +297,7 @@ class Gabarit {
   totaux(options: { total: number; regle?: number; phrase: string; tampon?: { titre: string; detail: string } }) {
     const largeurDroite = 238;
     const xDroite = LARGEUR - MARGE - largeurDroite;
-    const lettres = this.couper(`${montantEnLettres(options.total)}.`, xDroite - MARGE - 28, 9.5, "italique");
+    const lettres = this.couper(this.masquerChiffres ? "••••" : `${montantEnLettres(options.total)}.`, xDroite - MARGE - 28, 9.5, "italique");
     const hauteurGauche = 28 + lettres.length * 13 + (options.tampon ? 78 : 0);
     const hauteurDroite = options.regle !== undefined ? 108 : 50;
     this.besoin(Math.max(hauteurGauche, hauteurDroite) + 12);
@@ -314,18 +319,18 @@ class Gabarit {
         y -= 27;
         this.filet(xDroite, y + 2, largeurDroite, TRAIT, 0.6);
       };
-      ligne("Total facturé", xof(options.total), TEXTE);
-      ligne("Déjà réglé", options.regle > 0 ? `- ${xof(options.regle)}` : xof(0), VERT);
+      ligne("Total facturé", this.francs(options.total), TEXTE);
+      ligne("Déjà réglé", options.regle > 0 ? `- ${this.francs(options.regle)}` : this.francs(0), VERT);
       y -= 8;
       const reste = Math.max(options.total - options.regle, 0);
       this.rectangle(xDroite, y, largeurDroite, 46, { fond: reste === 0 ? VERT : this.encre, rayon: 8 });
       this.texte(reste === 0 ? "FACTURE SOLDÉE" : "RESTE À PAYER", xDroite + 16, y - 27.5, { taille: 8.5, police: "gras", couleur: reste === 0 ? BLANC : this.accent });
-      this.texte(xof(reste), LARGEUR - MARGE - 16, y - 29, { taille: 15, police: "gras", couleur: BLANC, align: "droite" });
+      this.texte(this.francs(reste), LARGEUR - MARGE - 16, y - 29, { taille: 15, police: "gras", couleur: BLANC, align: "droite" });
       y -= 46;
     } else {
       this.rectangle(xDroite, y, largeurDroite, 50, { fond: this.encre, rayon: 8 });
       this.texte("TOTAL", xDroite + 16, y - 29.5, { taille: 9, police: "gras", couleur: this.accent });
-      this.texte(xof(options.total), LARGEUR - MARGE - 16, y - 31, { taille: 16, police: "gras", couleur: BLANC, align: "droite" });
+      this.texte(this.francs(options.total), LARGEUR - MARGE - 16, y - 31, { taille: 16, police: "gras", couleur: BLANC, align: "droite" });
       y -= 50;
     }
     this.texte("Montants exprimés en francs CFA (XOF)", LARGEUR - MARGE, y - 13, { taille: 7.3, couleur: GRIS, align: "droite" });
@@ -398,7 +403,7 @@ class Gabarit {
       this.texte(paiement.numero, colonnes[1], this.y, { taille: 8.8 });
       this.texte(this.tronquer(paiement.mode, 136, 8.8), colonnes[2], this.y, { taille: 8.8 });
       this.texte(this.tronquer(paiement.reference || "—", 90, 8.8), colonnes[3], this.y, { taille: 8.8, couleur: GRIS_FONCE });
-      this.texte(xof(paiement.montant), LARGEUR - MARGE, this.y, { taille: 8.8, police: "gras", couleur: VERT, align: "droite" });
+      this.texte(this.francs(paiement.montant), LARGEUR - MARGE, this.y, { taille: 8.8, police: "gras", couleur: VERT, align: "droite" });
       this.y -= 8;
       this.filet(MARGE, this.y, UTILE, TRAIT, 0.5);
       this.y -= 13;
@@ -519,8 +524,8 @@ function lignesClient(client: Destinataire) {
   return [client.telephone, client.email ?? "", `Destination : ${client.destination}`];
 }
 
-async function rendreDevis(devis: DonneesDevis): Promise<FichierPdf> {
-  const pdf = await Gabarit.creer("Devis", devis.numero, `Devis ${devis.numero} – ${devis.client.nom}`, devis.objet);
+async function rendreDevis(devis: DonneesDevis, masquer = false): Promise<FichierPdf> {
+  const pdf = await Gabarit.creer("Devis", devis.numero, `Devis ${devis.numero} – ${devis.client.nom}`, devis.objet, masquer);
   const reglages = pdf.reglages;
 
   pdf.premierePage(devis.etat);
@@ -548,11 +553,11 @@ async function rendreDevis(devis: DonneesDevis): Promise<FichierPdf> {
   return { nom: `Devis-${devis.numero}.pdf`, octets: await pdf.terminer(pdf.mentions(premiere)) };
 }
 
-async function rendreFacture(facture: DonneesFacture): Promise<FichierPdf> {
+async function rendreFacture(facture: DonneesFacture, masquer = false): Promise<FichierPdf> {
   const { paiements } = facture;
   const regle = paiements.reduce((somme, paiement) => somme + paiement.montant, 0);
   const etat = etatFacture({ montant: facture.montant, regle, annuleeLe: facture.annuleeLe, echeanceLe: facture.echeanceLe });
-  const pdf = await Gabarit.creer("Facture", facture.numero, `Facture ${facture.numero} – ${facture.client.nom}`, facture.libelle);
+  const pdf = await Gabarit.creer("Facture", facture.numero, `Facture ${facture.numero} – ${facture.client.nom}`, facture.libelle, masquer);
 
   const details: [string, string][] = [["Date d'émission", formatJour(facture.creeLe)]];
   if (facture.paiementNumero) details.push(["Paiement", facture.paiementNumero]);
@@ -586,7 +591,7 @@ async function rendreFacture(facture: DonneesFacture): Promise<FichierPdf> {
   return { nom: `Facture-${facture.numero}.pdf`, octets };
 }
 
-export async function pdfDevis(devisId: string): Promise<FichierPdf | null> {
+export async function pdfDevis(devisId: string, masquer = false): Promise<FichierPdf | null> {
   const devis = await prisma.devis.findUnique({
     where: { id: devisId },
     include: { dossier: { include: { client: true, procedure: true } }, facture: { select: { numero: true } } },
@@ -605,14 +610,14 @@ export async function pdfDevis(devisId: string): Promise<FichierPdf | null> {
     total: devis.total,
     conditions: devis.conditions,
     etat: etatDevis(devis),
-  });
+  }, masquer);
 }
 
 function lignesAvecMention(type: Parameters<typeof estNonRemboursable>[0], lignes: LigneDocument[]) {
   return lignes.map((ligne) => (estNonRemboursable(type, ligne.libelle) ? { ...ligne, mention: MENTION_NON_REMBOURSABLE } : ligne));
 }
 
-export async function pdfFacture(factureId: string): Promise<FichierPdf | null> {
+export async function pdfFacture(factureId: string, masquer = false): Promise<FichierPdf | null> {
   const facture = await prisma.facture.findUnique({
     where: { id: factureId },
     include: {
@@ -646,11 +651,11 @@ export async function pdfFacture(factureId: string): Promise<FichierPdf | null> 
       reference: paiement.referenceExterne,
       montant: paiement.montant,
     })),
-  });
+  }, masquer);
 }
 
 /** Devis ou facture fictifs, pour juger de la présentation depuis les paramètres. */
-export async function pdfExemple(type: "devis" | "facture"): Promise<FichierPdf> {
+export async function pdfExemple(type: "devis" | "facture", masquer = false): Promise<FichierPdf> {
   const reglages = await lireDocuments();
   const jour = 24 * 60 * 60 * 1000;
   const aujourdHui = new Date();
@@ -672,7 +677,7 @@ export async function pdfExemple(type: "devis" | "facture"): Promise<FichierPdf>
       total,
       conditions: reglages.conditionsDevis,
       etat: etatDevis({ statut: "EMIS", validiteLe }),
-    });
+    }, masquer);
   }
   return rendreFacture({
     ...commun,
@@ -686,7 +691,7 @@ export async function pdfExemple(type: "devis" | "facture"): Promise<FichierPdf>
     annuleeLe: null,
     motifAnnulation: null,
     paiements: [{ date: aujourdHui, numero: "PAY-EXEMPLE", mode: "Mobile money · Wave", reference: null, montant: 340000 }],
-  });
+  }, masquer);
 }
 
 export async function pieceJointe(reference: string | null | undefined): Promise<FichierPdf | null> {

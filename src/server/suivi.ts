@@ -7,6 +7,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { normaliserCodeSuivi } from "@/lib/suivi";
+import { suiviClientActif } from "@/server/parametres";
 
 export type EtatSuivi = { error: string; saisie?: string } | null;
 
@@ -21,6 +22,7 @@ async function adresse() {
 }
 
 export async function consulterSuivi(_etat: EtatSuivi, formData: FormData): Promise<EtatSuivi> {
+  if (!(await suiviClientActif())) return { error: "Le suivi en ligne est fermé. Contactez l'agence pour connaître l'avancement de votre dossier." };
   const ip = await adresse();
   const maintenant = Date.now();
   const compteur = echecs.get(ip);
@@ -53,6 +55,7 @@ export type EtatDepot = { error?: string; ok?: string } | null;
 const FORMATS_DEPOT = /\.(pdf|jpe?g|png|webp)$/i;
 
 export async function deposerPieceClient(_etat: EtatDepot, formData: FormData): Promise<EtatDepot> {
+  if (!(await suiviClientActif())) return { error: "Le dépôt en ligne est fermé. Apportez le document à l'agence." };
   const code = normaliserCodeSuivi((await cookies()).get(COOKIE)?.value ?? "");
   const dossier = code ? await prisma.dossier.findUnique({ where: { codeSuivi: code }, include: { client: true } }) : null;
   if (!dossier) return { error: "Session expirée : saisissez à nouveau votre code de suivi." };

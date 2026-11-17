@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Montant } from "@/components/montant";
 import { Check, FileDown, FilePlus2, FileSignature, Mail, Send, Trash2, X } from "lucide-react";
 import type { Devis } from "@prisma/client";
 import { etatDevis } from "@/lib/facturation";
@@ -71,7 +72,7 @@ export function PanneauDevis({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="mr-1 font-bold tabular-nums">{xof(item.total)}</span>
+                  <span className="mr-1 font-bold tabular-nums"><Montant valeur={item.total} /></span>
                   <a href={`/api/pdf/devis/${item.id}`} target="_blank" rel="noreferrer" className="bouton-fantome px-2 text-desk" title="Voir le PDF">
                     <FileDown size={15} />
                   </a>

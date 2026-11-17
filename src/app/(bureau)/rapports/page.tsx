@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { Download, FileBarChart, FileDown, FolderPlus, GraduationCap, Scale, Target, Timer, TrendingDown, TrendingUp } from "lucide-react";
 import { EnTete } from "@/components/ui";
 import { variation, xof } from "@/lib/format";
@@ -23,6 +25,8 @@ export const metadata = { title: "Rapports" };
 
 export default async function RapportsPage({ searchParams }: { searchParams: Promise<{ periode?: string; cle?: string; mois?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "rapports"))) redirect("/tableau-de-bord");
   const { periode: type, cle, mois } = await searchParams;
   const periode = lirePeriode(type, cle ?? mois);
@@ -107,8 +111,8 @@ export default async function RapportsPage({ searchParams }: { searchParams: Pro
               {finances.parType.map((ligne, index) => (
                 <tr key={ligne.label} className="border-t border-ink/5">
                   <td className="py-1.5 pl-3">{ligne.label}</td>
-                  <td className="text-right tabular-nums">{xof(ligne.montant)}</td>
-                  <td className="text-right tabular-nums text-ink/50">{xof(avant.finances.parType[index]?.montant ?? 0)}</td>
+                  <td className="text-right tabular-nums"><Montant valeur={ligne.montant} /></td>
+                  <td className="text-right tabular-nums text-ink/50"><Montant valeur={avant.finances.parType[index]?.montant ?? 0} /></td>
                 </tr>
               ))}
               <tr className="border-t border-ink/10 bg-edu/10 font-semibold">
@@ -120,15 +124,15 @@ export default async function RapportsPage({ searchParams }: { searchParams: Pro
                 finances.parCategorie.map((ligne) => (
                   <tr key={ligne.label} className="border-t border-ink/5">
                     <td className="py-1.5 pl-3">{ligne.label}</td>
-                    <td className="text-right tabular-nums">{xof(ligne.montant)}</td>
-                    <td className="text-right tabular-nums text-ink/50">{xof(avant.finances.parCategorie.find((item) => item.label === ligne.label)?.montant ?? 0)}</td>
+                    <td className="text-right tabular-nums"><Montant valeur={ligne.montant} /></td>
+                    <td className="text-right tabular-nums text-ink/50"><Montant valeur={avant.finances.parCategorie.find((item) => item.label === ligne.label)?.montant ?? 0} /></td>
                   </tr>
                 ))
               )}
               <tr className="border-t-2 border-ink/20 font-semibold">
                 <td className="py-2">Résultat</td>
-                <td className={`text-right tabular-nums ${finances.resultat >= 0 ? "text-emerald-700" : "text-cap"}`}>{xof(finances.resultat)}</td>
-                <td className="text-right tabular-nums text-ink/50">{xof(avant.finances.resultat)}</td>
+                <td className={`text-right tabular-nums ${finances.resultat >= 0 ? "text-emerald-700" : "text-cap"}`}>{franc(finances.resultat)}</td>
+                <td className="text-right tabular-nums text-ink/50"><Montant valeur={avant.finances.resultat} /></td>
               </tr>
             </tbody>
           </table>
@@ -184,7 +188,7 @@ export default async function RapportsPage({ searchParams }: { searchParams: Pro
               {finances.parMode.map((ligne) => (
                 <li key={ligne.label} className="flex justify-between border-t border-ink/5 pt-2 first:border-0 first:pt-0">
                   <span>{ligne.label}</span>
-                  <span className="font-semibold tabular-nums">{xof(ligne.montant)}</span>
+                  <span className="font-semibold tabular-nums"><Montant valeur={ligne.montant} /></span>
                 </li>
               ))}
             </ul>

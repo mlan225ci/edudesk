@@ -39,6 +39,20 @@ export function aLeRole(porteur: PorteurRoles, ...candidats: Role[]) {
   return candidats.some((role) => roles.includes(role));
 }
 
+/** Consultation de tout l'écran, sans enregistrement, modification ni suppression. Les montants lui sont masqués. */
+export function estLectureSeule(porteur: PorteurRoles) {
+  return aLeRole(porteur, "ADMINISTRATEUR_SYSTEME");
+}
+
+/** Un commercial, sans rôle de direction, ne contacte que les clients qui lui sont confiés. */
+export function limiteAuxClientsAttribues(porteur: PorteurRoles) {
+  return aLeRole(porteur, "COMMERCIAL") && !aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
+}
+
+export function masqueChiffres(porteur: PorteurRoles) {
+  return estLectureSeule(porteur);
+}
+
 export function unDesRoles(porteur: PorteurRoles, candidats: Iterable<Role>) {
   const cherche = new Set(candidats);
   return rolesEffectifs(porteur).some((role) => cherche.has(role));
@@ -54,7 +68,7 @@ export function voitDepenses(porteur: PorteurRoles) {
 }
 
 export function peutAnnulerDepense(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR", "COMPTABLE");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR", "COMPTABLE");
 }
 
 export function voitPartenaires(porteur: PorteurRoles) {
@@ -66,11 +80,11 @@ export function peutInventaire(porteur: PorteurRoles) {
 }
 
 export function peutModifierMontant(porteur: PorteurRoles) {
-  return unDesRoles(porteur, MONTANTS);
+  return !estLectureSeule(porteur) && unDesRoles(porteur, MONTANTS);
 }
 
 export function peutValiderConges(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR");
 }
 
 export function voitRapports(porteur: PorteurRoles) {
@@ -103,17 +117,25 @@ export function estProduction(porteur: PorteurRoles) {
 
 export function chargeEtape(porteur: PorteurRoles, roles: string) {
   const liste = roles.split(",").filter(Boolean) as Role[];
-  const effectifs = rolesEffectifs(porteur);
-  if (effectifs.some((role) => liste.includes(role))) return true;
-  return aLeRole(porteur, "INFORMATICIEN_FRANCE") && liste.includes("INFORMATICIEN_ECOLE");
+  return rolesEffectifs(porteur).some((role) => liste.includes(role));
 }
 
 export function peutEcoles(porteur: PorteurRoles) {
   return unDesRoles(porteur, PROCEDURES) || aLeRole(porteur, "INFORMATICIEN_ECOLE", "INFORMATICIEN_FRANCE");
 }
 
-export function peutCandidatures(porteur: PorteurRoles) {
-  return rolesEffectifs(porteur).some((role) => role !== "PARTENAIRE" && role !== "COMPTABLE" && role !== "MOYENS_GENERAUX");
+export function peutCandidatures(porteur: PorteurRoles, restreindreCommercial = true) {
+  if (estLectureSeule(porteur)) return false;
+  if (
+    restreindreCommercial &&
+    aLeRole(porteur, "COMMERCIAL") &&
+    !aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE", "INFORMATICIEN_ECOLE", "INFORMATICIEN_FRANCE", "ASSISTANTE_ADMINISTRATIVE")
+  ) {
+    return false;
+  }
+  return rolesEffectifs(porteur).some(
+    (role) => role !== "PARTENAIRE" && role !== "COMPTABLE" && role !== "MOYENS_GENERAUX" && (restreindreCommercial ? role !== "COMMERCIAL" : true),
+  );
 }
 
 export function voitDirection(porteur: PorteurRoles) {
@@ -125,31 +147,42 @@ export function peutHistorique(porteur: PorteurRoles) {
 }
 
 export function peutSigner(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR");
 }
 
 export function peutArchiverClient(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+}
+
+export function peutSupprimerClient(porteur: PorteurRoles) {
+  if (estLectureSeule(porteur)) return false;
+  if (aLeRole(porteur, "INFORMATICIEN_ECOLE", "INFORMATICIEN_FRANCE", "ASSISTANTE_ADMINISTRATIVE", "CEO")) return false;
+  return aLeRole(porteur, "ADMINISTRATEUR");
 }
 
 export function peutAttribuerClient(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
 }
 
 export function peutEncaisser(porteur: PorteurRoles) {
-  return unDesRoles(porteur, ENCAISSER);
+  return !estLectureSeule(porteur) && unDesRoles(porteur, ENCAISSER);
 }
 
 export function peutReaffecter(porteur: PorteurRoles) {
-  return unDesRoles(porteur, REAFFECTER);
+  return !estLectureSeule(porteur) && unDesRoles(porteur, REAFFECTER);
 }
 
 export function peutGererEquipe(porteur: PorteurRoles) {
-  return unDesRoles(porteur, EQUIPE);
+  if (aLeRole(porteur, "ADMINISTRATEUR_SYSTEME")) return true;
+  return !estLectureSeule(porteur) && unDesRoles(porteur, EQUIPE);
 }
 
 export function peutParametrer(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+  return aLeRole(porteur, "CEO", "ADMINISTRATEUR", "ADMINISTRATEUR_SYSTEME");
+}
+
+export function peutRegles(porteur: PorteurRoles) {
+  return aLeRole(porteur, "CEO", "ADMINISTRATEUR_SYSTEME");
 }
 
 export function peutDevis(porteur: PorteurRoles) {
@@ -161,7 +194,7 @@ export function peutFacturer(porteur: PorteurRoles) {
 }
 
 export function peutAnnulerFacture(porteur: PorteurRoles) {
-  return aLeRole(porteur, "CEO", "ADMINISTRATEUR", "COMPTABLE");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR", "COMPTABLE");
 }
 
 export function voitTraductions(porteur: PorteurRoles) {
@@ -169,7 +202,7 @@ export function voitTraductions(porteur: PorteurRoles) {
 }
 
 export function peutTraduire(porteur: PorteurRoles) {
-  return aLeRole(porteur, "TRADUCTEUR", "CEO", "ADMINISTRATEUR");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "TRADUCTEUR", "CEO", "ADMINISTRATEUR");
 }
 
 function filtrerLiens(liens: Lien[], modules?: ModulesActifs) {
@@ -195,13 +228,13 @@ export function ongletsParametres(porteur: PorteurRoles, modules?: ModulesActifs
 }
 
 export function peutCloturer(user: SessionUser, etape: { responsableId: string | null; roles: string }) {
+  if (estLectureSeule(user)) return false;
   if (aLeRole(user, "CEO", "ADMINISTRATEUR")) return true;
   if (etape.responsableId === user.id) return true;
   return chargeEtape(user, etape.roles);
 }
 
 export function peutPiece(user: SessionUser, etape: { responsableId: string | null; roles: string }) {
-  if (aLeRole(user, "ASSISTANTE_ADMINISTRATIVE")) return true;
   return peutCloturer(user, etape);
 }
 
@@ -209,10 +242,11 @@ export type Lien = { href: string; label: string; icone: string };
 export type SectionNavigation = { titre: string; liens: Lien[] };
 
 export function peutCreerClient(porteur: PorteurRoles) {
-  return unDesRoles(porteur, PROSPECTS) || aLeRole(porteur, "ASSISTANTE_ADMINISTRATIVE");
+  return !estLectureSeule(porteur) && (unDesRoles(porteur, PROSPECTS) || aLeRole(porteur, "ASSISTANTE_ADMINISTRATIVE"));
 }
 
 export function actionsRapides(porteur: PorteurRoles, modules?: ModulesActifs, droits?: AccesEffectif): Lien[] {
+  if (estLectureSeule(porteur)) return [];
   if (typeof porteur !== "string" && porteur.role === "PARTENAIRE" && !(porteur.autresRoles?.length)) return [];
   if (typeof porteur === "string" && porteur === "PARTENAIRE") return [];
   const oui = (id: keyof AccesEffectif, sinon: boolean) => (droits ? droits[id] : sinon);
@@ -238,7 +272,6 @@ export function navigation(porteur: PorteurRoles, modules?: ModulesActifs, droit
   }
 
   const pilotage: Lien[] = [{ href: "/tableau-de-bord", label: "Tableau de bord", icone: "tableau" }];
-  if (oui("direction", voitDirection(porteur))) pilotage.push({ href: "/direction", label: "Direction", icone: "direction" });
   if (oui("historique", peutHistorique(porteur))) pilotage.push({ href: "/historique", label: "Historique", icone: "historique" });
   if (oui("rapports", voitRapports(porteur))) pilotage.push({ href: "/rapports", label: "Rapports", icone: "rapports" });
 

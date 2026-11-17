@@ -21,16 +21,7 @@ const CHAPITRES = [
     pageLabel: "Ouvrir le tableau de bord",
     image: "/aide/tableau.png",
     alt: "Tableau de bord avec les indicateurs du jour",
-    texte: "La page d'accueil résume la journée : missions, prospects à rappeler, paiements à rapprocher, encaissements, dépenses, trésorerie, dossiers ouverts et étapes en retard. Ctrl + K ouvre la recherche. La navigation utilise Ctrl + Alt (ex. Ctrl + Alt + D pour les dossiers) pour ne pas croiser le navigateur. Tout se configure dans Mon profil.",
-  },
-  {
-    id: "direction",
-    titre: "Direction",
-    page: "/direction",
-    pageLabel: "Ouvrir la direction",
-    image: "/aide/direction.png",
-    alt: "Vue direction : acquisition, retards et entonnoir",
-    texte: "La direction voit les dossiers actifs, les étapes en retard, l'encaissement du jour et les commissions partenaires. Le bloc Acquisition indique, source par source, combien de prospects sont devenus clients. Le bouton de relance envoie un SMS pour les retards.",
+    texte: "La page d'accueil s'adapte au compte. Chacun voit ses missions et les retards. La finance voit les encaissements, les dépenses et la trésorerie. La direction voit en plus la charge de l'équipe, les commissions partenaires et peut relancer les retards par SMS. Le directeur et l'administrateur système y règlent les règles de gestion. Ctrl + K ouvre la recherche. La navigation utilise Ctrl + Alt (ex. Ctrl + Alt + D pour les dossiers) pour ne pas croiser le navigateur. Tout se configure dans Mon profil.",
   },
   {
     id: "prospects",

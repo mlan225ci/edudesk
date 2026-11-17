@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { BookOpenCheck, CheckCircle2, Download, Landmark, Scale, Smartphone, TriangleAlert, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { cleMois, debutJourAbidjan, debutMois, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
 import { COMPTES, labelMode } from "@/lib/labels";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
-import { Badge, EnTete, Onglets, Vide } from "@/components/ui";
+import { Badge, EnTete, Vide } from "@/components/ui";
+import { Onglets } from "@/components/onglets";
 import { rapprocher } from "@/server/actions";
 import { aLeDroit } from "@/server/acces";
 import { requireUser } from "@/server/session";
@@ -17,6 +20,8 @@ const JOURNAUX: Record<string, string> = { VTE: "Ventes", CAI: "Caisse", ACH: "A
 
 export default async function ComptabilitePage({ searchParams }: { searchParams: Promise<{ periode?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "comptabilite"))) redirect("/missions");
   const { periode = "jour" } = await searchParams;
   const depuis = periode === "mois" ? debutMois(0) : debutJourAbidjan();
@@ -60,7 +65,7 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
         {equilibre ? <CheckCircle2 className="text-vert" size={20} /> : <TriangleAlert className="text-cap" size={20} />}
         <p>
           <span className="font-semibold">{equilibre ? "Contrôle équilibré" : "Écart détecté"}</span>
-          <span className="text-ink/60"> · règlements encaissés {xof(totalReglements)} · produits (706) {xof(produit)} · débit {xof(totalDebit)} / crédit {xof(totalCredit)}</span>
+          <span className="text-ink/60"> · règlements encaissés <Montant valeur={totalReglements} /> · produits (706) <Montant valeur={produit} /> · débit <Montant valeur={totalDebit} /> / crédit <Montant valeur={totalCredit} /></span>
         </p>
       </div>
 
@@ -95,8 +100,8 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
                       <td><Badge ton={ecriture.journal === "ACH" ? "mission" : ecriture.journal === "AN" ? "gris" : "desk"}>{JOURNAUX[ecriture.journal] ?? ecriture.journal}</Badge></td>
                       <td className="font-mono text-xs" title={COMPTES[ecriture.compte]}>{ecriture.compte}</td>
                       <td className="max-w-72 truncate">{ecriture.libelle}</td>
-                      <td className="text-right tabular-nums">{ecriture.debit ? xof(ecriture.debit) : ""}</td>
-                      <td className="!pr-5 text-right tabular-nums">{ecriture.credit ? xof(ecriture.credit) : ""}</td>
+                      <td className="text-right tabular-nums">{ecriture.debit ? franc(ecriture.debit) : ""}</td>
+                      <td className="!pr-5 text-right tabular-nums">{ecriture.credit ? franc(ecriture.credit) : ""}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -113,7 +118,7 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
               <FormAction key={paiement.id} action={rapprocher} succes="Paiement rapproché" className="flex items-center justify-between gap-3 rounded-xl border border-ink/[0.06] px-3 py-2.5 text-sm">
                 <input type="hidden" name="paiementId" value={paiement.id} />
                 <div className="min-w-0">
-                  <p className="font-semibold tabular-nums">{xof(paiement.montant)} <span className="font-normal text-ink/50">· {labelMode(paiement.mode)}</span></p>
+                  <p className="font-semibold tabular-nums"><Montant valeur={paiement.montant} /> <span className="font-normal text-ink/50">· {labelMode(paiement.mode)}</span></p>
                   <p className="truncate text-xs text-ink/50">{nomComplet(paiement.client)} · {formatDate(paiement.dateEncaissement)}</p>
                 </div>
                 <BoutonEnvoi className="bouton-second shrink-0 px-3 py-1.5 text-xs" titre="Marquer rapproché">

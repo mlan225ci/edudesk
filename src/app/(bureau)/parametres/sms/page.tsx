@@ -7,7 +7,7 @@ import { Badge, Champ, EnTete, Info } from "@/components/ui";
 import { modifierModele } from "@/server/actions";
 import { configSms } from "@/server/parametres";
 import { envoyerSmsTest, modifierOperateurSms } from "@/server/parametres-actions";
-import { peutParametrer, voitDirection } from "@/server/permissions";
+import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "SMS · Paramètres" };
@@ -16,7 +16,7 @@ const VARIABLES = ["prenom", "client", "reference", "destination", "etape", "del
 
 export default async function ParametresSmsPage() {
   const user = await requireUser();
-  if (!voitDirection(user)) redirect("/parametres");
+  if (!peutParametrer(user)) redirect("/parametres");
   const gestion = peutParametrer(user);
   const [config, modeles] = await Promise.all([configSms(), prisma.modeleSms.findMany({ orderBy: { libelle: "asc" } })]);
   const etat =

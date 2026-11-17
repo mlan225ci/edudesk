@@ -19,7 +19,8 @@ import {
   peutGererEquipe,
   peutInventaire,
   chargeEtape,
-  estProduction,
+  peutCloturer,
+  peutPiece,
   peutModifierMontant,
   peutParametrer,
   peutReaffecter,
@@ -31,11 +32,11 @@ import {
   voitDepenses,
   voitDirection,
   voitPartenaires,
-  type SessionUser,
-} from "@/server/permissions";
+  type SessionUser, estLectureSeule } from "@/server/permissions";
 import { aLeDroit } from "@/server/acces";
 import { demarrerVerification, exigeDoubleAuth, renvoyerCodeConnexion, verifierCodeConnexion } from "@/server/deux-facteurs";
 import { emailValide } from "@/server/mail";
+import { regleActive, suppressionAutorisee } from "@/server/regles";
 import { fermerAttenteCode, fermerSession, lireAttenteCode, ouvrirSession, requireUser } from "@/server/session";
 import {
   cloturerEtape,
@@ -141,6 +142,7 @@ export async function logout() {
 
 export async function creerProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "prospects"))) return { error: "Vous ne pouvez pas saisir de prospect." };
   const prenom = String(formData.get("prenom") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
@@ -192,6 +194,7 @@ const ETAPES_DEPLACABLES = ["CONTACT", "RENDEZ_VOUS", "PROPOSITION", "CONTRAT", 
 
 export async function deplacerProspect(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "prospects"))) return;
   const id = String(formData.get("prospectId") ?? "");
   const etape = String(formData.get("etape") ?? "") as EtapePipeline;
@@ -251,6 +254,7 @@ export async function recevoirProspectPublic(_etat: EtatAction, formData: FormDa
 
 export async function signerContrat(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutSigner(user)) return;
   const dossierId = String(formData.get("dossierId") ?? "");
   const dossier = await prisma.dossier.findUnique({ where: { id: dossierId }, select: { id: true, reference: true, contratSigneLe: true } });
@@ -264,6 +268,7 @@ export async function signerContrat(formData: FormData) {
 
 export async function signalerManquante(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE" || user.role === "COMPTABLE" || user.role === "MOYENS_GENERAUX") return;
   const piece = await prisma.pieceDossier.findUnique({ where: { id: String(formData.get("pieceId") ?? "") } });
   if (!piece || piece.recue) return;
@@ -278,6 +283,7 @@ export async function signalerManquante(formData: FormData) {
 
 export async function creerClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutCreerClient(user)) return { error: "Vous ne pouvez pas créer de client." };
   const prenom = String(formData.get("prenom") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
@@ -286,6 +292,7 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
   const procedureId = String(formData.get("procedureId") ?? "");
   if (!prenom || !nom) return { error: "Le nom et le prénom sont obligatoires." };
   if (!telephoneValide(telephone)) return { error: "Le téléphone doit être au format international, par exemple +2250700000000." };
+  if ((await regleActive("emailClient")) && !emailValide(email)) return { error: "L'e-mail du client est obligatoire : le suivi de procédure part par e-mail." };
   const existant = await prisma.client.findFirst({ where: { telephone } });
   if (existant) {
     return {
@@ -307,8 +314,10 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
       responsableId: aLeRole(user, "COMMERCIAL") ? user.id : null,
       garantNom: String(formData.get("garantNom") ?? "").trim() || null,
       garantTelephone: normaliserTelephone(String(formData.get("garantTelephone") ?? "")) || null,
+      ...champsAcces(formData),
     },
   });
+  await enregistrerAnnexesClient(client.id, formData);
   await prisma.audit.create({ data: { userId: user.id, action: "CLIENT", entite: "Client", entiteId: client.id, detail: telephone } });
   if (!procedureId) redirect(`/clients/${client.id}`);
   const cree = await creerDossier({ clientId: client.id, procedureId, actor: user });
@@ -318,6 +327,7 @@ export async function creerClient(_etat: EtatAction, formData: FormData): Promis
 
 export async function modifierClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return { error: "Action réservée aux collaborateurs." };
   const id = String(formData.get("clientId") ?? "");
   const prenom = String(formData.get("prenom") ?? "").trim();
@@ -326,6 +336,7 @@ export async function modifierClient(_etat: EtatAction, formData: FormData): Pro
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!prenom || !nom) return { error: "Le nom et le prénom sont obligatoires." };
   if (!telephoneValide(telephone)) return { error: "Téléphone international invalide." };
+  if ((await regleActive("emailClient")) && !emailValide(email)) return { error: "L'e-mail du client est obligatoire : le suivi de procédure part par e-mail." };
   const doublon = await prisma.client.findFirst({ where: { telephone, NOT: { id } } });
   if (doublon) return { error: "Ce téléphone appartient déjà à un autre client." };
   await prisma.client.update({
@@ -339,14 +350,17 @@ export async function modifierClient(_etat: EtatAction, formData: FormData): Pro
       partenaireId: String(formData.get("partenaireId") ?? "") || null,
       garantNom: String(formData.get("garantNom") ?? "").trim() || null,
       garantTelephone: normaliserTelephone(String(formData.get("garantTelephone") ?? "")) || null,
+      ...champsAcces(formData),
     },
   });
+  await enregistrerAnnexesClient(id, formData);
   rafraichir();
   return null;
 }
 
 export async function attribuerClient(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   if (!peutAttribuerClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const responsableId = String(formData.get("responsableId") ?? "") || null;
@@ -370,6 +384,7 @@ export async function attribuerClient(formData: FormData) {
 
 export async function archiverClient(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   if (!peutArchiverClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
@@ -382,9 +397,47 @@ export async function archiverClient(formData: FormData) {
   redirect("/clients");
 }
 
+function lireGarants(formData: FormData) {
+  return [1, 2, 3]
+    .map((index) => ({
+      ordre: index,
+      nom: String(formData.get(index === 1 ? "garantNom" : `garantNom${index}`) ?? "").trim(),
+      telephone: normaliserTelephone(String(formData.get(index === 1 ? "garantTelephone" : `garantTelephone${index}`) ?? "")) || null,
+    }))
+    .filter((garant) => garant.nom);
+}
+
+function lireAccesExternes(formData: FormData) {
+  return [1, 2, 3]
+    .map((index) => ({
+      ordre: index,
+      libelle: String(formData.get(`accesLibelle${index}`) ?? "").trim(),
+      identifiant: String(formData.get(`accesIdentifiant${index}`) ?? "").trim(),
+      secret: String(formData.get(`accesSecret${index}`) ?? "").trim(),
+    }))
+    .filter((acces) => acces.libelle && acces.identifiant);
+}
+
+function champsAcces(formData: FormData) {
+  return {
+    accesCf: String(formData.get("accesCf") ?? "").trim() || null,
+    motDePasseCf: String(formData.get("motDePasseCf") ?? "").trim() || null,
+  };
+}
+
+async function enregistrerAnnexesClient(clientId: string, formData: FormData) {
+  const garants = lireGarants(formData);
+  const acces = lireAccesExternes(formData);
+  await prisma.garant.deleteMany({ where: { clientId } });
+  await prisma.accesExterne.deleteMany({ where: { clientId } });
+  if (garants.length) await prisma.garant.createMany({ data: garants.map((garant) => ({ clientId, ...garant })) });
+  if (acces.length) await prisma.accesExterne.createMany({ data: acces.map((ligne) => ({ clientId, ...ligne })) });
+}
+
 export async function supprimerClient(formData: FormData) {
   const user = await requireUser();
-  if (!peutArchiverClient(user)) return;
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
+  if (!(await suppressionAutorisee(user))) throw new Error("La suppression d'un client et de ses dossiers est réservée à l'administrateur. L'école, l'assistante et la direction ne peuvent pas supprimer.");
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({
     where: { id },
@@ -424,6 +477,7 @@ export async function supprimerClient(formData: FormData) {
 
 export async function restaurerClient(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   if (!peutArchiverClient(user)) return;
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({ where: { id }, select: { id: true, prenom: true, nom: true, archiveLe: true } });
@@ -437,6 +491,7 @@ export async function restaurerClient(formData: FormData) {
 
 export async function ouvrirDossier(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutCreerClient(user)) return { error: "Vous ne pouvez pas ouvrir de dossier." };
   const clientId = String(formData.get("clientId") ?? "");
   const procedureId = String(formData.get("procedureId") ?? "");
@@ -449,6 +504,7 @@ export async function ouvrirDossier(_etat: EtatAction, formData: FormData): Prom
 
 export async function modifierProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "prospects"))) return { error: "Modification non autorisée." };
   const relance = String(formData.get("relanceLe") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -466,6 +522,7 @@ export async function modifierProspect(_etat: EtatAction, formData: FormData): P
 
 export async function changerMotDePasse(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const actuel = String(formData.get("actuel") ?? "");
   const nouveau = String(formData.get("nouveau") ?? "");
   const confirmation = String(formData.get("confirmation") ?? "");
@@ -497,6 +554,7 @@ export async function marquerNotificationsLues() {
 
 export async function convertirProspect(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!(await aLeDroit(user, "prospects"))) return { error: "Conversion non autorisée." };
   const prospectId = String(formData.get("prospectId") ?? "");
   const procedureId = String(formData.get("procedureId") ?? "");
@@ -553,14 +611,35 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
 
 export async function basculerTache(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const refus = await interdirePartenaire(user);
   if (refus) return;
   const tache = await prisma.tacheDossier.findUnique({
     where: { id: String(formData.get("tacheId") ?? "") },
-    include: { etape: true },
+    include: { etape: { include: { dossier: { select: { procedure: { select: { code: true } } } } } } },
   });
   if (!tache || tache.etape.statut !== "EN_COURS") return;
-  if (estProduction(user) && !chargeEtape(user, tache.etape.roles) && tache.etape.responsableId !== user.id) return;
+  const direction = aLeRole(user, "CEO", "ADMINISTRATEUR");
+  if (!direction && !chargeEtape(user, tache.etape.roles) && tache.etape.responsableId !== user.id) return;
+  const [limiterEcole, limiterAssistante, limiterCommercial, prevenir] = await Promise.all([
+    regleActive("informaticienEcole"),
+    regleActive("assistanteEtape3"),
+    regleActive("commercialSansChoix"),
+    regleActive("notifierTache"),
+  ]);
+  if (limiterEcole && !direction && aLeRole(user, "INFORMATICIEN_ECOLE") && /formation|soumettre/i.test(tache.libelle)) return;
+  if (
+    limiterAssistante &&
+    !direction &&
+    aLeRole(user, "ASSISTANTE_ADMINISTRATIVE") &&
+    tache.etape.dossier.procedure.code === "FRANCE_PUBLIC" &&
+    tache.etape.titre !== "Analyse et proposition"
+  ) {
+    return;
+  }
+  if (limiterCommercial && !direction && aLeRole(user, "COMMERCIAL") && !aLeRole(user, "RESPONSABLE_COMMERCIALE") && /traduction|choix d'école|choix ecole/i.test(tache.libelle)) return;
+  if (!direction && aLeRole(user, "COMMUNITY_MANAGER") && /signature|contrat/i.test(tache.libelle) && /vidéo|video/i.test(tache.etape.titre)) return;
+  if (aLeRole(user, "ADMINISTRATEUR") && !aLeRole(user, "CEO") && /vidéo|video/i.test(tache.libelle) && /vidéo|video/i.test(tache.etape.titre)) return;
   if (!tache.faite && (await bloqueParAcompte(tache.libelle, tache.etape))) {
     throw new Error("Encaissez d'abord l'acompte : la lettre d'admission définitive en dépend.");
   }
@@ -578,11 +657,113 @@ export async function basculerTache(formData: FormData) {
       detail: tache.libelle,
     },
   });
+  if (faite && prevenir) {
+    const roles = tache.etape.roles.split(",").filter(Boolean) as Role[];
+    const collegues = roles.length
+      ? await prisma.user.findMany({
+          where: { actif: true, id: { not: user.id }, ...filtreParRoles(roles) },
+          select: { id: true },
+        })
+      : [];
+    if (collegues.length) {
+      await prisma.notificationInterne.createMany({
+        data: collegues.map((collegue) => ({
+          userId: collegue.id,
+          titre: "Tâche terminée",
+          message: `${user.prenom} ${user.nom} a terminé « ${tache.libelle} ».`,
+          lien: `/dossiers/${tache.etape.dossierId}`,
+        })),
+      });
+    }
+  }
   rafraichir();
+}
+
+export async function revenirEtape(formData: FormData) {
+  const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
+  const etape = await prisma.dossierEtape.findUnique({
+    where: { id: String(formData.get("etapeId") ?? "") },
+    include: { dossier: { include: { etapes: { orderBy: { rang: "asc" } } } } },
+  });
+  if (!etape || etape.statut !== "EN_COURS") return;
+  if (!(await regleActive("retourEtape"))) return;
+  if (!peutCloturer(user, etape)) return;
+  const precedente = [...etape.dossier.etapes].reverse().find((item) => item.rang < etape.rang && item.statut === "CLOTUREE");
+  if (!precedente) return;
+  await prisma.$transaction([
+    prisma.dossierEtape.update({
+      where: { id: etape.id },
+      data: { statut: "A_VENIR", debutLe: null, limiteLe: null, responsableId: null, clotureLe: null },
+    }),
+    prisma.dossierEtape.update({
+      where: { id: precedente.id },
+      data: { statut: "EN_COURS", clotureLe: null, debutLe: new Date() },
+    }),
+    prisma.audit.create({
+      data: {
+        userId: user.id,
+        action: "RETOUR_ETAPE",
+        entite: "Dossier",
+        entiteId: etape.dossierId,
+        detail: `${etape.titre} → ${precedente.titre}`,
+      },
+    }),
+  ]);
+  rafraichir();
+}
+
+export async function ajouterDocuments(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
+  const refus = await interdirePartenaire(user);
+  if (refus) return { error: refus };
+  const etape = await prisma.dossierEtape.findUnique({ where: { id: String(formData.get("etapeId") ?? "") } });
+  if (!etape || etape.statut !== "EN_COURS") return { error: "Cette étape n'est pas ouverte." };
+  if (!(await regleActive("documentsMultiples"))) return { error: "L'ajout de plusieurs documents est coupé dans les règles de gestion." };
+  if (!peutPiece(user, etape)) return { error: "Vous ne déposez pas de documents sur cette étape." };
+  const fichiers = formData.getAll("fichiers").filter((fichier): fichier is File => fichier instanceof File && fichier.size > 0);
+  if (fichiers.length === 0) return { error: "Choisissez au moins un fichier." };
+  if (fichiers.some((fichier) => fichier.size > 10 * 1024 * 1024)) return { error: "Chaque fichier doit faire moins de 10 Mo." };
+  const dernier = await prisma.pieceDossier.aggregate({ where: { dossierEtapeId: etape.id }, _max: { ordre: true } });
+  let ordre = dernier._max.ordre ?? 0;
+  const dossier = path.join(process.cwd(), "storage", "pieces");
+  await mkdir(dossier, { recursive: true });
+  for (const fichier of fichiers) {
+    ordre += 1;
+    const piece = await prisma.pieceDossier.create({
+      data: {
+        dossierId: etape.dossierId,
+        dossierEtapeId: etape.id,
+        ordre,
+        libelle: fichier.name.replace(/\.[^.]+$/, "") || fichier.name,
+        obligatoire: false,
+        recue: true,
+        recueLe: new Date(),
+        recueParId: user.id,
+        fichierNom: fichier.name,
+      },
+    });
+    const nom = `${piece.id}-${Date.now()}-${fichier.name.replace(/[^\w.\-]+/g, "_")}`;
+    await writeFile(path.join(dossier, nom), Buffer.from(await fichier.arrayBuffer()));
+    await prisma.pieceDossier.update({ where: { id: piece.id }, data: { fichierChemin: nom } });
+  }
+  await prisma.audit.create({
+    data: {
+      userId: user.id,
+      action: "PIECE_RECUE",
+      entite: "Dossier",
+      entiteId: etape.dossierId,
+      detail: `${fichiers.length} document(s) ajouté(s)`,
+    },
+  });
+  rafraichir();
+  return null;
 }
 
 export async function deposerPiece(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const refus = await interdirePartenaire(user);
   if (refus) return { error: refus };
   const piece = await prisma.pieceDossier.findUnique({
@@ -649,6 +830,7 @@ export async function deposerPiece(_etat: EtatAction, formData: FormData): Promi
 
 export async function retirerPiece(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return;
   const piece = await prisma.pieceDossier.findUnique({ where: { id: String(formData.get("pieceId") ?? "") } });
   if (!piece) return;
@@ -667,6 +849,7 @@ export async function retirerPiece(formData: FormData) {
 
 export async function cloturer(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const resultat = await cloturerEtape({
     etapeId: String(formData.get("etapeId") ?? ""),
     issueId: String(formData.get("issueId") ?? "") || undefined,
@@ -681,6 +864,7 @@ export async function cloturer(_etat: EtatAction, formData: FormData): Promise<E
 
 export async function renvoyerCodeSuivi(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const refus = await interdirePartenaire(user);
   if (refus) return { error: refus };
   const resultat = await envoyerCodeSuivi({
@@ -695,6 +879,7 @@ export async function renvoyerCodeSuivi(_etat: EtatAction, formData: FormData): 
 
 export async function reaffecter(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutReaffecter(user)) return { error: "Vous ne pouvez pas réaffecter un dossier." };
   const etape = await prisma.dossierEtape.findUnique({ where: { id: String(formData.get("etapeId") ?? "") } });
   const cible = await prisma.user.findUnique({ where: { id: String(formData.get("userId") ?? "") } });
@@ -737,6 +922,7 @@ export async function reaffecter(_etat: EtatAction, formData: FormData): Promise
 
 export async function encaisser(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutEncaisser(user) && !(await aLeDroit(user, "caisse"))) return { error: "Vous ne pouvez pas enregistrer un encaissement." };
   const montant = Number(String(formData.get("montant") ?? "").replace(/\s/g, ""));
   const jour = String(formData.get("date") ?? "");
@@ -757,6 +943,7 @@ export async function encaisser(_etat: EtatAction, formData: FormData): Promise<
 
 export async function rapprocher(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitCompta(user)) return;
   await prisma.paiement.update({
     where: { id: String(formData.get("paiementId") ?? "") },
@@ -767,6 +954,7 @@ export async function rapprocher(formData: FormData) {
 
 export async function reorienter(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return { error: "Action non autorisée." };
   const resultat = await reorienterDossier({
     dossierId: String(formData.get("dossierId") ?? ""),
@@ -796,6 +984,7 @@ export async function modifierDelai(_etat: EtatAction, formData: FormData): Prom
 
 export async function modifierLimite(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutReaffecter(user) && user.role !== "ASSISTANTE_ADMINISTRATIVE") {
     return { error: "Vous ne pouvez pas modifier cette échéance." };
   }
@@ -884,7 +1073,7 @@ export async function ajouterElementModele(formData: FormData) {
 
 export async function modifierCommission(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (user.role !== "CEO" && user.role !== "ADMINISTRATEUR") return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const montant = entier(formData.get("commissionXof"));
   const tarif = entier(formData.get("tarifXof"));
   if (montant == null || montant < 0 || tarif == null || tarif < 0) return { error: "Montant invalide." };
@@ -910,6 +1099,7 @@ function jourSaisi(valeur: FormDataEntryValue | null) {
 
 export async function modifierMontantConvenu(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutModifierMontant(user)) return { error: "Vous ne pouvez pas modifier le montant convenu." };
   const montant = entier(formData.get("montantConvenu"));
   if (montant == null || montant < 0) return { error: "Montant invalide." };
@@ -926,6 +1116,7 @@ export async function modifierMontantConvenu(_etat: EtatAction, formData: FormDa
 
 export async function creerDepense(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitDepenses(user)) return { error: "Vous ne pouvez pas saisir de dépense." };
   const categorie = String(formData.get("categorie") ?? "") as CategorieDepense;
   const mode = String(formData.get("mode") ?? "") as ModePaiement;
@@ -950,6 +1141,7 @@ export async function creerDepense(_etat: EtatAction, formData: FormData): Promi
 
 export async function annulerDepense(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutAnnulerDepense(user)) return;
   const depense = await prisma.depense.findUnique({ where: { id: String(formData.get("depenseId") ?? "") } });
   if (!depense) return;
@@ -965,6 +1157,7 @@ export async function annulerDepense(formData: FormData) {
 
 export async function creerPartenaire(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitPartenaires(user)) return { error: "Réservé à la direction et au commercial." };
   const nom = String(formData.get("nom") ?? "").trim();
   const type = String(formData.get("type") ?? "").trim() || "Apporteur";
@@ -979,6 +1172,7 @@ export async function creerPartenaire(_etat: EtatAction, formData: FormData): Pr
 
 export async function verserCommission(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitDepenses(user)) return { error: "Le versement passe par la comptabilité ou la direction." };
   const partenaire = await prisma.partenaire.findUnique({ where: { id: String(formData.get("partenaireId") ?? "") } });
   if (!partenaire) return { error: "Partenaire introuvable." };
@@ -1001,6 +1195,7 @@ export async function verserCommission(_etat: EtatAction, formData: FormData): P
 
 export async function ajouterMateriel(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutInventaire(user)) return { error: "Réservé aux moyens généraux." };
   const designation = String(formData.get("designation") ?? "").trim();
   const categorie = String(formData.get("categorie") ?? "").trim() || "Divers";
@@ -1027,6 +1222,7 @@ export async function ajouterMateriel(_etat: EtatAction, formData: FormData): Pr
 
 export async function modifierMateriel(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutInventaire(user)) return;
   const etat = String(formData.get("etat") ?? "") as EtatMateriel;
   if (!ETATS_MATERIEL.some((item) => item.value === etat)) return;
@@ -1039,6 +1235,7 @@ export async function modifierMateriel(formData: FormData) {
 
 export async function demanderConge(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return { error: "Réservé aux collaborateurs." };
   const type = String(formData.get("type") ?? "") as TypeConge;
   const debut = jourSaisi(formData.get("debut"));
@@ -1063,6 +1260,7 @@ export async function demanderConge(_etat: EtatAction, formData: FormData): Prom
 
 export async function traiterConge(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutValiderConges(user)) return;
   const decision = String(formData.get("decision") ?? "");
   if (decision !== "VALIDE" && decision !== "REFUSE") return;
@@ -1082,6 +1280,7 @@ export async function traiterConge(formData: FormData) {
 
 export async function retirerConge(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const conge = await prisma.conge.findUnique({ where: { id: String(formData.get("congeId") ?? "") } });
   if (!conge || conge.userId !== user.id || conge.statut !== "DEMANDE") return;
   await prisma.conge.delete({ where: { id: conge.id } });
@@ -1235,6 +1434,7 @@ export async function basculerActif(formData: FormData) {
 
 export async function lancerAlertes() {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitDirection(user)) return;
   await scannerAlertes();
   rafraichir();
@@ -1242,7 +1442,7 @@ export async function lancerAlertes() {
 
 export async function modifierModele(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
-  if (!voitDirection(user)) return { error: "Réservé à la direction." };
+  if (!peutParametrer(user)) return { error: "Réservé à la direction et à l'administrateur." };
   const corps = String(formData.get("corps") ?? "").trim();
   if (!corps) return { error: "Le message est vide." };
   await prisma.modeleSms.update({

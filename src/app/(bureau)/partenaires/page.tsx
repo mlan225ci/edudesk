@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { BadgeCheck, Coins, FolderOpen, Handshake, HandCoins, Mail, Phone, Plus } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { xof } from "@/lib/format";
@@ -16,6 +18,8 @@ export const metadata = { title: "Partenaires" };
 
 export default async function PartenairesPage({ searchParams }: { searchParams: Promise<{ nouveau?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "partenaires"))) redirect("/tableau-de-bord");
   const { nouveau } = await searchParams;
   const partenaires = await prisma.partenaire.findMany({
@@ -97,13 +101,13 @@ export default async function PartenairesPage({ searchParams }: { searchParams: 
               <dl className="grid grid-cols-3 gap-2 rounded-xl bg-paper p-3 text-center text-sm">
                 <div><dt className="text-xs text-ink/50">Prospects</dt><dd className="font-bold">{partenaire._count.prospects}</dd></div>
                 <div><dt className="text-xs text-ink/50">Dossiers</dt><dd className="font-bold">{dossiers}</dd></div>
-                <div><dt className="text-xs text-ink/50">Due</dt><dd className="font-bold tabular-nums">{xof(due)}</dd></div>
+                <div><dt className="text-xs text-ink/50">Due</dt><dd className="font-bold tabular-nums"><Montant valeur={due} /></dd></div>
               </dl>
 
               <div>
                 <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-ink/55">Versé {xof(versee)}</span>
-                  <span className={`font-semibold ${solde > 0 ? "text-cap" : "text-vert"}`}>{solde > 0 ? `reste ${xof(solde)}` : "à jour"}</span>
+                  <span className="text-ink/55">Versé <Montant valeur={versee} /></span>
+                  <span className={`font-semibold ${solde > 0 ? "text-cap" : "text-vert"}`}>{solde > 0 ? `reste ${franc(solde)}` : "à jour"}</span>
                 </div>
                 <Progression valeur={due ? (versee / due) * 100 : 100} ton={solde > 0 ? "edu" : "vert"} />
               </div>
@@ -112,7 +116,7 @@ export default async function PartenairesPage({ searchParams }: { searchParams: 
                 <Tiroir label="Verser la commission" variante="second" icone={<Coins size={15} />} titre="Verser une commission" description={partenaire.nom}>
                   <Formulaire action={verserCommission} submit="Enregistrer le versement" succes="Commission versée" className="grid gap-4">
                     <input type="hidden" name="partenaireId" value={partenaire.id} />
-                    <Champ label="Montant (F CFA)" aide={`Reste dû : ${xof(solde)}`}>
+                    <Champ label="Montant (F CFA)" aide={`Reste dû : ${franc(solde)}`}>
                       <input className="champ text-lg font-semibold" name="montant" inputMode="numeric" defaultValue={solde} />
                     </Champ>
                     <Choix label="Payé par" name="mode" options={MODES} />

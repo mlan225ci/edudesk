@@ -6,11 +6,13 @@ import {
   Activity,
   AlarmClock,
   ArrowDownCircle,
+  BellRing,
   CalendarCheck,
   CalendarDays,
   ChevronRight,
   FolderOpen,
   FolderPlus,
+  Handshake,
   Landmark,
   ListChecks,
   PhoneCall,
@@ -24,11 +26,19 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { cleMois, debutJourAbidjan, debutMois, delaiTexte, formatDate, nomComplet, variation, xof, xofCourt } from "@/lib/format";
-import { ACTIONS_AUDIT, COMPTES, STATUTS, detailAudit, labelCategorie, labelSource, labelTypeConge } from "@/lib/labels";
+import { ACTIONS_AUDIT, COMPTES, STATUTS, labelCategorie, labelSource, labelTypeConge } from "@/lib/labels";
+import { DetailAudit, Montant } from "@/components/montant";
+import { BoutonEnvoi, FormAction } from "@/components/formulaire";
 import { Anneau, BarresHorizontales, BarresMensuelles, Kpi, Panneau } from "@/components/graphiques";
+import { ReglesGestion } from "@/components/regles-gestion";
+import { SuiviClient } from "@/components/suivi-client";
 import { Avatar, Progression } from "@/components/ui";
+import { lancerAlertes } from "@/server/actions";
+import { aLeDroit } from "@/server/acces";
 import { lienSi, lireModules } from "@/server/modules";
-import { peutProspects, peutValiderConges, voitCompta, voitDirection, voitFinance, type SessionUser } from "@/server/permissions";
+import { suiviClientActif } from "@/server/parametres";
+import { estLectureSeule, peutParametrer, peutProspects, peutRegles, peutValiderConges, voitCompta, voitDirection, voitFinance, type SessionUser } from "@/server/permissions";
+import { fraisVisaXof, lireRegles } from "@/server/regles";
 import { requireUser } from "@/server/session";
 import { COMPTES_TRESORERIE, compterPar, cumulParMois, moisGlissants, situationDossiers, tresorerie } from "@/server/stats";
 import {
@@ -58,6 +68,12 @@ export default async function TableauDeBordPage() {
   if (user.role === "PARTENAIRE") redirect("/dossiers");
   const finance = voitFinance(user);
   const direction = voitDirection(user);
+  const pilotage = await aLeDroit(user, "direction");
+  const modules = await lireModules();
+  const reglage = peutParametrer(user);
+  const regles = peutRegles(user);
+  const suiviOuvert = reglage ? await suiviClientActif() : true;
+  const [listeRegles, fraisVisa] = regles ? await Promise.all([lireRegles(), fraisVisaXof()]) : [[], 0];
   const heure = Number(
     new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Abidjan" })
       .formatToParts(new Date())
@@ -76,12 +92,23 @@ export default async function TableauDeBordPage() {
           {salut}, {user.prenom}
         </h1>
         <p className="relative mt-1 text-sm text-white/70">Voici ce qui demande votre attention aujourd'hui.</p>
-        <div className="relative mt-5">
+        <div className="relative mt-5 flex flex-wrap items-center gap-2">
           <Suspense fallback={<div className="flex gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-10 w-44 animate-pulse rounded-xl bg-white/10" />)}</div>}>
             <Priorites user={user} />
           </Suspense>
+          {pilotage && modules.direction && direction && !estLectureSeule(user) && modules.automatisation ? (
+            <FormAction action={lancerAlertes} succes="Alertes envoyées aux responsables en retard">
+              <BoutonEnvoi className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:-translate-y-0.5">
+                <BellRing size={16} /> Relancer les retards
+              </BoutonEnvoi>
+            </FormAction>
+          ) : null}
         </div>
       </header>
+
+      {reglage ? <SuiviClient actif={suiviOuvert} /> : null}
+
+      {regles ? <ReglesGestion regles={listeRegles} fraisVisa={fraisVisa} /> : null}
 
       {finance ? (
         <Suspense fallback={<SqueletteKpis />}>
@@ -104,12 +131,18 @@ export default async function TableauDeBordPage() {
       </Suspense>
 
       <Suspense fallback={<SqueletteBloc hauteur="h-56" colonnes />}>
-        <BlocSuivi user={user} direction={direction} />
+        <BlocSuivi user={user} direction={direction && pilotage && modules.direction} />
       </Suspense>
 
       <Suspense fallback={<SqueletteBloc hauteur="h-48" colonnes />}>
         <BlocVieInterne finance={finance} />
       </Suspense>
+
+      {pilotage && modules.direction && modules.partenaires ? (
+        <Suspense fallback={<SqueletteBloc hauteur="h-40" />}>
+          <BlocCommissions />
+        </Suspense>
+      ) : null}
     </section>
   );
 }
@@ -242,8 +275,8 @@ async function BlocFinance() {
         <Panneau titre="Recouvrement" icone={Receipt} action={modules.creances ? { href: "/creances", label: "Créances" } : null}>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-xl font-bold text-cap tabular-nums">{xof(reste)}</p>
-              <p className="text-xs text-ink/50">reste à encaisser sur {xofCourt(convenu)}</p>
+              <p className="text-xl font-bold text-cap tabular-nums"><Montant valeur={reste} /></p>
+              <p className="text-xs text-ink/50">reste à encaisser sur <Montant valeur={convenu} court /></p>
             </div>
             <p className="text-2xl font-bold">{taux}%</p>
           </div>
@@ -342,7 +375,7 @@ async function BlocSuivi({ user, direction }: { user: SessionUser; direction: bo
       </Panneau>
 
       {direction ? (
-        <Panneau titre="Charge de l'équipe" icone={Users} action={{ href: "/direction", label: "Direction" }}>
+        <Panneau titre="Charge de l'équipe" icone={Users}>
           <ul className="grid gap-3">
             {charge.map((ligne) => (
               <li key={ligne.collaborateur.id} className="flex items-center gap-3">
@@ -387,6 +420,36 @@ async function BlocSuivi({ user, direction }: { user: SessionUser; direction: bo
   );
 }
 
+async function BlocCommissions() {
+  const partenaires = await prisma.partenaire.findMany({
+    include: { clients: { include: { dossiers: { include: { procedure: true } } } } },
+  });
+  const commissions = partenaires
+    .map((partenaire) => {
+      const valides = partenaire.clients.flatMap((client) => client.dossiers.filter((dossier) => dossier.statut !== "REORIENTE"));
+      return { partenaire, nombre: valides.length, montant: valides.reduce((somme, dossier) => somme + dossier.procedure.commissionXof, 0) };
+    })
+    .sort((a, b) => b.montant - a.montant);
+
+  return (
+    <Panneau titre="Commissions partenaires" icone={Handshake} action={{ href: "/partenaires", label: "Gérer" }}>
+      <p className="mb-3 text-sm text-ink/55">Commission de la procédure multipliée par les dossiers apportés. Le versement se fait depuis la page Partenaires.</p>
+      {commissions.length === 0 ? <p className="py-3 text-center text-sm text-ink/45">Aucun partenaire.</p> : null}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {commissions.map(({ partenaire, nombre, montant }) => (
+          <div key={partenaire.id} className="flex items-center justify-between rounded-xl bg-paper px-4 py-3 text-sm">
+            <div>
+              <p className="font-semibold">{partenaire.nom}</p>
+              <p className="text-xs text-ink/50">{nombre} dossier{nombre > 1 ? "s" : ""}</p>
+            </div>
+            <span className="font-bold tabular-nums"><Montant valeur={montant} /></span>
+          </div>
+        ))}
+      </div>
+    </Panneau>
+  );
+}
+
 function ListeDebiteurs({ debiteurs }: { debiteurs: Awaited<ReturnType<typeof situationDossiers>> }) {
   return (
     <ul className="grid gap-1">
@@ -396,7 +459,7 @@ function ListeDebiteurs({ debiteurs }: { debiteurs: Awaited<ReturnType<typeof si
             <span className="min-w-0 truncate">
               {nomComplet(ligne.dossier.client)} <span className="text-ink/45">· {ligne.dossier.procedure.destination}</span>
             </span>
-            <span className="shrink-0 font-semibold tabular-nums">{xof(ligne.reste)}</span>
+            <span className="shrink-0 font-semibold tabular-nums"><Montant valeur={ligne.reste} /></span>
           </Link>
         </li>
       ))}
@@ -477,7 +540,7 @@ function Journal({
           <div className="min-w-0">
             <p className="truncate">
               <span className="font-semibold">{ACTIONS[audit.action] ?? audit.action}</span>
-              {audit.detail ? <span className="text-ink/55"> · {detailAudit(audit.detail)}</span> : null}
+              {audit.detail ? <span className="text-ink/55"> · <DetailAudit detail={audit.detail} /></span> : null}
             </p>
             <p className="text-xs text-ink/45">
               {audit.user ? nomComplet(audit.user) : "Système"} · {formatDate(audit.creeLe)}

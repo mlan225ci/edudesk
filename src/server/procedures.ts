@@ -52,9 +52,9 @@ async function autoriser() {
 }
 
 function direction(porteur: { role: string; autresRoles?: readonly string[] | null } | string) {
-  if (typeof porteur === "string") return porteur === "CEO" || porteur === "ADMINISTRATEUR";
+  if (typeof porteur === "string") return porteur === "CEO" || porteur === "ADMINISTRATEUR" || porteur === "ADMINISTRATEUR_SYSTEME";
   const roles = [porteur.role, ...(porteur.autresRoles ?? [])];
-  return roles.includes("CEO") || roles.includes("ADMINISTRATEUR");
+  return roles.includes("CEO") || roles.includes("ADMINISTRATEUR") || roles.includes("ADMINISTRATEUR_SYSTEME");
 }
 
 function texte(formData: FormData, cle: string) {

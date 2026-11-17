@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { redirect } from "next/navigation";
 import { Banknote, Receipt, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -16,6 +18,8 @@ export const metadata = { title: "Caisse" };
 
 export default async function CaissePage({ searchParams }: { searchParams: Promise<{ dossier?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "caisse"))) redirect("/missions");
   const { dossier: dossierChoisi } = await searchParams;
   const depuis = debutJourAbidjan();
@@ -59,7 +63,7 @@ export default async function CaissePage({ searchParams }: { searchParams: Promi
                 {dossiers.map(({ dossier, reste }) => (
                   <option key={dossier.id} value={dossier.id}>
                     {nomComplet(dossier.client)} · {dossier.reference}
-                    {reste > 0 ? ` · reste ${xof(reste)}` : ""}
+                    {reste > 0 ? ` · reste ${franc(reste)}` : ""}
                   </option>
                 ))}
               </select>
@@ -101,7 +105,7 @@ export default async function CaissePage({ searchParams }: { searchParams: Promi
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold tabular-nums text-vert">+{xof(paiement.montant)}</p>
+                      <p className="font-bold tabular-nums text-vert">+<Montant valeur={paiement.montant} /></p>
                       <Badge ton="gris">{labelMode(paiement.mode)}{paiement.precision ? ` · ${paiement.precision}` : ""}</Badge>
                     </div>
                     {facture ? (

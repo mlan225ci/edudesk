@@ -6,13 +6,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { nomComplet } from "@/lib/format";
 import type { EtatAction } from "@/server/actions";
-import { filtreParRoles, peutTraduire } from "@/server/permissions";
+import { filtreParRoles, peutTraduire, estLectureSeule } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 const EXTENSIONS = /\.(pdf|png|jpe?g|webp|docx?|odt)$/i;
 
 export async function demanderTraduction(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return { error: "Action réservée aux collaborateurs." };
   const piece = await prisma.pieceDossier.findUnique({
     where: { id: String(formData.get("pieceId") ?? "") },
@@ -66,6 +67,7 @@ export async function demanderTraduction(_etat: EtatAction, formData: FormData):
 
 export async function prendreTraduction(id: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutTraduire(user)) return;
   await prisma.traduction.updateMany({ where: { id, statut: "A_FAIRE" }, data: { statut: "EN_COURS", traducteurId: user.id } });
   revalidatePath("/", "layout");
@@ -73,6 +75,7 @@ export async function prendreTraduction(id: string) {
 
 export async function livrerTraduction(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutTraduire(user)) return { error: "Réservé aux traducteurs." };
   const traduction = await prisma.traduction.findUnique({
     where: { id: String(formData.get("traductionId") ?? "") },
@@ -123,6 +126,7 @@ export async function livrerTraduction(_etat: EtatAction, formData: FormData): P
 
 export async function annulerTraduction(id: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return;
   const traduction = await prisma.traduction.findUnique({ where: { id }, include: { piece: true } });
   if (!traduction || traduction.statut === "TERMINEE") return;

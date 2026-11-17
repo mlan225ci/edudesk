@@ -150,6 +150,12 @@ export async function urlPublique() {
   return valeurs.get("urlPublique") || process.env.URL_PUBLIQUE || null;
 }
 
+/** Le client peut consulter son dossier sur /suivi. Activé tant que la direction ne l'a pas coupé. */
+export async function suiviClientActif() {
+  const valeurs = await lire("application");
+  return valeurs.get("suiviClient") !== "0";
+}
+
 export type ConfigSms = { url: string | null; token: string | null; expediteur: string; source: "parametres" | "serveur" | "aucune" };
 
 export async function configSms(): Promise<ConfigSms> {

@@ -5,7 +5,7 @@ import { Formulaire } from "@/components/formulaire";
 import { Badge, Champ, EnTete, Info } from "@/components/ui";
 import { configMail } from "@/server/parametres";
 import { envoyerMailTest, modifierModeleMail, modifierServeurMail } from "@/server/parametres-actions";
-import { peutParametrer, voitDirection } from "@/server/permissions";
+import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "E-mail · Paramètres" };
@@ -14,7 +14,7 @@ const VARIABLES = ["prenom", "client", "reference", "destination", "etape", "cod
 
 export default async function ParametresEmailPage() {
   const user = await requireUser();
-  if (!voitDirection(user)) redirect("/parametres");
+  if (!peutParametrer(user)) redirect("/parametres");
   const gestion = peutParametrer(user);
   const [config, modeles] = await Promise.all([
     configMail(),

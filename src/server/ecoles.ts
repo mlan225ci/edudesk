@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { STATUTS_CANDIDATURE } from "@/lib/labels";
 import { PAYS } from "@/lib/pays";
 import { annoncerAdmission } from "@/server/engine";
-import { peutCandidatures, peutEcoles } from "@/server/permissions";
+import { peutCandidatures, peutEcoles, estLectureSeule } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import type { EtatAction } from "@/server/actions";
 
@@ -42,6 +42,7 @@ async function urlDuSite() {
 
 async function gestionnaire() {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   if (!peutEcoles(user)) throw new Error("Action non autorisée.");
   return user;
 }
@@ -126,12 +127,14 @@ export async function supprimerEcole(formData: FormData) {
 
 async function collaborateur() {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   if (!peutCandidatures(user)) throw new Error("Action non autorisée.");
   return user;
 }
 
 export async function proposerEcole(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!peutCandidatures(user)) return { error: "Action réservée à l'équipe des dossiers." };
   const dossierId = texte(formData, "dossierId");
   const ecoleId = texte(formData, "ecoleId");

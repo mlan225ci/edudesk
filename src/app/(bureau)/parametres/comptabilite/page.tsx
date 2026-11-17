@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { CATEGORIES_DEPENSE, COMPTES, MODES } from "@/lib/labels";
 import { EnTete, Info } from "@/components/ui";
-import { voitCompta } from "@/server/permissions";
+import { peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Comptabilité · Paramètres" };
@@ -25,7 +25,7 @@ function Compte({ numero }: { numero: string }) {
 
 export default async function ParametresComptabilitePage() {
   const user = await requireUser();
-  if (!voitCompta(user)) redirect("/parametres");
+  if (!peutParametrer(user)) redirect("/parametres");
   const compteurs = await prisma.compteur.findMany({ orderBy: { cle: "asc" } });
 
   return (

@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   CEO
   ADMINISTRATEUR
+  ADMINISTRATEUR_SYSTEME
   RESPONSABLE_COMMERCIALE
   COMMERCIAL
   ASSISTANTE_ADMINISTRATIVE
@@ -237,6 +238,10 @@ model Client {
   partenaire       Partenaire? @relation(fields: [partenaireId], references: [id])
   garantNom        String?
   garantTelephone  String?
+  accesCf          String?
+  motDePasseCf     String?
+  garants          Garant[]
+  accesExternes    AccesExterne[]
   convertiLe       DateTime?
   convertiParId    String?
   responsableId    String?
@@ -251,6 +256,25 @@ model Client {
   @@index([telephone])
   @@index([responsableId])
   @@index([archiveLe])
+}
+
+model Garant {
+  id        String  @id @default(cuid())
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  nom       String
+  telephone String?
+  ordre     Int     @default(1)
+}
+
+model AccesExterne {
+  id          String @id @default(cuid())
+  clientId    String
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  libelle     String
+  identifiant String
+  secret      String
+  ordre       Int    @default(1)
 }
 
 model Procedure {

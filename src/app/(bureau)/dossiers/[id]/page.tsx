@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
 import { notFound } from "next/navigation";
 import { AlarmClock, ArrowLeft, CheckCircle2, Clock, FolderOpen, GraduationCap, History, KeyRound, MessageSquareText, Phone, Receipt, Repeat, Send, UserRound, Wallet } from "lucide-react";
 import { EcrireCourrier } from "@/components/courrier";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
 import { delaiTexte, formatDate, formatJour, nomComplet, xof } from "@/lib/format";
-import { ACTIONS_AUDIT, MODES, STATUTS, detailAudit, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRoles, labelRolesCompte, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
+import { ACTIONS_AUDIT, MODES, STATUTS, TON_STATUT, TYPES_PAIEMENT, labelMode, labelRoles, labelRolesCompte, labelTypePaiement, numerosEtapes, typePourAcompte } from "@/lib/labels";
+import { DetailAudit, Montant } from "@/components/montant";
 import { FriseEtapes } from "@/components/frise";
 import { Formulaire, FormAction, BoutonEnvoi } from "@/components/formulaire";
 import { Avatar, Badge, Champ, Choix, Progression } from "@/components/ui";
@@ -18,8 +20,9 @@ import { PanneauTraductions } from "@/components/panneau-traductions";
 import { encaisser, modifierLimite, modifierMontantConvenu, reaffecter, renvoyerCodeSuivi, reorienter, signerContrat } from "@/server/actions";
 import { relancerPieces, textesCourrier } from "@/server/communication-actions";
 import { lireModules } from "@/server/modules";
-import { lireDocuments } from "@/server/parametres";
+import { lireDocuments, suiviClientActif } from "@/server/parametres";
 import { aLeRole, estProduction, peutCandidatures, peutCloturer, peutDevis, peutEncaisser, peutModifierMontant, peutPiece, peutReaffecter, peutSigner, voitFinance } from "@/server/permissions";
+import { fraisVisaXof, regleActive } from "@/server/regles";
 import { requireUser } from "@/server/session";
 
 const ACTIONS = ACTIONS_AUDIT;
@@ -70,7 +73,7 @@ function LigneHistorique({ audits }: { audits: (AuditVue & { fois: number })[] }
           <span className={`absolute top-1.5 -left-[27px] h-3 w-3 rounded-full border-2 border-white ${TON_ACTION[audit.action] ?? "bg-desk"}`} />
           <p>
             <span className="font-semibold">{ACTIONS[audit.action] ?? audit.action}</span>
-            {audit.detail ? <span className="text-ink/60"> · {detailAudit(audit.detail)}</span> : null}
+            {audit.detail ? <span className="text-ink/60"> · <DetailAudit detail={audit.detail} /></span> : null}
             {audit.fois > 1 ? <span className="ml-1.5 rounded-full bg-ink/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink/50">×{audit.fois}</span> : null}
           </p>
           <p className="text-xs text-ink/45">{audit.user ? nomComplet(audit.user) : "Système"} · {formatDate(audit.creeLe)}</p>
@@ -94,6 +97,8 @@ export default async function DossierPage({
   searchParams: Promise<{ nouveau?: string }>;
 }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   const { id } = await params;
   const { nouveau } = await searchParams;
   const dossier = await prisma.dossier.findUnique({
@@ -123,7 +128,13 @@ export default async function DossierPage({
   if (user.role === "PARTENAIRE" && dossier.client.partenaireId !== user.partenaireId) notFound();
   const modules = await lireModules();
   const avecEcoles = modules.ecoles && (dossier.procedure.ecoles || dossier.candidatures.length > 0);
-  const gereCandidatures = avecEcoles && peutCandidatures(user);
+  const [limiterCommercial, retourAutorise, documentsLibres, fraisVisa] = await Promise.all([
+    regleActive("commercialSansChoix"),
+    regleActive("retourEtape"),
+    regleActive("documentsMultiples"),
+    fraisVisaXof(),
+  ]);
+  const gereCandidatures = avecEcoles && peutCandidatures(user, limiterCommercial);
 
   const [audits, utilisateurs, procedures, reportees, origine, ecoles] = await Promise.all([
     prisma.audit.findMany({
@@ -185,7 +196,10 @@ export default async function DossierPage({
   const manquantes = documents.filter((document) => !document.recue && !document.fichier).length;
   const aVerifier = documents.filter((document) => document.aVerifier).length;
   const traducteurs = utilisateurs.filter((item) => aLeRole(item, "TRADUCTEUR"));
-  const courrier = lectureSeule ? null : await textesCourrier(dossier.client.id);
+  const [courrier, suiviOuvert] = await Promise.all([
+    lectureSeule ? Promise.resolve(null) : textesCourrier(dossier.client.id),
+    suiviClientActif(),
+  ]);
   const contexteCourrier = courrier?.contextes.filter((contexte) => contexte.id === dossier.id) ?? [];
 
   return (
@@ -299,6 +313,8 @@ export default async function DossierPage({
                   peutAgir={peutAgir}
                   peutCloturer={peutCloturer(user, courante)}
                   peutEncaisser={peutEncaisser(user)}
+                  peutRevenir={retourAutorise && dossier.etapes.some((etape) => etape.rang < courante.rang && etape.statut === "CLOTUREE") && peutCloturer(user, courante)}
+                  peutAjouter={documentsLibres && peutAgir}
                 />
               )}
             </article>
@@ -425,16 +441,22 @@ export default async function DossierPage({
                 {dossier.codeSuivi ? (
                   <>
                     <p className="mt-1.5 font-mono text-lg font-bold tracking-[0.2em]">{dossier.codeSuivi}</p>
-                    <p className="text-xs text-ink/50">Le client suit son dossier sur la page « /suivi » avec ce code.</p>
-                    <Formulaire
-                      action={renvoyerCodeSuivi}
-                      submit="Renvoyer par SMS"
-                      succes="Code de suivi renvoyé au client"
-                      boutonClassName="bouton-second mt-3 w-full"
-                      icone={<MessageSquareText size={15} />}
-                    >
-                      <input type="hidden" name="dossierId" value={dossier.id} />
-                    </Formulaire>
+                    <p className="text-xs text-ink/50">
+                      {suiviOuvert
+                        ? "Le client suit son dossier sur la page « /suivi » avec ce code. L'évolution de la procédure lui est envoyée par e-mail."
+                        : "Le suivi par lien est désactivé : ce code n'ouvre plus la page. L'évolution de la procédure part par e-mail."}
+                    </p>
+                    {suiviOuvert ? (
+                      <Formulaire
+                        action={renvoyerCodeSuivi}
+                        submit="Renvoyer par SMS"
+                        succes="Code de suivi renvoyé au client"
+                        boutonClassName="bouton-second mt-3 w-full"
+                        icone={<MessageSquareText size={15} />}
+                      >
+                        <input type="hidden" name="dossierId" value={dossier.id} />
+                      </Formulaire>
+                    ) : null}
                   </>
                 ) : (
                   <p className="mt-1.5 text-xs text-ink/55">
@@ -449,14 +471,17 @@ export default async function DossierPage({
             <article className="carte">
               <h2 className="mb-3 flex items-center gap-2 font-semibold"><Wallet size={18} className="text-ink/40" /> Paiements</h2>
               <div className="grid gap-1.5 rounded-xl bg-paper p-3.5 text-sm">
-                <p className="flex justify-between"><span className="text-ink/60">Convenu</span><span className="font-semibold tabular-nums">{convenu ? xof(convenu) : "Non fixé"}</span></p>
-                <p className="flex justify-between"><span className="text-ink/60">Payé</span><span className="font-semibold tabular-nums text-vert">{xof(totalPaye)}</span></p>
+                <p className="flex justify-between"><span className="text-ink/60">Convenu</span><span className="font-semibold tabular-nums">{convenu ? franc(convenu) : "Non fixé"}</span></p>
+                <p className="flex justify-between"><span className="text-ink/60">Payé</span><span className="font-semibold tabular-nums text-vert"><Montant valeur={totalPaye} /></span></p>
                 <p className="flex justify-between border-t border-ink/[0.06] pt-1.5">
                   <span className="text-ink/60">Reste à payer</span>
-                  <span className={`font-bold tabular-nums ${resteAPayer > 0 ? "text-cap" : "text-vert"}`}>{xof(resteAPayer)}</span>
+                  <span className={`font-bold tabular-nums ${resteAPayer > 0 ? "text-cap" : "text-vert"}`}>{franc(resteAPayer)}</span>
                 </p>
                 {convenu > 0 ? <div className="mt-1"><Progression valeur={(totalPaye / convenu) * 100} ton={resteAPayer ? "desk" : "vert"} /></div> : null}
               </div>
+              {courante?.taches.some((tache) => /frais de visa/i.test(tache.libelle)) ? (
+                <p className="mt-3 text-xs text-ink/60">Frais de visa, responsable commerciale : <Montant valeur={fraisVisa} />.</p>
+              ) : null}
               {typeRequis && !paiementPresent ? (
                 <p className="mt-3 rounded-xl bg-edu/15 px-3 py-2 text-xs font-medium">Cette étape attend : {labelTypePaiement(typeRequis)}.</p>
               ) : null}
@@ -480,7 +505,7 @@ export default async function DossierPage({
                       </Champ>
                       <Champ
                         label="Montant (F CFA)"
-                        aide={typeRequis === "ACOMPTE_SCOLARITE" && ecoleRetenue?.fraisXof ? `Frais de scolarité de ${ecoleRetenue.nom} : ${xof(ecoleRetenue.fraisXof)} par an.` : undefined}
+                        aide={typeRequis === "ACOMPTE_SCOLARITE" && ecoleRetenue?.fraisXof ? `Frais de scolarité de ${ecoleRetenue.nom} : ${franc(ecoleRetenue.fraisXof)} par an.` : undefined}
                       >
                         <input
                           className="champ text-lg font-semibold"
@@ -508,7 +533,7 @@ export default async function DossierPage({
                   <Tiroir label="Montant convenu" variante="second" titre="Montant convenu" description="Prix total facturé au client pour ce dossier.">
                     <Formulaire action={modifierMontantConvenu} submit="Enregistrer" succes="Montant convenu mis à jour" reinitialiser={false}>
                       <input type="hidden" name="dossierId" value={dossier.id} />
-                      <Champ label="Montant (F CFA)" aide={`Tarif de la procédure : ${xof(dossier.procedure.tarifXof)}`}>
+                      <Champ label="Montant (F CFA)" aide={`Tarif de la procédure : ${franc(dossier.procedure.tarifXof)}`}>
                         <input className="champ" name="montantConvenu" inputMode="numeric" defaultValue={convenu || ""} />
                       </Champ>
                     </Formulaire>
@@ -525,7 +550,7 @@ export default async function DossierPage({
                         <Link href={`/facturation/factures/${facture.id}`} className="flex items-center justify-between gap-2 rounded-xl bg-paper px-3 py-2.5 hover:bg-desk/[0.06]">
                           <span className="min-w-0">
                             <span className="block font-semibold">{facture.numero}</span>
-                            <span className="block truncate text-xs text-ink/50">{xof(facture.montant)}{regle && !facture.annuleeLe ? ` · réglé ${xof(regle)}` : ""}</span>
+                            <span className="block truncate text-xs text-ink/50">{franc(facture.montant)}{regle && !facture.annuleeLe ? ` · réglé ${franc(regle)}` : ""}</span>
                           </span>
                           <Badge ton={etat.ton}>{etat.label}</Badge>
                         </Link>
@@ -538,7 +563,7 @@ export default async function DossierPage({
                 {dossier.paiements.map((paiement) => (
                   <li key={paiement.id} className="flex items-center justify-between gap-2 rounded-xl border border-ink/[0.06] px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="font-semibold tabular-nums">{xof(paiement.montant)}</p>
+                      <p className="font-semibold tabular-nums"><Montant valeur={paiement.montant} /></p>
                       <p className="truncate text-xs text-ink/50">{labelTypePaiement(paiement.type)} · {labelMode(paiement.mode)} · {formatJour(paiement.dateEncaissement)}</p>
                     </div>
                     {modules.factures && (paiement.facture || paiement.factureReglee) ? (

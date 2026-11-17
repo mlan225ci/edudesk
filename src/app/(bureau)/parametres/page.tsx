@@ -125,6 +125,14 @@ export default async function ParametresPage() {
       etat: `${Object.keys(COMPTES).length} comptes`,
       ton: "gris",
     },
+    {
+      href: "/parametres/fonctionnalites",
+      icone: "modules",
+      titre: "Fonctionnalités",
+      texte: "Blocs visibles dans les menus : prospects, finance, messagerie, écoles, rapports.",
+      etat: `${Object.values(modules).filter(Boolean).length} blocs ouverts`,
+      ton: "desk",
+    },
   ].filter((carte) => onglets.has(carte.href)) as Carte[];
 
   return (

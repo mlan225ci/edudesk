@@ -36,6 +36,8 @@ export function Formulaire({
   className = "grid gap-3",
   boutonClassName = "bouton",
   icone,
+  autoriser = false,
+  onSucces,
 }: {
   action: (etat: EtatAction, data: FormData) => Promise<EtatAction>;
   children: React.ReactNode;
@@ -45,6 +47,8 @@ export function Formulaire({
   className?: string;
   boutonClassName?: string;
   icone?: React.ReactNode;
+  autoriser?: boolean;
+  onSucces?: () => void;
 }) {
   const formulaire = useRef<HTMLFormElement>(null);
   const toast = useToast();
@@ -55,6 +59,7 @@ export function Formulaire({
     const resultat = await action(precedent, data);
     if (!resultat?.error) {
       toast(succes);
+      onSucces?.();
       if (reinitialiser) formulaire.current?.reset();
       fermer?.();
     }
@@ -63,7 +68,7 @@ export function Formulaire({
   }, null);
 
   return (
-    <form ref={formulaire} action={formAction} className={className}>
+    <form ref={formulaire} action={formAction} className={className} {...(autoriser ? { "data-autoriser": "oui" } : {})}>
       {children}
       {etat?.error ? (
         <div className="flex animate-secousse gap-2.5 rounded-xl border border-cap/15 bg-red-50/80 px-3.5 py-3 text-sm text-cap">
@@ -95,7 +100,7 @@ export function FormAction({
   confirmer,
   className,
 }: {
-  action: (data: FormData) => Promise<void>;
+  action: (data: FormData) => Promise<void | { error?: string }>;
   children: React.ReactNode;
   succes?: string;
   confirmer?: string;
@@ -109,7 +114,11 @@ export function FormAction({
       action={async (data) => {
         if (confirmer && !window.confirm(confirmer)) return;
         try {
-          await action(data);
+          const resultat = await action(data);
+          if (resultat && typeof resultat === "object" && resultat.error) {
+            toast(resultat.error, "erreur");
+            return;
+          }
           if (succes) toast(succes);
         } catch (erreur) {
           const digest = (erreur as { digest?: unknown } | null)?.digest;

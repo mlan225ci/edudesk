@@ -3,10 +3,12 @@ import { Bell, BellOff, ChevronRight, Mail, MessageSquareText, Paperclip, Rotate
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { BoutonEnvoi, FormAction } from "@/components/formulaire";
-import { Badge, EnTete, Info, Onglets, Vide } from "@/components/ui";
+import { Badge, EnTete, Info, Vide } from "@/components/ui";
+import { Onglets } from "@/components/onglets";
 import { RafraichirCompteur } from "@/components/rafraichir-compteur";
+import { EnvoyerMailClient } from "@/components/envoyer-mail-client";
 import { renvoyerMail } from "@/server/communication-actions";
-import { voitDirection } from "@/server/permissions";
+import { limiteAuxClientsAttribues, voitDirection } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Notifications" };
@@ -45,19 +47,54 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     vue === "mail" && user.role !== "PARTENAIRE"
       ? await prisma.notificationMail.findMany({ orderBy: { creeLe: "desc" }, take: 80 })
       : [];
+  const clients =
+    user.role === "PARTENAIRE"
+      ? []
+      : await prisma.client.findMany({
+          where: {
+            archiveLe: null,
+            ...(limiteAuxClientsAttribues(user) ? { responsableId: user.id } : {}),
+          },
+          select: { id: true, prenom: true, nom: true, email: true },
+          orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+        });
+  const modelesBruts =
+    user.role === "PARTENAIRE"
+      ? []
+      : await prisma.modeleSms.findMany({
+          where: { code: { startsWith: "client_" } },
+          orderBy: { libelle: "asc" },
+          select: { code: true, libelle: true, sujet: true, corps: true, corpsMail: true },
+        });
+  const modeles = modelesBruts.map((modele) => {
+    const court = modele.libelle.replace(/^Client,\s*/i, "");
+    return {
+      code: modele.code,
+      libelle: court.charAt(0).toLocaleUpperCase("fr") + court.slice(1),
+      sujet: modele.sujet || "Votre dossier",
+      corps: modele.corpsMail || modele.corps,
+    };
+  });
 
   return (
     <section className="grid gap-6">
       <EnTete
         titre="Notifications"
         icone={Bell}
-        description="Ce qui vous concerne et l'historique des SMS envoyés."
+        description={
+          user.role === "PARTENAIRE"
+            ? "Ce qui vous concerne et l'historique des SMS envoyés."
+            : "Ce qui vous concerne, l'historique des envois, et un e-mail de notification à un client."
+        }
         actions={
-          direction ? (
-            <Link href="/parametres/sms" className="bouton-second">
-              <Settings size={16} /> Modèles et opérateur SMS
-            </Link>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {user.role !== "PARTENAIRE" ? <EnvoyerMailClient clients={clients} modeles={modeles} /> : null}
+            {direction ? (
+              <Link href="/parametres/sms" className="bouton-second">
+                <Settings size={16} /> Modèles et opérateur SMS
+              </Link>
+            ) : null}
+          </div>
         }
       />
 

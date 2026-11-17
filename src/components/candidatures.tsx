@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Candidature, Ecole, StatutCandidature } from "@prisma/client";
 import { Award, GraduationCap, Plus, X } from "lucide-react";
-import { formatJour, xof } from "@/lib/format";
+import { formatJour } from "@/lib/format";
+import { Montant } from "@/components/montant";
 import { STATUTS_CANDIDATURE, TON_CANDIDATURE } from "@/lib/labels";
 import { paysDeDestination } from "@/lib/pays";
 import { BoutonEnvoi, FormAction, Formulaire } from "@/components/formulaire";
@@ -106,7 +107,7 @@ export function PanneauCandidatures({
             <p className="font-semibold">École retenue : {retenue.ecole.nom}</p>
             <p className="text-ink/60">
               {retenue.formation ?? "Formation non précisée"}
-              {retenue.ecole.fraisXof ? ` · scolarité ${xof(retenue.ecole.fraisXof)} / an` : ""}
+              {retenue.ecole.fraisXof ? <> · scolarité <Montant valeur={retenue.ecole.fraisXof} /> / an</> : ""}
             </p>
           </div>
         </div>

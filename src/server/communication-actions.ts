@@ -12,8 +12,8 @@ import type { EtatAction } from "@/server/actions";
 import { envoyerPiecesManquantes, refuserDepotClient } from "@/server/engine";
 import { emailValide, envoyerMailDirect, expedierMail } from "@/server/mail";
 import { pieceJointe } from "@/server/pdf-commercial";
-import { lireEntreprise, urlPublique } from "@/server/parametres";
-import { voitDirection, voitFinance } from "@/server/permissions";
+import { lireEntreprise, suiviClientActif, urlPublique } from "@/server/parametres";
+import { voitDirection, voitFinance, estLectureSeule, limiteAuxClientsAttribues, masqueChiffres } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 async function urlDuSite() {
@@ -40,6 +40,7 @@ export async function textesCourrier(clientId: string): Promise<{ email: string;
       nom: true,
       email: true,
       partenaireId: true,
+      responsableId: true,
       dossiers: {
         orderBy: { ouvertLe: "desc" },
         select: {
@@ -70,21 +71,27 @@ export async function textesCourrier(clientId: string): Promise<{ email: string;
       },
     },
   });
-  if (!client || !emailValide(client.email)) return null;
+  if (!client) return null;
   if (user.role === "PARTENAIRE" && client.partenaireId !== user.partenaireId) return null;
+  if (limiteAuxClientsAttribues(user) && client.responsableId !== user.id) return null;
+  if (!emailValide(client.email)) return null;
 
-  const [entreprise, lien, modeles] = await Promise.all([
+  const [entreprise, url, modeles, suiviOuvert] = await Promise.all([
     lireEntreprise(),
-    urlPublique().then((url) => lienSuivi(url)),
+    urlPublique(),
     prisma.modeleSms.findMany({ where: { code: { startsWith: "client_" } }, orderBy: { libelle: "asc" } }),
+    suiviClientActif(),
   ]);
+  const lien = suiviOuvert ? lienSuivi(url) : "";
 
+  const masquer = masqueChiffres(user);
+  const franc = (n: number) => (masquer ? "••••" : xof(n));
   const rendre = (dossier: (typeof client.dossiers)[number] | null) => {
     const etape = dossier?.etapes.find((item) => item.statut === "EN_COURS") ?? dossier?.etapes.findLast((item) => item.statut === "CLOTUREE");
     const ecole = dossier?.candidatures.find((item) => item.statut === "CHOISIE") ?? dossier?.candidatures[0];
     const devis = dossier?.devis[0];
     const paiement = dossier?.paiements[0];
-    const code = dossier?.codeSuivi ?? "";
+    const code = suiviOuvert ? (dossier?.codeSuivi ?? "") : "";
     const variables: Record<string, string> = {
       entreprise: entreprise.nom,
       prenom: client.prenom,
@@ -97,14 +104,14 @@ export async function textesCourrier(clientId: string): Promise<{ email: string;
       suivi: code ? `Suivez votre dossier à tout moment sur ${lien} avec le code ${code}.` : "",
       ecole: ecole?.ecole.nom ?? "",
       formation: ecole?.formation ? ` (${ecole.formation})` : "",
-      nombre: String(dossier?.pieces.length ?? 0),
+      nombre: masquer ? "••••" : String(dossier?.pieces.length ?? 0),
       pieces: dossier?.pieces.map((piece) => piece.libelle).join(", ") ?? "",
       liste: dossier?.pieces.map((piece) => `• ${piece.libelle}${piece.obligatoire ? "" : " (facultatif)"}`).join("\n") ?? "",
       depot: code
         ? `Vous pouvez les déposer directement en ligne sur ${lien} avec votre code de suivi ${code}, ou les apporter à l'agence.`
         : "Merci de les apporter à l'agence ou de les transmettre à votre conseiller.",
       devis: devis?.numero ?? "",
-      montant: paiement ? xof(paiement.montant) : devis ? xof(devis.total) : "",
+      montant: paiement ? franc(paiement.montant) : devis ? franc(devis.total) : "",
       mode: paiement ? labelMode(paiement.mode) : "",
       facture: dossier?.factures[0]?.numero ?? "",
       validite: devis?.validiteLe
@@ -112,7 +119,7 @@ export async function textesCourrier(clientId: string): Promise<{ email: string;
         : "",
     };
     return modeles.map((modele) => {
-      const propres = modele.code === "client_devis" && devis ? { ...variables, montant: xof(devis.total) } : variables;
+      const propres = modele.code === "client_devis" && devis ? { ...variables, montant: franc(devis.total) } : variables;
       return {
         code: modele.code,
         libelle: libelleCourrier(modele.libelle),
@@ -136,16 +143,29 @@ export async function textesCourrier(clientId: string): Promise<{ email: string;
 export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
   if (user.role === "PARTENAIRE") return { error: "Action réservée aux collaborateurs." };
-  const client = await prisma.client.findUnique({
-    where: { id: String(formData.get("clientId") ?? "") },
-    select: { id: true, email: true },
-  });
-  if (!client) return { error: "Client introuvable." };
-  if (!emailValide(client.email)) return { error: "Ce client n'a pas d'adresse e-mail valide." };
-  const dossierId = String(formData.get("dossierId") ?? "").trim();
-  if (dossierId) {
-    const dossier = await prisma.dossier.findFirst({ where: { id: dossierId, clientId: client.id }, select: { id: true } });
-    if (!dossier) return { error: "Ce dossier n'appartient pas à ce client." };
+  const clientId = String(formData.get("clientId") ?? "").trim();
+  const emailSaisi = String(formData.get("email") ?? "").trim();
+  let destinataire = "";
+  let dossierId = "";
+  let entiteId = "";
+  if (clientId) {
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { id: true, email: true, responsableId: true },
+    });
+    if (!client) return { error: "Client introuvable." };
+    if (limiteAuxClientsAttribues(user) && client.responsableId !== user.id) return { error: "Ce client ne vous est pas attribué." };
+    if (!emailValide(client.email)) return { error: "Ce client n'a pas d'adresse e-mail valide." };
+    destinataire = client.email!.trim();
+    entiteId = client.id;
+    dossierId = String(formData.get("dossierId") ?? "").trim();
+    if (dossierId) {
+      const dossier = await prisma.dossier.findFirst({ where: { id: dossierId, clientId: client.id }, select: { id: true } });
+      if (!dossier) return { error: "Ce dossier n'appartient pas à ce client." };
+    }
+  } else {
+    if (!emailValide(emailSaisi)) return { error: "Choisissez un client, ou indiquez une adresse e-mail valide." };
+    destinataire = emailSaisi;
   }
   const sujet = String(formData.get("sujet") ?? "").replace(/\s+/g, " ").trim();
   let corps = String(formData.get("corps") ?? "").replace(/\r/g, "").trim();
@@ -168,7 +188,7 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
   const fichier = await pieceJointe(piece);
   const ligne = await prisma.notificationMail.create({
     data: {
-      destinataire: client.email!.trim(),
+      destinataire,
       type: "CLIENT",
       dossierId: dossierId || null,
       sujet,
@@ -178,7 +198,7 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
   });
   try {
     const resultat = await envoyerMailDirect({
-      a: client.email!.trim(),
+      a: destinataire,
       sujet,
       corps,
       pieces: fichier ? [fichier] : [],
@@ -198,9 +218,9 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
     data: {
       userId: user.id,
       action: "COURRIER",
-      entite: dossierId ? "Dossier" : "Client",
-      entiteId: dossierId || client.id,
-      detail: `${sujet} → ${client.email}`.slice(0, 300),
+      entite: dossierId ? "Dossier" : entiteId ? "Client" : "Mail",
+      entiteId: dossierId || entiteId || ligne.id,
+      detail: `${sujet} → ${destinataire}`.slice(0, 300),
     },
   });
   revalidatePath("/", "layout");
@@ -212,6 +232,7 @@ export async function envoyerCourrier(_etat: EtatAction, formData: FormData): Pr
 
 export async function renvoyerMail(id: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitDirection(user)) return;
   const mail = await prisma.notificationMail.findUnique({ where: { id } });
   if (!mail || mail.statut === "ENVOYE") return;
@@ -222,6 +243,7 @@ export async function renvoyerMail(id: string) {
 
 export async function envoyerFactureParMail(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (!voitFinance(user)) return { error: "Réservé à la finance et à la direction." };
   const facture = await prisma.facture.findUnique({
     where: { id: String(formData.get("factureId") ?? "") },
@@ -263,6 +285,7 @@ export async function envoyerFactureParMail(_etat: EtatAction, formData: FormDat
 
 export async function validerDepot(pieceId: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return;
   const piece = await prisma.pieceDossier.findUnique({ where: { id: pieceId } });
   if (!piece || piece.recue || !piece.fichierChemin) return;
@@ -273,6 +296,7 @@ export async function validerDepot(pieceId: string) {
 
 export async function refuserDepot(pieceId: string) {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return;
   const chemin = await refuserDepotClient({ pieceId, actor: user });
   if (chemin) await unlink(path.join(process.cwd(), "storage", "pieces", path.basename(chemin))).catch(() => undefined);
@@ -281,6 +305,7 @@ export async function refuserDepot(pieceId: string) {
 
 export async function relancerPieces(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   if (user.role === "PARTENAIRE") return { error: "Action réservée aux collaborateurs." };
   const resultat = await envoyerPiecesManquantes({
     dossierId: String(formData.get("dossierId") ?? ""),

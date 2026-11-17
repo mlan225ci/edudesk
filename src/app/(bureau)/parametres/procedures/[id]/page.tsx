@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowDown,
@@ -39,7 +41,7 @@ import {
   supprimerEtapeModele,
   supprimerProcedure,
 } from "@/server/procedures";
-import { peutProcedures } from "@/server/permissions";
+import { aLeRole, peutParametrer } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 const ACOMPTES = [
@@ -112,7 +114,9 @@ function LigneElement({ sorte, id, libelle, obligatoire }: { sorte: "tache" | "p
 
 export default async function ProcedurePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!peutProcedures(user)) redirect("/missions");
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
+  if (!peutParametrer(user)) redirect("/parametres");
   const { id } = await params;
   const procedure = await prisma.procedure.findUnique({
     where: { id },
@@ -125,7 +129,7 @@ export default async function ProcedurePage({ params }: { params: Promise<{ id: 
     },
   });
   if (!procedure) notFound();
-  const direction = user.role === "CEO" || user.role === "ADMINISTRATEUR";
+  const direction = aLeRole(user, "CEO", "ADMINISTRATEUR", "ADMINISTRATEUR_SYSTEME");
   const numeros = numerosEtapes(procedure.etapes);
   const controles = [
     { ok: procedure.etapes.length > 0, texte: "Au moins une étape" },
@@ -159,15 +163,15 @@ export default async function ProcedurePage({ params }: { params: Promise<{ id: 
                 </label>
                 {direction ? (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Champ label="Tarif client (F CFA)" aide={`Actuel : ${xof(procedure.tarifXof)}`}>
+                    <Champ label="Tarif client (F CFA)" aide={`Actuel : ${franc(procedure.tarifXof)}`}>
                       <input className="champ" name="tarifXof" inputMode="numeric" defaultValue={procedure.tarifXof} />
                     </Champ>
-                    <Champ label="Commission partenaire (F CFA)" aide={`Actuelle : ${xof(procedure.commissionXof)}`}>
+                    <Champ label="Commission partenaire (F CFA)" aide={`Actuelle : ${franc(procedure.commissionXof)}`}>
                       <input className="champ" name="commissionXof" inputMode="numeric" defaultValue={procedure.commissionXof} />
                     </Champ>
                   </div>
                 ) : (
-                  <p className="text-xs text-ink/55">Tarif {xof(procedure.tarifXof)} · commission {xof(procedure.commissionXof)} (modifiables par la direction).</p>
+                  <p className="text-xs text-ink/55">Tarif <Montant valeur={procedure.tarifXof} /> · commission <Montant valeur={procedure.commissionXof} /> (modifiables par la direction).</p>
                 )}
               </Formulaire>
               {procedure._count.dossiers === 0 ? (

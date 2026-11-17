@@ -5,6 +5,11 @@ import { jwtVerify } from "jose";
 // L'hébergeur (Apache) peut transmettre la page d'index du dossier web au lieu de « / ».
 const INDEX_SERVEUR = new Set(["/index.html", "/index.htm", "/index.php", "/standard_index.html"]);
 
+function estTelephone(ua: string) {
+  if (/iPad|Tablet|Kindle|PlayBook|Silk/i.test(ua)) return false;
+  return /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+}
+
 function passer(request: NextRequest) {
   const entetes = new Headers(request.headers);
   entetes.set("x-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`);
@@ -18,7 +23,18 @@ function passer(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/login") || pathname.startsWith("/suivi") || pathname.startsWith("/contact") || pathname.startsWith("/api/cron")) {
+  const ouvertAuTelephone =
+    pathname.startsWith("/suivi") ||
+    pathname.startsWith("/contact") ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/telephone");
+  if (estTelephone(request.headers.get("user-agent") ?? "") && !ouvertAuTelephone) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/telephone";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+  if (pathname.startsWith("/login") || pathname.startsWith("/suivi") || pathname.startsWith("/contact") || pathname.startsWith("/telephone") || pathname.startsWith("/api/cron")) {
     return passer(request);
   }
 

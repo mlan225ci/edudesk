@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { xof } from "@/lib/format";
+import { Montant } from "@/components/montant";
 
 type Ligne = { cle: number; libelle: string; quantite: string; prix: string };
 
@@ -67,7 +67,7 @@ export function LignesDevis({ initiales, proposition }: { initiales: LignePropos
           <Plus size={15} /> Ajouter une ligne
         </button>
         <p className="text-sm">
-          Total <span className="ml-1 text-lg font-bold tabular-nums">{xof(total)}</span>
+          Total <span className="ml-1 text-lg font-bold tabular-nums"><Montant valeur={total} /></span>
         </p>
       </div>
     </div>

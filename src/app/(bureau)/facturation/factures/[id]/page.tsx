@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, Banknote, FileDown, Mail, ReceiptText, Send } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -22,6 +24,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function FacturePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "factures"))) notFound();
   const { id } = await params;
   const facture = await prisma.facture.findUnique({
@@ -85,7 +89,7 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
               <Tiroir label="Enregistrer un règlement" icone={<Banknote size={16} />} titre={`Règlement de la facture ${facture.numero}`} description="L'encaissement est rattaché à cette facture et passé en comptabilité.">
                 <Formulaire action={reglerFacture} submit="Enregistrer le règlement" succes="Règlement enregistré" className="grid gap-4">
                   <input type="hidden" name="factureId" value={facture.id} />
-                  <Champ label="Montant (F CFA)" aide={`Reste à payer : ${xof(reste)}`}>
+                  <Champ label="Montant (F CFA)" aide={`Reste à payer : ${franc(reste)}`}>
                     <input className="champ text-lg font-semibold" name="montant" inputMode="numeric" defaultValue={reste} required />
                   </Champ>
                   <Champ label="Nature">
@@ -117,7 +121,7 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
           <article className="carte">
             <div className="flex items-center justify-between gap-3">
               <Badge ton={etat.ton} point>{etat.label}</Badge>
-              <p className={`text-2xl font-bold tabular-nums ${facture.annuleeLe ? "text-ink/40 line-through" : ""}`}>{xof(facture.montant)}</p>
+              <p className={`text-2xl font-bold tabular-nums ${facture.annuleeLe ? "text-ink/40 line-through" : ""}`}>{franc(facture.montant)}</p>
             </div>
             {facture.annuleeLe ? (
               <p className="mt-3 rounded-xl bg-ink/[0.04] px-3.5 py-2.5 text-sm text-ink/70">
@@ -127,8 +131,8 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
               <div className="mt-4 grid gap-2">
                 <Progression valeur={facture.montant ? (regle / facture.montant) * 100 : 0} ton={reste === 0 ? "vert" : etat.code === "EN_RETARD" ? "cap" : "desk"} />
                 <div className="flex justify-between text-sm">
-                  <span className="text-ink/55">Réglé <strong className="text-vert tabular-nums">{xof(regle)}</strong></span>
-                  <span className="text-ink/55">Reste <strong className={`tabular-nums ${reste ? "text-cap" : "text-ink/40"}`}>{xof(reste)}</strong></span>
+                  <span className="text-ink/55">Réglé <strong className="text-vert tabular-nums"><Montant valeur={regle} /></strong></span>
+                  <span className="text-ink/55">Reste <strong className={`tabular-nums ${reste ? "text-cap" : "text-ink/40"}`}>{franc(reste)}</strong></span>
                 </div>
               </div>
             )}
@@ -158,7 +162,7 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
                         {paiement.referenceExterne ? ` · ${paiement.referenceExterne}` : ""}
                       </span>
                     </span>
-                    <span className="font-semibold text-vert tabular-nums">{xof(paiement.montant)}</span>
+                    <span className="font-semibold text-vert tabular-nums"><Montant valeur={paiement.montant} /></span>
                   </li>
                 ))}
               </ul>

@@ -7,7 +7,7 @@ import { archiverClient, restaurerClient, supprimerClient } from "@/server/actio
 
 type Etape = "menu" | "archiver" | "supprimer";
 
-export function MenuClient({ clientId, nom, archive }: { clientId: string; nom: string; archive: boolean }) {
+export function MenuClient({ clientId, nom, archive, suppression }: { clientId: string; nom: string; archive: boolean; suppression: boolean }) {
   const [ouvert, setOuvert] = useState(false);
   const [etape, setEtape] = useState<Etape>("menu");
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
@@ -83,9 +83,11 @@ export function MenuClient({ clientId, nom, archive }: { clientId: string; nom: 
                     {archive ? <ArchiveRestore size={15} className="text-ink/45" /> : <Archive size={15} className="text-ink/45" />}
                     {libelle}
                   </button>
-                  <button type="button" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-cap hover:bg-red-50" onClick={() => setEtape("supprimer")}>
-                    <Trash2 size={15} /> Supprimer
-                  </button>
+                  {suppression ? (
+                    <button type="button" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-cap hover:bg-red-50" onClick={() => setEtape("supprimer")}>
+                      <Trash2 size={15} /> Supprimer
+                    </button>
+                  ) : null}
                 </>
               ) : (
                 <form action={action} className="grid gap-2 px-2.5 py-2">

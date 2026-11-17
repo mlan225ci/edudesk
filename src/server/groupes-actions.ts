@@ -1,5 +1,7 @@
 "use server";
 
+import { estLectureSeule } from "@/server/permissions";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { EtatAction } from "@/server/actions";
@@ -8,6 +10,7 @@ import { requireUser } from "@/server/session";
 
 export async function ouvrirGroupeClient(formData: FormData) {
   const user = await requireUser();
+  if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
   const resultat = await ouvrirOuCreerGroupeClient(user, String(formData.get("clientId") ?? ""));
   if ("error" in resultat) return;
   revalidatePath("/messages");
@@ -16,6 +19,7 @@ export async function ouvrirGroupeClient(formData: FormData) {
 
 export async function creerGroupeClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const resultat = await ouvrirOuCreerGroupeClient(user, String(formData.get("clientId") ?? ""));
   if (!("id" in resultat)) return { error: resultat.error };
   const ids = formData.getAll("membre").map(String);
@@ -29,6 +33,7 @@ export async function creerGroupeClient(_etat: EtatAction, formData: FormData): 
 
 export async function inviterDansGroupe(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const user = await requireUser();
+  if (estLectureSeule(user)) return { error: "Ce profil consulte seulement. Les modifications et les suppressions sont fermées." };
   const groupeId = String(formData.get("groupeId") ?? "");
   const resultat = await ajouterMembresGroupe(user, groupeId, formData.getAll("membre").map(String));
   if (!("ok" in resultat)) return { error: resultat.error };

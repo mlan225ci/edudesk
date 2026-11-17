@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { AlarmClock, FilePlus2, FileSignature, Hourglass, ReceiptText, Search, SearchX, Wallet } from "lucide-react";
@@ -10,7 +12,8 @@ import { Filtres } from "@/components/filtres";
 import { Formulaire } from "@/components/formulaire";
 import { Kpi } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
-import { Badge, Champ, EnTete, Onglets, Vide } from "@/components/ui";
+import { Badge, Champ, EnTete, Vide } from "@/components/ui";
+import { Onglets } from "@/components/onglets";
 import { nouveauDevis } from "@/server/devis-actions";
 import { CHAMPS_DOSSIER_FACTURABLE, versDossierFacturable } from "@/server/dossiers-facturables";
 import { nouvelleFacture } from "@/server/facturation-actions";
@@ -35,6 +38,8 @@ export default async function FacturationPage({
   searchParams: Promise<{ vue?: string; q?: string; statut?: string; type?: string; dossier?: string; nouveau?: string }>;
 }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   const modules = await lireModules();
   const filtres = await searchParams;
   const voitDevis = (await aLeDroit(user, "devis")) && modules.devis;
@@ -158,7 +163,7 @@ export default async function FacturationPage({
 
       {vue === "devis" ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi titre="En attente de réponse" valeur={enAttente.length} icone={Hourglass} ton="edu" detail={xof(enAttente.reduce((somme, item) => somme + item.total, 0))} />
+          <Kpi titre="En attente de réponse" valeur={enAttente.length} icone={Hourglass} ton="edu" detail={franc(enAttente.reduce((somme, item) => somme + item.total, 0))} />
           <Kpi titre="Taux d'acceptation" valeur={decides.length ? Math.round((gagnes.length / decides.length) * 100) : 0} format="pourcent" ton="vert" detail={`${gagnes.length} accepté(s) sur ${decides.length} décidé(s)`} />
           <Kpi titre="Montant accepté" valeur={gagnes.reduce((somme, item) => somme + item.total, 0)} format="xof" ton="desk" />
           <Kpi titre="Transformés en facture" valeur={lignesDevis.filter((item) => item.facture).length} icone={ReceiptText} ton="ink" />
@@ -229,7 +234,7 @@ export default async function FacturationPage({
                       <Badge ton={item.etat.ton} point>{item.etat.label}</Badge>
                       {item.facture ? <span className="ml-1.5 text-xs text-ink/45">{item.facture.numero}</span> : null}
                     </td>
-                    <td className="!pr-5 text-right font-semibold tabular-nums">{xof(item.total)}</td>
+                    <td className="!pr-5 text-right font-semibold tabular-nums"><Montant valeur={item.total} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -275,8 +280,8 @@ export default async function FacturationPage({
                   <td className="text-ink/70">{formatJour(item.creeLe)}</td>
                   <td className="text-ink/70">{item.paiementId ? "—" : item.echeanceLe ? formatJour(item.echeanceLe) : "À réception"}</td>
                   <td><Badge ton={item.etat.ton} point>{item.etat.label}</Badge></td>
-                  <td className={`text-right font-semibold tabular-nums ${item.annuleeLe ? "line-through" : ""}`}>{xof(item.montant)}</td>
-                  <td className={`!pr-5 text-right tabular-nums ${item.reste > 0 ? "font-semibold text-cap" : "text-ink/40"}`}>{item.reste > 0 ? xof(item.reste) : "—"}</td>
+                  <td className={`text-right font-semibold tabular-nums ${item.annuleeLe ? "line-through" : ""}`}>{franc(item.montant)}</td>
+                  <td className={`!pr-5 text-right tabular-nums ${item.reste > 0 ? "font-semibold text-cap" : "text-ink/40"}`}>{item.reste > 0 ? franc(item.reste) : "—"}</td>
                 </tr>
               ))}
             </tbody>

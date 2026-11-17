@@ -162,7 +162,7 @@ export function BarreHaute({
                   <UserCog size={17} className="text-ink/50" />
                   Mon profil
                 </Link>
-                <form action={logout}>
+                <form action={logout} data-autoriser="oui">
                   <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-cap hover:bg-cap/5">
                     <LogOut size={17} />
                     Se déconnecter

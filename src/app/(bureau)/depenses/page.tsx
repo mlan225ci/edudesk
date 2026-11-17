@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import type { CategorieDepense } from "@prisma/client";
 import { Download, Hash, Plus, Receipt, TrendingDown } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -18,6 +20,8 @@ export const metadata = { title: "Dépenses" };
 
 export default async function DepensesPage({ searchParams }: { searchParams: Promise<{ mois?: string; categorie?: string; nouveau?: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (!(await aLeDroit(user, "depenses"))) redirect("/tableau-de-bord");
   const params = await searchParams;
   const debut = moisDepuisCle(params.mois);
@@ -105,9 +109,9 @@ export default async function DepensesPage({ searchParams }: { searchParams: Pro
       </Filtres>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi titre="Total du mois" valeur={total} format="xof" ton="mission" icone={TrendingDown} evolution={variation(total, totalPrec)} inverse detail={`vs ${xof(totalPrec)} le mois précédent`} />
+        <Kpi titre="Total du mois" valeur={total} format="xof" ton="mission" icone={TrendingDown} evolution={variation(total, totalPrec)} inverse detail={`vs ${franc(totalPrec)} le mois précédent`} />
         <Kpi titre="Pièces saisies" valeur={depenses.length} icone={Hash} />
-        <Kpi titre="Premier poste" valeur={plusGros ? plusGros[0] : "—"} detail={plusGros ? xof(plusGros[1]) : undefined} icone={Receipt} />
+        <Kpi titre="Premier poste" valeur={plusGros ? plusGros[0] : "—"} detail={plusGros ? franc(plusGros[1]) : undefined} icone={Receipt} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -138,7 +142,7 @@ export default async function DepensesPage({ searchParams }: { searchParams: Pro
                     </td>
                     <td><Badge ton="gris">{labelCategorie(depense.categorie)}</Badge></td>
                     <td className="text-ink/60">{labelMode(depense.mode)}</td>
-                    <td className="text-right font-semibold tabular-nums">{xof(depense.montant)}</td>
+                    <td className="text-right font-semibold tabular-nums"><Montant valeur={depense.montant} /></td>
                     {annulable ? (
                       <td className="!pr-5 text-right">
                         <FormAction action={annulerDepense} succes="Dépense annulée" confirmer={`Annuler la dépense « ${depense.libelle} » ? L'écriture comptable sera supprimée.`}>

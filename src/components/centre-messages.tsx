@@ -76,9 +76,15 @@ export function useMessagesNonLus() {
   return useContext(ContexteMessages)?.nonLus ?? null;
 }
 
+const PERSONNE_EN_LIGNE = new Set<string>();
+
 export function usePresence(userId: string) {
   const contexte = useContext(ContexteMessages);
   return { enLigne: contexte?.enLigne.has(userId) ?? false, vuLe: contexte?.vuLe.get(userId) ?? null };
+}
+
+export function useIdsEnLigne() {
+  return useContext(ContexteMessages)?.enLigne ?? PERSONNE_EN_LIGNE;
 }
 
 export function CentreMessages({ moiId, moiNom, initial, children }: { moiId: string; moiNom: string; initial: number; children: React.ReactNode }) {

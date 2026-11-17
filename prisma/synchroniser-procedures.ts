@@ -201,6 +201,17 @@ async function main() {
     console.log(`Modèle SMS ajouté : ${modele.libelle}`);
   }
 
+  const publics = await prisma.dossier.findMany({
+    where: { codeSuivi: null, procedure: { code: "FRANCE_PUBLIC" } },
+    select: { id: true, reference: true },
+  });
+  for (const dossier of publics) {
+    let code = genererCodeSuivi();
+    while (await prisma.dossier.findUnique({ where: { codeSuivi: code }, select: { id: true } })) code = genererCodeSuivi();
+    await prisma.dossier.update({ where: { id: dossier.id }, data: { codeSuivi: code } });
+    console.log(`   ${dossier.reference} : code de suivi public ${code}`);
+  }
+
   const ouverts = await prisma.dossier.findMany({
     where: { codeSuivi: null, etapes: { some: { statut: "CLOTUREE", OR: [{ jalon: "CONTRAT" }, { acompte: "DOSSIER" }] } } },
     select: { id: true, reference: true },

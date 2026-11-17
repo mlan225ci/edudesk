@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cleMois, moisDepuisCle, nomComplet } from "@/lib/format";
 import { STATUTS, labelCategorie, labelMode, labelSource, labelTypePaiement } from "@/lib/labels";
-import { voitCompta, voitDepenses, voitFinance, voitRapports } from "@/server/permissions";
+import { masqueChiffres, voitCompta, voitDepenses, voitFinance, voitRapports } from "@/server/permissions";
 import { getUser } from "@/server/session";
 import { lirePeriode } from "@/server/statistiques";
 
@@ -21,6 +21,8 @@ const jour = (date: Date | null | undefined) => (date ? date.toISOString().slice
 export async function GET(request: Request, context: { params: Promise<{ type: string }> }) {
   const user = await getUser();
   if (!user || user.role === "PARTENAIRE") return new NextResponse("Non autorise", { status: 401 });
+  const masquer = masqueChiffres(user);
+  const chiffre = (valeur: number | null | undefined) => (masquer ? "••••" : valeur ?? "");
   const { type } = await context.params;
   const parametres = new URL(request.url).searchParams;
   const bornes = parametres.get("periode")
@@ -30,7 +32,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
   let contenu: string;
 
   if (type === "paiements") {
-    if (!voitFinance(user)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitFinance(user) && !masquer) return new NextResponse("Non autorise", { status: 403 });
     const paiements = await prisma.paiement.findMany({
       where: { dateEncaissement: periode },
       include: { client: true, dossier: true, facture: true, factureReglee: true },
@@ -40,31 +42,31 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
       ["Date", "Numéro", "Facture", "Client", "Dossier", "Type", "Moyen", "Précision", "Référence", "Montant XOF"],
       paiements.map((p) => [
         jour(p.dateEncaissement), p.numero, (p.facture ?? p.factureReglee)?.numero, nomComplet(p.client), p.dossier.reference,
-        labelTypePaiement(p.type), labelMode(p.mode), p.precision, p.referenceExterne, p.montant,
+        labelTypePaiement(p.type), labelMode(p.mode), p.precision, p.referenceExterne, chiffre(p.montant),
       ]),
     );
   } else if (type === "depenses") {
-    if (!voitDepenses(user) && !voitRapports(user)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitDepenses(user) && !voitRapports(user) && !masquer) return new NextResponse("Non autorise", { status: 403 });
     const depenses = await prisma.depense.findMany({ where: { date: periode }, include: { partenaire: true }, orderBy: { date: "asc" } });
     contenu = csv(
       ["Date", "Numéro", "Catégorie", "Motif", "Fournisseur", "Partenaire", "Moyen", "Référence", "Montant XOF"],
       depenses.map((d) => [
-        jour(d.date), d.numero, labelCategorie(d.categorie), d.libelle, d.fournisseur, d.partenaire?.nom, labelMode(d.mode), d.reference, d.montant,
+        jour(d.date), d.numero, labelCategorie(d.categorie), d.libelle, d.fournisseur, d.partenaire?.nom, labelMode(d.mode), d.reference, chiffre(d.montant),
       ]),
     );
   } else if (type === "ecritures") {
-    if (!voitCompta(user)) return new NextResponse("Non autorise", { status: 403 });
+    if (!voitCompta(user) && !masquer) return new NextResponse("Non autorise", { status: 403 });
     const ecritures = await prisma.ecriture.findMany({ where: { date: periode }, orderBy: [{ date: "asc" }, { journal: "asc" }] });
     contenu = csv(
       ["Date", "Journal", "Compte", "Libellé", "Débit", "Crédit"],
-      ecritures.map((e) => [jour(e.date), e.journal, e.compte, e.libelle, e.debit || "", e.credit || ""]),
+      ecritures.map((e) => [jour(e.date), e.journal, e.compte, e.libelle, e.debit ? chiffre(e.debit) : "", e.credit ? chiffre(e.credit) : ""]),
     );
   } else if (type === "dossiers") {
     const dossiers = await prisma.dossier.findMany({
       include: { client: true, procedure: true, paiements: { select: { montant: true } } },
       orderBy: { ouvertLe: "asc" },
     });
-    const finance = voitFinance(user);
+    const finance = voitFinance(user) || masquer;
     contenu = csv(
       ["Référence", "Ouvert le", "Client", "Téléphone", "Procédure", "Destination", "Statut", ...(finance ? ["Convenu XOF", "Payé XOF", "Reste XOF"] : [])],
       dossiers.map((d) => {
@@ -72,7 +74,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
         const paye = d.paiements.reduce((somme, p) => somme + p.montant, 0);
         return [
           d.reference, jour(d.ouvertLe), nomComplet(d.client), d.client.telephone, d.procedure.nom, d.procedure.destination, STATUTS[d.statut],
-          ...(finance ? [convenu, paye, Math.max(convenu - paye, 0)] : []),
+          ...(finance ? [chiffre(convenu), chiffre(paye), chiffre(Math.max(convenu - paye, 0))] : []),
         ];
       }),
     );
@@ -84,7 +86,7 @@ export async function GET(request: Request, context: { params: Promise<{ type: s
     });
     contenu = csv(
       ["Nom", "Prénom", "Téléphone", "E-mail", "Pays visé", "Responsable", "Partenaire", "Dossiers", "Créé le"],
-      clients.map((c) => [c.nom, c.prenom, c.telephone, c.email, c.paysVise, c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : "", c.partenaire?.nom, c._count.dossiers, jour(c.creeLe)]),
+      clients.map((c) => [c.nom, c.prenom, c.telephone, c.email, c.paysVise, c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : "", c.partenaire?.nom, chiffre(c._count.dossiers), jour(c.creeLe)]),
     );
   } else if (type === "prospects") {
     const prospects = await prisma.prospect.findMany({ include: { partenaire: true }, orderBy: { creeLe: "asc" } });

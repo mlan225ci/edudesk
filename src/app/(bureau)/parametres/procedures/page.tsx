@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
 import { redirect } from "next/navigation";
 import { ArrowRight, Plus, Route } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -6,7 +7,7 @@ import { xof } from "@/lib/format";
 import { Formulaire } from "@/components/formulaire";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, Champ, EnTete, Info } from "@/components/ui";
-import { peutProcedures } from "@/server/permissions";
+import { aLeRole, peutParametrer } from "@/server/permissions";
 import { creerProcedure } from "@/server/procedures";
 import { requireUser } from "@/server/session";
 
@@ -14,8 +15,10 @@ export const metadata = { title: "Procédures" };
 
 export default async function ProceduresPage() {
   const user = await requireUser();
-  if (!peutProcedures(user)) redirect("/missions");
-  const direction = user.role === "CEO" || user.role === "ADMINISTRATEUR";
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
+  if (!peutParametrer(user)) redirect("/parametres");
+  const direction = aLeRole(user, "CEO", "ADMINISTRATEUR", "ADMINISTRATEUR_SYSTEME");
   const procedures = await prisma.procedure.findMany({
     include: { _count: { select: { etapes: true, dossiers: true } } },
     orderBy: [{ actif: "desc" }, { nom: "asc" }],
@@ -83,7 +86,7 @@ export default async function ProceduresPage() {
             <dl className="grid grid-cols-[1fr_1fr_1.6fr] gap-2 rounded-xl bg-paper p-3 text-center text-sm">
               <div><dt className="text-xs text-ink/50">Étapes</dt><dd className="font-bold">{procedure._count.etapes}</dd></div>
               <div><dt className="text-xs text-ink/50">Dossiers</dt><dd className="font-bold">{procedure._count.dossiers}</dd></div>
-              <div><dt className="text-xs text-ink/50">Tarif</dt><dd className="font-bold whitespace-nowrap">{procedure.tarifXof ? xof(procedure.tarifXof) : "—"}</dd></div>
+              <div><dt className="text-xs text-ink/50">Tarif</dt><dd className="font-bold whitespace-nowrap">{procedure.tarifXof ? franc(procedure.tarifXof) : "—"}</dd></div>
             </dl>
             <p className="flex items-center justify-between text-xs text-ink/45">
               Version {procedure.version}

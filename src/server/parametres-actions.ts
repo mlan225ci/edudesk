@@ -11,7 +11,8 @@ import { executerAutomatisation } from "@/server/automatisation";
 import { emailValide, envoyerMailDirect } from "@/server/mail";
 import { MODULES } from "@/server/modules";
 import { CHAMPS_ENTREPRISE, REPERTOIRE_PARAMETRES, TAILLES_LOGO, configSms, ecrireParametres, lireDocuments, lireEntreprise } from "@/server/parametres";
-import { peutParametrer } from "@/server/permissions";
+import { peutParametrer, peutRegles } from "@/server/permissions";
+import { estRegleId } from "@/server/regles";
 import { requireUser } from "@/server/session";
 import { envoyerSms } from "@/server/sms";
 
@@ -117,6 +118,37 @@ export async function choisirLogoDocuments(formData: FormData) {
   await supprimerAncienLogo("");
   await ecrireParametres("documents", { logo: choix === "aucun" ? "aucun" : null });
   await journaliser(user.id, choix === "aucun" ? "Logo retiré des devis et factures" : "Logo EduDesk rétabli sur les devis et factures");
+}
+
+export async function enregistrerRegle(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutRegles(user)) return { error: "Réservé au directeur et à l'administrateur système." };
+  const id = String(formData.get("id") ?? "");
+  if (!estRegleId(id)) return { error: "Règle inconnue." };
+  const actif = formData.get("actif") === "1";
+  await ecrireParametres("regle", { [id]: actif ? "1" : "0" });
+  await journaliser(user.id, actif ? `Règle activée : ${id}` : `Règle coupée : ${id}`);
+  return null;
+}
+
+export async function enregistrerFraisVisa(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutRegles(user)) return { error: "Réservé au directeur et à l'administrateur système." };
+  const montant = Number(String(formData.get("montant") ?? "").replace(/\s/g, ""));
+  if (!Number.isInteger(montant) || montant < 0 || montant > 100_000_000) return { error: "Indiquez un montant entier en F CFA." };
+  await ecrireParametres("regle", { fraisVisa: String(montant) });
+  await journaliser(user.id, `Frais de visa : ${montant} F CFA`);
+  return null;
+}
+
+export async function definirSuiviClient(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const user = await requireUser();
+  if (!peutParametrer(user)) return { error: "Réservé à la direction, à l'administrateur et à l'administrateur système." };
+  const actif = formData.get("actif") === "1";
+  await ecrireParametres("application", { suiviClient: actif ? "1" : "0" });
+  await journaliser(user.id, actif ? "Suivi client par lien activé" : "Suivi client par lien désactivé");
+  revalidatePath("/suivi");
+  return null;
 }
 
 export async function modifierApplication(_etat: EtatAction, formData: FormData): Promise<EtatAction> {

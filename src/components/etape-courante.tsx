@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, CheckCircle2, Eye, FileCheck2, FileText, Loader2, Lock, Paperclip, PartyPopper, RotateCcw, Upload, Wallet } from "lucide-react";
-import { basculerTache, cloturer, deposerPiece, retirerPiece } from "@/server/actions";
+import { ajouterDocuments, basculerTache, cloturer, deposerPiece, retirerPiece, revenirEtape } from "@/server/actions";
 import { Formulaire, useReveil } from "@/components/formulaire";
 import { useToast } from "@/components/toasts";
 import { estLettreDefinitive } from "@/lib/labels";
@@ -30,6 +30,8 @@ export function EtapeCourante({
   peutAgir,
   peutCloturer,
   peutEncaisser,
+  peutRevenir,
+  peutAjouter,
 }: {
   etapeId: string;
   dossierId: string;
@@ -40,6 +42,8 @@ export function EtapeCourante({
   peutAgir: boolean;
   peutCloturer: boolean;
   peutEncaisser: boolean;
+  peutRevenir: boolean;
+  peutAjouter: boolean;
 }) {
   const toast = useToast();
   const reveiller = useReveil();
@@ -252,6 +256,51 @@ export function EtapeCourante({
             </Link>
           ) : null}
         </section>
+      ) : null}
+
+      {peutAjouter ? (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-ink/15 px-4 py-3">
+          <p className="text-sm text-ink/65">Ajoutez plusieurs documents d&apos;un coup. Chaque fichier devient un emplacement.</p>
+          <label className="bouton-second cursor-pointer py-2">
+            <Paperclip size={14} /> Ajouter des documents
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              onChange={(event) => {
+                const liste = event.target.files;
+                event.target.value = "";
+                if (!liste?.length) return;
+                const data = new FormData();
+                data.set("etapeId", etapeId);
+                for (const fichier of Array.from(liste)) {
+                  if (fichier.size > TAILLE_MAX) {
+                    toast(`${fichier.name} dépasse 10 Mo.`, "erreur");
+                    return;
+                  }
+                  data.append("fichiers", fichier);
+                }
+                demarrer(async () => {
+                  const resultat = await ajouterDocuments(null, data);
+                  if (resultat?.error) toast(resultat.error, "erreur");
+                  else {
+                    toast("Documents ajoutés");
+                    reveiller();
+                  }
+                });
+              }}
+            />
+          </label>
+        </section>
+      ) : null}
+
+      {peutRevenir ? (
+        <form action={revenirEtape}>
+          <input type="hidden" name="etapeId" value={etapeId} />
+          <button type="submit" className="bouton-second">
+            <RotateCcw size={15} /> Revenir à l&apos;étape précédente
+          </button>
+        </form>
       ) : null}
 
       {peutCloturer ? (

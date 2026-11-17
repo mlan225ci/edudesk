@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sessionMasqueChiffres } from "@/server/voile";
+import { Montant } from "@/components/montant";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, GraduationCap, Mail, MapPin, Pencil, Phone, Trash2, User, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -21,6 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function EcolePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
   if (user.role === "PARTENAIRE") redirect("/dossiers");
   const { id } = await params;
   const [ecole, procedures] = await Promise.all([
@@ -96,7 +100,7 @@ export default async function EcolePage({ params }: { params: Promise<{ id: stri
               <div><dt className="text-xs text-ink/50">Inscrits</dt><dd className="text-lg font-bold">{inscrits}</dd></div>
             </dl>
             <ul className="grid gap-2.5 text-sm">
-              <li className="flex items-center gap-2.5"><Wallet size={16} className="text-ink/40" />{ecole.fraisXof ? `${xof(ecole.fraisXof)} par an` : "Frais de scolarité non renseignés"}</li>
+              <li className="flex items-center gap-2.5"><Wallet size={16} className="text-ink/40" />{ecole.fraisXof ? `${franc(ecole.fraisXof)} par an` : "Frais de scolarité non renseignés"}</li>
               {ecole.rentrees ? <li className="flex items-center gap-2.5"><CalendarDays size={16} className="text-ink/40" />Rentrées : {ecole.rentrees}</li> : null}
               {ecole.ville ? <li className="flex items-center gap-2.5"><MapPin size={16} className="text-ink/40" />{ecole.ville}, {ecole.pays}</li> : null}
               {ecole.contactNom ? <li className="flex items-center gap-2.5"><User size={16} className="text-ink/40" />{ecole.contactNom}</li> : null}
@@ -111,8 +115,8 @@ export default async function EcolePage({ params }: { params: Promise<{ id: stri
             </ul>
             {ecole.partenaire ? (
               <p className="rounded-xl bg-vert/[0.07] px-3.5 py-2.5 text-sm text-vert">
-                Commission : <strong>{ecole.commissionXof ? xof(ecole.commissionXof) : "non renseignée"}</strong> par étudiant inscrit
-                {ecole.commissionXof && inscrits ? <> · {xof(ecole.commissionXof * inscrits)} attendus</> : null}
+                Commission : <strong>{ecole.commissionXof ? franc(ecole.commissionXof) : "non renseignée"}</strong> par étudiant inscrit
+                {ecole.commissionXof && inscrits ? <> · <Montant valeur={ecole.commissionXof * inscrits} /> attendus</> : null}
               </p>
             ) : null}
           </div>

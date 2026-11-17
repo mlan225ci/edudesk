@@ -17,6 +17,7 @@ import { xof } from "@/lib/format";
 export const ROLES: { value: Role; label: string }[] = [
   { value: "CEO", label: "Direction" },
   { value: "ADMINISTRATEUR", label: "Administrateur" },
+  { value: "ADMINISTRATEUR_SYSTEME", label: "Administrateur système" },
   { value: "RESPONSABLE_COMMERCIALE", label: "Responsable commerciale" },
   { value: "COMMERCIAL", label: "Commercial" },
   { value: "ASSISTANTE_ADMINISTRATIVE", label: "Secrétaire" },
@@ -120,9 +121,9 @@ export const TON_CANDIDATURE: Record<StatutCandidature, "edu" | "desk" | "missio
 
 export const TYPES_ECOLE = ["Université publique", "École privée", "Collège", "École de langues", "Grande école"];
 
-export function detailAudit(detail: string) {
+export function detailAudit(detail: string, masquer = false) {
   return detail
-    .replace(/(?<![\w-])\d{4,}(?![\w-])/g, (montant) => xof(Number(montant)))
+    .replace(/(?<![\w-])\d{4,}(?![\w-])/g, (montant) => (masquer ? "••••" : xof(Number(montant))))
     .replace(/\b[A-Z][A-Z_]{3,}\b/g, (code) => MODES.find((mode) => mode.value === code)?.label ?? code);
 }
 

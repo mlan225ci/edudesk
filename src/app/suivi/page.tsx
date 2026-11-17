@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { sessionMasqueChiffres } from "@/server/voile";
 import { Award, Check, CircleDot, FileCheck2, FileClock, FileDown, GraduationCap, Hourglass, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
@@ -9,7 +10,7 @@ import type { StatutCandidature } from "@prisma/client";
 import { Badge, Progression, type Ton } from "@/components/ui";
 import { DepotClient } from "@/components/depot-client";
 import { FormulaireSuivi } from "@/components/formulaire-suivi";
-import { lireEntreprise } from "@/server/parametres";
+import { lireEntreprise, suiviClientActif } from "@/server/parametres";
 import { quitterSuivi } from "@/server/suivi";
 
 export const metadata = { title: "Suivi de dossier", robots: { index: false, follow: false } };
@@ -99,6 +100,22 @@ function EnTete({ connecte }: { connecte: boolean }) {
 }
 
 export default async function SuiviPage() {
+  const __masque = await sessionMasqueChiffres();
+  const franc = (n: number) => (__masque ? "••••" : xof(n));
+  if (!(await suiviClientActif())) {
+    return (
+      <main className="min-h-screen bg-paper px-5 py-8 sm:py-12">
+        <div className="mx-auto grid w-full max-w-md gap-10">
+          <EnTete connecte={false} />
+          <section className="animate-entree">
+            <p className="text-sm font-semibold tracking-[0.18em] text-desk uppercase">Espace client</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">Suivi indisponible</h1>
+            <p className="mt-2 text-ink/60">Le suivi de dossier en ligne est fermé. Contactez l&apos;agence pour connaître l&apos;avancement.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
   const dossier = await dossierSuivi();
 
   if (!dossier) {
@@ -311,12 +328,12 @@ export default async function SuiviPage() {
         <section className="carte animate-entree">
           <h2 className="mb-4 flex items-center gap-2 font-semibold"><Wallet size={18} className="text-ink/40" /> Vos paiements</h2>
           <div className="grid gap-1.5 rounded-xl bg-paper p-4 text-sm">
-            {convenu > 0 ? <p className="flex justify-between"><span className="text-ink/60">Montant du service</span><span className="font-semibold tabular-nums">{xof(convenu)}</span></p> : null}
-            <p className="flex justify-between"><span className="text-ink/60">Déjà réglé</span><span className="font-semibold tabular-nums text-vert">{xof(paye)}</span></p>
+            {convenu > 0 ? <p className="flex justify-between"><span className="text-ink/60">Montant du service</span><span className="font-semibold tabular-nums">{franc(convenu)}</span></p> : null}
+            <p className="flex justify-between"><span className="text-ink/60">Déjà réglé</span><span className="font-semibold tabular-nums text-vert">{franc(paye)}</span></p>
             {convenu > 0 ? (
               <p className="flex justify-between border-t border-ink/[0.06] pt-1.5">
                 <span className="text-ink/60">Reste à régler</span>
-                <span className={`font-bold tabular-nums ${reste > 0 ? "text-cap" : "text-vert"}`}>{xof(reste)}</span>
+                <span className={`font-bold tabular-nums ${reste > 0 ? "text-cap" : "text-vert"}`}>{franc(reste)}</span>
               </p>
             ) : null}
           </div>
@@ -332,8 +349,8 @@ export default async function SuiviPage() {
                         <Badge ton={facture.etat.ton}>{facture.etat.label}</Badge>
                       </span>
                       <span className="block truncate text-xs text-ink/50">
-                        {facture.libelle} · {xof(facture.montant)}
-                        {facture.reste > 0 ? ` · reste ${xof(facture.reste)}` : ""}
+                        {facture.libelle} · {franc(facture.montant)}
+                        {facture.reste > 0 ? ` · reste ${franc(facture.reste)}` : ""}
                         {facture.reste > 0 && facture.echeanceLe ? ` avant le ${formatJour(facture.echeanceLe)}` : ""}
                       </span>
                     </span>
@@ -356,7 +373,7 @@ export default async function SuiviPage() {
                         {document ? <span className="block text-xs text-ink/45">{paiement.facture ? "Facture acquittée" : "Règlement de la facture"} {document.numero}</span> : null}
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="font-semibold tabular-nums">{xof(paiement.montant)}</span>
+                        <span className="font-semibold tabular-nums">{franc(paiement.montant)}</span>
                         {document ? <BoutonFacture id={document.id} numero={document.numero} /> : null}
                       </span>
                     </li>

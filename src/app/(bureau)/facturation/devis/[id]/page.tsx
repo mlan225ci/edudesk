@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Montant } from "@/components/montant";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Check, FileDown, FileSignature, Mail, ReceiptText, Send, Trash2, X } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -85,7 +86,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
                   <input type="hidden" name="devisId" value={devis.id} />
                   <div className="rounded-2xl bg-paper px-4 py-3">
                     <p className="text-xs text-ink/50">Montant de la facture</p>
-                    <p className="text-2xl font-bold tabular-nums">{xof(devis.total)}</p>
+                    <p className="text-2xl font-bold tabular-nums"><Montant valeur={devis.total} /></p>
                     <p className="text-xs text-ink/50">{lignes.length} ligne(s) · {devis.clientNom}</p>
                   </div>
                   <Champ label="Échéance (jours)" aide="Laissez vide pour une facture payable à réception.">
@@ -108,7 +109,7 @@ export default async function DevisPage({ params }: { params: Promise<{ id: stri
           <article className="carte">
             <div className="flex items-center justify-between gap-3">
               <Badge ton={etat.ton} point>{etat.label}</Badge>
-              <p className="text-2xl font-bold tabular-nums">{xof(devis.total)}</p>
+              <p className="text-2xl font-bold tabular-nums"><Montant valeur={devis.total} /></p>
             </div>
             <dl className="mt-4 grid gap-2.5 text-sm">
               {details.map(([libelle, valeur]) => (
