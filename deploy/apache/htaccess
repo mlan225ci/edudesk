@@ -1,6 +1,9 @@
 DirectoryIndex disabled
 DirectorySlash Off
 RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://erp.edudesk-inter.com%{REQUEST_URI} [R=301,L]
 RewriteRule ^ http://[::1]:3000%{REQUEST_URI} [P,L]
-Header always edit Location "http://localhost:3000" "http://erp.edudesk-inter.com"
-Header always edit Location "http://127.0.0.1:3000" "http://erp.edudesk-inter.com"
+Header always edit Location "http://localhost:3000" "https://erp.edudesk-inter.com"
+Header always edit Location "http://127.0.0.1:3000" "https://erp.edudesk-inter.com"
+Header always edit Location "http://erp.edudesk-inter.com" "https://erp.edudesk-inter.com"
