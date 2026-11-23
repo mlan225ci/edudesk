@@ -92,6 +92,20 @@ function BoutonFacture({ id, numero }: { id: string; numero: string }) {
   );
 }
 
+function BulleWhatsapp({ telephone }: { telephone: string }) {
+  return (
+    <a
+      href={lienWhatsapp(telephone)}
+      target="_blank"
+      rel="noreferrer"
+      aria-label="WhatsApp"
+      className="fixed right-4 bottom-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg"
+    >
+      <MessageCircle size={28} />
+    </a>
+  );
+}
+
 function EnTete({ connecte }: { connecte: boolean }) {
   return (
     <header className="flex items-center justify-between gap-3">
@@ -110,11 +124,13 @@ function EnTete({ connecte }: { connecte: boolean }) {
 export default async function SuiviPage() {
   const __masque = await sessionMasqueChiffres();
   const franc = (n: number) => (__masque ? "••••" : xof(n));
+  const entreprise = await lireEntreprise();
   if (!(await suiviClientActif())) {
     return (
       <main className="min-h-screen bg-paper px-5 py-8 sm:py-12">
         <div className="mx-auto grid w-full max-w-md gap-10">
           <EnTete connecte={false} />
+          <BulleWhatsapp telephone={entreprise.telephone} />
           <section className="animate-entree">
             <p className="text-sm font-semibold tracking-[0.18em] text-desk uppercase">Espace client</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">Suivi indisponible</h1>
@@ -144,11 +160,11 @@ export default async function SuiviPage() {
             </p>
           </section>
         </div>
+        <BulleWhatsapp telephone={entreprise.telephone} />
       </main>
     );
   }
 
-  const entreprise = await lireEntreprise();
   const contact = [entreprise.telephone, entreprise.email].filter(Boolean);
   const numeros = numerosEtapes(dossier.etapes);
   const courante = dossier.etapes.find((etape) => etape.statut === "EN_COURS");
@@ -397,14 +413,7 @@ export default async function SuiviPage() {
           ) : null}
         </section>
 
-        <a
-          href={lienWhatsapp(entreprise.telephone)}
-          target="_blank"
-          rel="noreferrer"
-          className="fixed right-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-lg"
-        >
-          <MessageCircle size={18} /> WhatsApp
-        </a>
+        <BulleWhatsapp telephone={entreprise.telephone} />
         <p className="pb-16 text-center text-xs text-ink/45">
           Vous recevez un SMS (et un e-mail si nous avons votre adresse) à chaque avancée de votre dossier. Une question ? Contactez votre conseiller {entreprise.nom}
           {contact.length ? ` : ${contact.join(" · ")}` : "."}

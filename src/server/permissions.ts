@@ -246,7 +246,7 @@ export function peutPiece(user: SessionUser, etape: { responsableId: string | nu
   return peutCloturer(user, etape);
 }
 
-export type Lien = { href: string; label: string; icone: string };
+export type Lien = { href: string; label: string; icone: string; sous?: boolean };
 export type SectionNavigation = { titre: string; liens: Lien[] };
 
 export function peutCreerClient(porteur: PorteurRoles) {
@@ -286,6 +286,7 @@ export function navigation(porteur: PorteurRoles, modules?: ModulesActifs, droit
   const commercial: Lien[] = [];
   if (oui("prospects", peutProspects(porteur))) commercial.push({ href: "/prospects", label: "Prospects", icone: "prospects" });
   if (oui("clients", true)) commercial.push({ href: "/clients", label: "Clients", icone: "clients" });
+  if (oui("clients", true) && peutArchiverClient(porteur)) commercial.push({ href: "/clients?archives=1", label: "Archives", icone: "archives", sous: true });
   if (oui("partenaires", voitPartenaires(porteur))) commercial.push({ href: "/partenaires", label: "Partenaires", icone: "partenaires" });
 
   const operations: Lien[] = [];
