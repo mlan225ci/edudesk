@@ -78,6 +78,7 @@ export async function envoyerMailDirect(input: { a: string; sujet: string; corps
     port: config.port,
     secure: config.securise,
     auth: config.utilisateur ? { user: config.utilisateur, pass: config.motDePasse ?? "" } : undefined,
+    tls: config.nomTls ? { servername: config.nomTls } : undefined,
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 30000,

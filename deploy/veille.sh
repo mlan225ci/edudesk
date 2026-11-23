@@ -9,7 +9,7 @@ WEB=$SITE/web
 REFERENCE=$APP/deploy/apache/htaccess
 ARCHIVES=$SITE/home/adminedudesk/veille-archives
 LOG=$SITE/home/adminedudesk/edudesk-veille.log
-DOMAINE=https://erp.edudesk-inter.com
+DOMAINE=https://erpedudesk.com
 
 noter() { echo "$(date -Is) $*" >> "$LOG"; }
 

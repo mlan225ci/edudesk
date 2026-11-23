@@ -518,7 +518,7 @@ export default async function DossierPage({
                       </Champ>
                       <Choix label="Moyen de paiement" name="mode" options={MODES} defaut={MODES[2]?.value} />
                       <Champ label="Précision">
-                        <input className="champ" name="precision" placeholder="Orange Money, Wave, banque…" />
+                        <input className="champ" name="precision" placeholder="Wave ou Orange Money (comptes séparés), banque…" />
                       </Champ>
                       <Champ label="Référence du reçu">
                         <input className="champ" name="referenceExterne" placeholder="Facultatif" />

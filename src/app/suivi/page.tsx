@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { sessionMasqueChiffres } from "@/server/voile";
-import { Award, Check, CircleDot, FileCheck2, FileClock, FileDown, GraduationCap, Hourglass, LogOut, PenLine, ShieldCheck, Wallet } from "lucide-react";
+import { Award, Check, CircleDot, FileCheck2, FileClock, FileDown, GraduationCap, Hourglass, LogOut, MessageCircle, PenLine, ShieldCheck, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { etatFacture } from "@/lib/facturation";
 import { formatJour, xof } from "@/lib/format";
@@ -14,6 +14,14 @@ import { lireEntreprise, suiviClientActif } from "@/server/parametres";
 import { quitterSuivi } from "@/server/suivi";
 
 export const metadata = { title: "Suivi de dossier", robots: { index: false, follow: false } };
+
+const WHATSAPP_AGENCE = "2250714415050";
+
+function lienWhatsapp(telephone: string) {
+  const chiffres = telephone.replace(/\D/g, "");
+  const numero = chiffres.startsWith("225") ? chiffres : chiffres.startsWith("0") ? `225${chiffres}` : "";
+  return `https://wa.me/${numero.length >= 11 ? numero : WHATSAPP_AGENCE}?text=${encodeURIComponent("Bonjour, je vous contacte au sujet de mon dossier.")}`;
+}
 
 async function dossierSuivi() {
   const code = normaliserCodeSuivi((await cookies()).get("edudesk_suivi")?.value ?? "");
@@ -210,7 +218,12 @@ export default async function SuiviPage() {
               <p className="mt-3 flex items-start gap-2 rounded-xl bg-cap/[0.07] px-3.5 py-3 text-sm">
                 <FileClock size={16} className="mt-0.5 shrink-0 text-cap" />
                 <span>
-                  <span className="font-semibold">{aFournir.length} document(s) à fournir</span> pour continuer. Vous pouvez les déposer plus bas.
+                  <span className="font-semibold">
+                    {courante.debutLe && Date.now() - courante.debutLe.getTime() > 48 * 60 * 60 * 1000
+                      ? `Vous êtes en retard : ${aFournir.length} document(s) ne sont toujours pas déposés.`
+                      : `${aFournir.length} document(s) à fournir`}
+                  </span>{" "}
+                  pour continuer. Vous pouvez les déposer plus bas.
                 </span>
               </p>
             ) : null}
@@ -384,7 +397,15 @@ export default async function SuiviPage() {
           ) : null}
         </section>
 
-        <p className="pb-4 text-center text-xs text-ink/45">
+        <a
+          href={lienWhatsapp(entreprise.telephone)}
+          target="_blank"
+          rel="noreferrer"
+          className="fixed right-4 bottom-4 z-30 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-lg"
+        >
+          <MessageCircle size={18} /> WhatsApp
+        </a>
+        <p className="pb-16 text-center text-xs text-ink/45">
           Vous recevez un SMS (et un e-mail si nous avons votre adresse) à chaque avancée de votre dossier. Une question ? Contactez votre conseiller {entreprise.nom}
           {contact.length ? ` : ${contact.join(" · ")}` : "."}
         </p>

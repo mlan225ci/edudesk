@@ -151,7 +151,14 @@ export function peutSigner(porteur: PorteurRoles) {
 }
 
 export function peutArchiverClient(porteur: PorteurRoles) {
-  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR");
+  return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
+}
+
+export function voitEcoles(porteur: PorteurRoles) {
+  const socialSeul =
+    aLeRole(porteur, "COMMUNITY_MANAGER") &&
+    !aLeRole(porteur, "CEO", "ADMINISTRATEUR", "ADMINISTRATEUR_SYSTEME", "INFORMATICIEN_ECOLE", "INFORMATICIEN_VISA", "INFORMATICIEN_FRANCE", "ASSISTANTE_ADMINISTRATIVE");
+  return !socialSeul;
 }
 
 export function peutSupprimerClient(porteur: PorteurRoles) {
@@ -284,7 +291,7 @@ export function navigation(porteur: PorteurRoles, modules?: ModulesActifs, droit
   const operations: Lien[] = [];
   if (oui("missions", true)) operations.push({ href: "/missions", label: "Mes missions", icone: "missions" });
   if (oui("dossiers", true)) operations.push({ href: "/dossiers", label: "Dossiers", icone: "dossiers" });
-  if (oui("ecoles", true)) operations.push({ href: "/ecoles", label: "Écoles", icone: "ecoles" });
+  if (oui("ecoles", true) && voitEcoles(porteur)) operations.push({ href: "/ecoles", label: "Écoles", icone: "ecoles" });
   if (oui("traductions", voitTraductions(porteur))) operations.push({ href: "/traductions", label: "Traductions", icone: "traductions" });
 
   const finance: Lien[] = [];

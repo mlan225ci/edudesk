@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import type { AcompteExige, CategorieDepense, EtapePipeline, EtatMateriel, ModePaiement, Role, SourceProspect, TypeConge, TypePaiement } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { normaliserTelephone, telephoneValide } from "@/lib/format";
-import { CATEGORIES_DEPENSE, ETATS_MATERIEL, MODES, ROLES, TYPES_CONGE, categorieDocument, estLettreDefinitive, typePourAcompte } from "@/lib/labels";
+import { CATEGORIES_DEPENSE, CATEGORIES_DOCUMENT, ETATS_MATERIEL, MODES, ROLES, TYPES_CONGE, categorieDocument, estLettreDefinitive, typePourAcompte } from "@/lib/labels";
 import {
   peutAnnulerDepense,
   peutArchiverClient,
@@ -437,13 +437,21 @@ async function enregistrerAnnexesClient(clientId: string, formData: FormData) {
 export async function supprimerClient(formData: FormData) {
   const user = await requireUser();
   if (estLectureSeule(user)) throw new Error("Ce profil consulte seulement. Les modifications et les suppressions sont fermées.");
-  if (!(await suppressionAutorisee(user))) throw new Error("La suppression d'un client et de ses dossiers est réservée à l'administrateur. L'école, l'assistante et la direction ne peuvent pas supprimer.");
+  const suppressionTotale = await suppressionAutorisee(user);
+  const suppressionLegere = aLeRole(user, "RESPONSABLE_COMMERCIALE", "COMMERCIAL", "ASSISTANTE_ADMINISTRATIVE");
+  if (!suppressionTotale && !suppressionLegere) throw new Error("La suppression d'un client et de ses dossiers est réservée à l'administrateur. L'école et la direction ne peuvent pas supprimer.");
   const id = String(formData.get("clientId") ?? "");
   const client = await prisma.client.findUnique({
     where: { id },
     select: { id: true, prenom: true, nom: true, dossiers: { select: { id: true } }, groupe: { select: { id: true } } },
   });
   if (!client) return;
+  if (!suppressionTotale) {
+    const paiements = await prisma.paiement.count({ where: { clientId: id } });
+    if (client.dossiers.length > 0 || paiements > 0) {
+      throw new Error("Cette fiche a un dossier ou un paiement. Archivez-la : l'historique doit rester.");
+    }
+  }
   const dossierIds = client.dossiers.map((dossier) => dossier.id);
   await prisma.$transaction(async (tx) => {
     const paiements = await tx.paiement.findMany({
@@ -561,6 +569,10 @@ export async function convertirProspect(_etat: EtatAction, formData: FormData): 
   const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } });
   if (!prospect || prospect.converti) return { error: "Ce prospect est déjà converti." };
   if (!procedureId) return { error: "Choisissez une procédure." };
+  const commercialSeul = aLeRole(user, "COMMERCIAL") && !aLeRole(user, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
+  if (commercialSeul && formData.get("conditions") !== "oui") {
+    return { error: "Avant de convertir : tous les documents demandés, 80 000 F encaissés, et la lettre d'engagement signée." };
+  }
 
   const procedure = await prisma.procedure.findUnique({ where: { id: procedureId }, select: { destination: true } });
   let client = await prisma.client.findFirst({ where: { telephone: prospect.telephone } });
@@ -724,6 +736,11 @@ export async function ajouterDocuments(_etat: EtatAction, formData: FormData): P
   if (!peutPiece(user, etape)) return { error: "Vous ne déposez pas de documents sur cette étape." };
   const fichiers = formData.getAll("fichiers").filter((fichier): fichier is File => fichier instanceof File && fichier.size > 0);
   if (fichiers.length === 0) return { error: "Choisissez au moins un fichier." };
+  const nature = String(formData.get("nature") ?? "").trim();
+  const precision = String(formData.get("precision") ?? "").trim();
+  const natures = [...CATEGORIES_DOCUMENT, "Autre"];
+  if (!natures.includes(nature)) return { error: "Choisissez la nature du document." };
+  if (nature === "Autre" && precision.length < 2) return { error: "Précisez la nature du document (exemple : passeport)." };
   if (fichiers.some((fichier) => fichier.size > 10 * 1024 * 1024)) return { error: "Chaque fichier doit faire moins de 10 Mo." };
   const dernier = await prisma.pieceDossier.aggregate({ where: { dossierEtapeId: etape.id }, _max: { ordre: true } });
   let ordre = dernier._max.ordre ?? 0;
@@ -736,7 +753,8 @@ export async function ajouterDocuments(_etat: EtatAction, formData: FormData): P
         dossierId: etape.dossierId,
         dossierEtapeId: etape.id,
         ordre,
-        libelle: fichier.name.replace(/\.[^.]+$/, "") || fichier.name,
+        libelle: nature === "Autre" ? precision : fichier.name.replace(/\.[^.]+$/, "") || fichier.name,
+        categorie: nature === "Autre" ? "Autre" : nature,
         obligatoire: false,
         recue: true,
         recueLe: new Date(),

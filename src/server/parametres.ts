@@ -174,6 +174,7 @@ export type ConfigMail = {
   motDePasse: string | null;
   expediteur: string | null;
   nomExpediteur: string;
+  nomTls: string | null;
   source: "parametres" | "serveur" | "aucune";
 };
 
@@ -191,6 +192,7 @@ export async function configMail(): Promise<ConfigMail> {
       motDePasse: valeurs.get("motDePasse") || null,
       expediteur: valeurs.get("expediteur") || valeurs.get("utilisateur") || entreprise.email || null,
       nomExpediteur,
+      nomTls: valeurs.get("nomTls") || null,
       source: "parametres",
     };
   }
@@ -204,10 +206,11 @@ export async function configMail(): Promise<ConfigMail> {
       motDePasse: process.env.SMTP_PASSWORD || null,
       expediteur: process.env.SMTP_FROM || process.env.SMTP_USER || entreprise.email || null,
       nomExpediteur,
+      nomTls: null,
       source: "serveur",
     };
   }
-  return { hote: null, port: 587, securise: false, utilisateur: null, motDePasse: null, expediteur: null, nomExpediteur, source: "aucune" };
+  return { hote: null, port: 587, securise: false, utilisateur: null, motDePasse: null, expediteur: null, nomExpediteur, nomTls: null, source: "aucune" };
 }
 
 export async function lireParametre(cle: string) {

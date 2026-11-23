@@ -46,23 +46,43 @@ async function prochainNumero(tx: Tx, cle: string, prefixe: string) {
   return `${prefixe}-${new Date().getFullYear()}-${String(row.valeur).padStart(5, "0")}`;
 }
 
-async function choisirResponsable(tx: Tx, roles: string[], preferId?: string) {
+async function choisirResponsable(tx: Tx, roles: string[], preferId?: string, dossierId?: string) {
   const liste = roles.filter(Boolean) as Role[];
   if (!liste.length) return null;
   if (preferId) {
     const prefere = await tx.user.findFirst({
       where: { id: preferId, actif: true, ...filtreParRoles(liste) },
+      select: { id: true, telephone: true, role: true },
     });
     if (prefere) return prefere;
   }
-  for (const role of liste) {
-    const user = await tx.user.findFirst({
-      where: { actif: true, ...filtreParRoles([role]) },
-      orderBy: { prenom: "asc" },
+  if (dossierId) {
+    const deja = await tx.dossierEtape.findMany({
+      where: { dossierId, responsableId: { not: null } },
+      select: { responsableId: true },
     });
-    if (user) return user;
+    const ids = [...new Set(deja.map((item) => item.responsableId).filter((id): id is string => Boolean(id)))];
+    if (ids.length) {
+      const connu = await tx.user.findFirst({
+        where: { id: { in: ids }, actif: true, ...filtreParRoles(liste) },
+        select: { id: true, telephone: true, role: true },
+      });
+      if (connu) return connu;
+    }
   }
-  return null;
+  const candidats = await tx.user.findMany({
+    where: { actif: true, ...filtreParRoles(liste) },
+    select: { id: true, telephone: true, role: true, prenom: true },
+  });
+  if (!candidats.length) return null;
+  const charges = await tx.dossierEtape.groupBy({
+    by: ["responsableId"],
+    where: { statut: "EN_COURS", responsableId: { in: candidats.map((item) => item.id) } },
+    _count: { _all: true },
+  });
+  const compte = new Map(charges.map((item) => [item.responsableId, item._count._all]));
+  candidats.sort((a, b) => (compte.get(a.id) ?? 0) - (compte.get(b.id) ?? 0) || a.prenom.localeCompare(b.prenom, "fr"));
+  return candidats[0];
 }
 
 async function texteModele(tx: Tx, code: string, variables: Record<string, string>) {
@@ -237,7 +257,8 @@ async function ouvrirEtape(
   const etape = dossier.etapes.find((item) => item.id === etapeId);
   if (!etape) return;
   const maintenant = new Date();
-  const responsable = await choisirResponsable(tx, etape.roles.split(",").filter(Boolean), actorId);
+  const rolesEtape = etape.roles.split(",").filter(Boolean);
+  const responsable = await choisirResponsable(tx, rolesEtape, actorId, dossier.id);
   const limiteLe = ajouterHeures(maintenant, etape.delaiHeures);
 
   await tx.dossierEtape.update({
@@ -266,6 +287,7 @@ async function ouvrirEtape(
 
   if (responsable) {
     const texte = await texteModele(tx, "mission", vars);
+    const deja = new Set<string>([responsable.id]);
     await planifier(tx, outbox, {
       telephone: responsable.telephone,
       type: "COLLABORATEUR",
@@ -275,6 +297,20 @@ async function ouvrirEtape(
       titre: "Nouvelle mission",
       lien,
     });
+    for (const role of rolesEtape) {
+      const personne = await choisirResponsable(tx, [role], undefined, dossier.id);
+      if (!personne || deja.has(personne.id)) continue;
+      deja.add(personne.id);
+      await planifier(tx, outbox, {
+        telephone: personne.telephone,
+        type: "COLLABORATEUR",
+        dossierId: dossier.id,
+        texte,
+        userId: personne.id,
+        titre: "Nouvelle mission",
+        lien,
+      });
+    }
   } else {
     const texte = await texteModele(tx, "sans_responsable", vars);
     await notifierDirection(tx, outbox, texte, dossier.id, lien);
@@ -585,7 +621,9 @@ export async function cloturerEtape(input: {
       return { ok: true as const, dossierId: dossier.id };
     }
 
-    const suivante = dossier.etapes.find((item) => item.rang > etape.rang);
+    const suivante = [...dossier.etapes]
+      .sort((a, b) => a.rang - b.rang || a.id.localeCompare(b.id))
+      .find((item) => item.id !== etape.id && item.rang > etape.rang && item.statut !== "CLOTUREE");
     let statut = dossier.statut;
     if (!suivante) statut = "DEPART_SUIVI";
     else if (etape.jalon === "CONTRAT") statut = "EN_COURS";
@@ -1092,7 +1130,7 @@ export async function enregistrerPaiement(input: {
 
     const numero = await prochainNumero(tx, "PAY", "PAY");
     const factureNumero = factureReglee ? factureReglee.numero : await prochainNumero(tx, "FAC", "FAC");
-    const compte = compteTresorerie(input.mode);
+    const compte = compteTresorerie(input.mode, input.precision);
     const libelle = factureReglee ? `Règlement ${factureReglee.numero} ${dossier.reference}` : `${labelTypePaiement(input.type)} ${dossier.reference}`;
 
     const paiement = await tx.paiement.create({
@@ -1248,10 +1286,12 @@ export async function enregistrerDepense(input: {
       },
     });
     const libelle = `${numero} ${input.libelle}`.slice(0, 180);
+    const journal = input.categorie === "SALAIRES" || input.categorie === "IMPOTS" ? "OD" : "ACH";
+    const compte = compteTresorerie(input.mode, `${input.libelle} ${input.reference ?? ""} ${input.fournisseur ?? ""}`);
     await tx.ecriture.createMany({
       data: [
-        { date: input.date, journal: "ACH", compte: compteCharge(input.categorie), libelle, debit: input.montant, depenseId: depense.id },
-        { date: input.date, journal: "ACH", compte: compteTresorerie(input.mode), libelle, credit: input.montant, depenseId: depense.id },
+        { date: input.date, journal, compte: compteCharge(input.categorie), libelle, debit: input.montant, depenseId: depense.id },
+        { date: input.date, journal, compte, libelle, credit: input.montant, depenseId: depense.id },
       ],
     });
     await tx.audit.create({

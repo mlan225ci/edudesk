@@ -35,7 +35,7 @@ export default function TelephonePage() {
         <p className="mt-2 text-xs font-semibold tracking-[0.18em] text-desk uppercase">EduDesk</p>
         <h1 className="mt-3 text-2xl font-bold">L&apos;ERP s&apos;ouvre sur un ordinateur</h1>
         <p className="mt-3 text-sm leading-6 text-ink/70">
-          Le bureau EduDesk n&apos;est pas accessible depuis un téléphone. Ouvrez <span className="font-semibold">erp.edudesk-inter.com</span> sur un ordinateur pour vous connecter.
+          Le bureau EduDesk n&apos;est pas accessible depuis un téléphone. Ouvrez <span className="font-semibold">erpedudesk.com</span> sur un ordinateur pour vous connecter.
         </p>
       </section>
     </main>

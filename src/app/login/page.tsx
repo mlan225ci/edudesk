@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { masquerEmail } from "@/server/deux-facteurs";
 import { lireAttenteCode } from "@/server/session";
 
-export const metadata = { title: "Connexion" };
+export const metadata = {
+  title: "Connexion",
+  description:
+    "Connexion du personnel du bureau EduDesk, à Abidjan. Les familles suivent leur dossier sur la page Suivi, avec le code reçu par e-mail.",
+};
 
 export default async function LoginPage() {
   const attente = await lireAttenteCode();

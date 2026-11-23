@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
-  if (pathname.startsWith("/login") || pathname.startsWith("/suivi") || pathname.startsWith("/contact") || pathname.startsWith("/telephone") || pathname.startsWith("/api/cron")) {
+  if (pathname.startsWith("/login") || pathname.startsWith("/suivi") || pathname.startsWith("/contact") || pathname.startsWith("/telephone") || pathname.startsWith("/api/cron") || pathname === "/googled80d645c8efe0178.html") {
     return passer(request);
   }
 
@@ -58,5 +58,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|logo-edudesk.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|logo-edudesk.png|googled80d645c8efe0178.html).*)"],
 };

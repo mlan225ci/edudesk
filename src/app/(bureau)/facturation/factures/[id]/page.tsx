@@ -101,7 +101,7 @@ export default async function FacturePage({ params }: { params: Promise<{ id: st
                   </Champ>
                   <Choix label="Moyen de paiement" name="mode" options={MODES} />
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Champ label="Précision"><input className="champ" name="precision" placeholder="Wave, Orange…" /></Champ>
+                    <Champ label="Précision"><input className="champ" name="precision" placeholder="Wave ou Orange Money" /></Champ>
                     <Champ label="N° de reçu"><input className="champ" name="referenceExterne" placeholder="Facultatif" /></Champ>
                   </div>
                   <Champ label="Date"><input className="champ" type="date" name="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></Champ>

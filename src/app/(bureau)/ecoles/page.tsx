@@ -12,7 +12,7 @@ import { Kpi } from "@/components/graphiques";
 import { Tiroir } from "@/components/tiroir";
 import { Badge, EnTete, Info, Progression, Vide } from "@/components/ui";
 import { creerEcole } from "@/server/ecoles";
-import { peutEcoles } from "@/server/permissions";
+import { peutEcoles, voitEcoles } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Écoles" };
@@ -25,7 +25,7 @@ export default async function EcolesPage({
   const user = await requireUser();
   const __masque = await sessionMasqueChiffres();
   const franc = (n: number) => (__masque ? "••••" : xof(n));
-  if (user.role === "PARTENAIRE") redirect("/dossiers");
+  if (user.role === "PARTENAIRE" || !voitEcoles(user)) redirect("/missions");
   const { q, pays, type, nouveau } = await searchParams;
   const gestion = peutEcoles(user);
 

@@ -7,7 +7,7 @@ import { archiverClient, restaurerClient, supprimerClient } from "@/server/actio
 
 type Etape = "menu" | "archiver" | "supprimer";
 
-export function MenuClient({ clientId, nom, archive, suppression }: { clientId: string; nom: string; archive: boolean; suppression: boolean }) {
+export function MenuClient({ clientId, nom, archive, suppression, suppressionLegere = false, peutArchiver = true }: { clientId: string; nom: string; archive: boolean; suppression: boolean; suppressionLegere?: boolean; peutArchiver?: boolean }) {
   const [ouvert, setOuvert] = useState(false);
   const [etape, setEtape] = useState<Etape>("menu");
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
@@ -79,10 +79,12 @@ export function MenuClient({ clientId, nom, archive, suppression }: { clientId: 
             >
               {etape === "menu" ? (
                 <>
-                  <button type="button" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink hover:bg-paper" onClick={() => setEtape("archiver")}>
-                    {archive ? <ArchiveRestore size={15} className="text-ink/45" /> : <Archive size={15} className="text-ink/45" />}
-                    {libelle}
-                  </button>
+                  {peutArchiver ? (
+                    <button type="button" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink hover:bg-paper" onClick={() => setEtape("archiver")}>
+                      {archive ? <ArchiveRestore size={15} className="text-ink/45" /> : <Archive size={15} className="text-ink/45" />}
+                      {libelle}
+                    </button>
+                  ) : null}
                   {suppression ? (
                     <button type="button" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-cap hover:bg-red-50" onClick={() => setEtape("supprimer")}>
                       <Trash2 size={15} /> Supprimer
@@ -94,7 +96,9 @@ export function MenuClient({ clientId, nom, archive, suppression }: { clientId: 
                   <input type="hidden" name="clientId" value={clientId} />
                   <p className="text-sm leading-5 text-ink/70">
                     {etape === "supprimer"
-                      ? `Effacer ${nom}, ses dossiers, ses factures et ses paiements. Cette action est irréversible.`
+                      ? suppressionLegere
+                        ? `Effacer ${nom} seulement si la fiche n'a ni dossier ni paiement. Sinon, archivez-la.`
+                        : `Effacer ${nom}, ses dossiers, ses factures et ses paiements. Cette action est irréversible.`
                       : archive
                         ? `Restaurer ${nom} dans la liste des clients.`
                         : `Retirer ${nom} de la liste. Les dossiers et les paiements restent.`}

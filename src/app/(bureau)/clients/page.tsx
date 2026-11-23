@@ -23,6 +23,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const attribution = peutAttribuerClient(user);
   const archivage = peutArchiverClient(user);
   const suppression = await suppressionAutorisee(user);
+  const suppressionLegere = !suppression && aLeRole(user, "RESPONSABLE_COMMERCIALE", "COMMERCIAL", "ASSISTANTE_ADMINISTRATIVE");
   const archivesVisibles = archivage && archives === "1";
   const [clients, partenaires, procedures, responsables] = await Promise.all([
     prisma.client.findMany({
@@ -170,7 +171,9 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                     <td>{dernier ? <Badge ton={TON_STATUT[dernier.statut]} point>{STATUTS[dernier.statut]}</Badge> : <span className="text-ink/40">Aucun</span>}</td>
                     <td className="text-right font-semibold">{client._count.dossiers}</td>
                     <td className="relative z-20 !pr-3 text-right">
-                      {archivage ? <MenuClient clientId={client.id} nom={nomComplet(client)} archive={archivesVisibles} suppression={suppression} /> : null}
+                      {archivage || suppression || suppressionLegere ? (
+                        <MenuClient clientId={client.id} nom={nomComplet(client)} archive={archivesVisibles} suppression={suppression || suppressionLegere} suppressionLegere={suppressionLegere} peutArchiver={archivage} />
+                      ) : null}
                     </td>
                   </tr>
                 );

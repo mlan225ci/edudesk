@@ -48,6 +48,9 @@ export function EtapeCourante({
   const toast = useToast();
   const reveiller = useReveil();
   const [, demarrer] = useTransition();
+  const [nature, setNature] = useState("Identité");
+  const [precision, setPrecision] = useState("");
+  const natures = ["Identité", "Cursus", "Financier", "Visa", "Dossier", "Autre"];
 
   const signatureTaches = taches.map((tache) => `${tache.id}:${tache.faite}`).join("|");
   const signaturePieces = pieces.map((piece) => `${piece.id}:${piece.recue}:${piece.fichier}`).join("|");
@@ -259,8 +262,24 @@ export function EtapeCourante({
       ) : null}
 
       {peutAjouter ? (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-ink/15 px-4 py-3">
-          <p className="text-sm text-ink/65">Ajoutez plusieurs documents d&apos;un coup. Chaque fichier devient un emplacement.</p>
+        <section className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-dashed border-ink/15 px-4 py-3">
+          <div className="grid min-w-[16rem] flex-1 gap-2">
+            <p className="text-sm text-ink/65">Ajoutez plusieurs documents d&apos;un coup. Chaque fichier devient un emplacement.</p>
+            <label className="grid gap-1 text-xs font-semibold text-ink/55">
+              Nature
+              <select className="champ" value={nature} onChange={(event) => setNature(event.target.value)}>
+                {natures.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            {nature === "Autre" ? (
+              <label className="grid gap-1 text-xs font-semibold text-ink/55">
+                Précision
+                <input className="champ" value={precision} onChange={(event) => setPrecision(event.target.value)} placeholder="Exemple : passeport" />
+              </label>
+            ) : null}
+          </div>
           <label className="bouton-second cursor-pointer py-2">
             <Paperclip size={14} /> Ajouter des documents
             <input
@@ -271,8 +290,14 @@ export function EtapeCourante({
                 const liste = event.target.files;
                 event.target.value = "";
                 if (!liste?.length) return;
+                if (nature === "Autre" && precision.trim().length < 2) {
+                  toast("Précisez la nature du document.", "erreur");
+                  return;
+                }
                 const data = new FormData();
                 data.set("etapeId", etapeId);
+                data.set("nature", nature);
+                data.set("precision", precision.trim());
                 for (const fichier of Array.from(liste)) {
                   if (fichier.size > TAILLE_MAX) {
                     toast(`${fichier.name} dépasse 10 Mo.`, "erreur");

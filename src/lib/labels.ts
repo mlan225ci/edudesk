@@ -201,7 +201,12 @@ export function labelMode(mode: ModePaiement) {
   return MODES.find((item) => item.value === mode)?.label ?? mode;
 }
 
-export function compteTresorerie(mode: ModePaiement) {
+export function compteTresorerie(mode: ModePaiement, precision?: string | null) {
+  if (mode === "MOBILE_MONEY") {
+    const texte = (precision ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    if (texte.includes("wave")) return "5581";
+    if (texte.includes("orange")) return "5582";
+  }
   return MODES.find((item) => item.value === mode)?.compte ?? "571";
 }
 
@@ -228,6 +233,8 @@ export const COMPTES: Record<string, string> = {
   "571": "Caisse",
   "521": "Banque",
   "558": "Mobile money",
+  "5581": "Wave",
+  "5582": "Orange Money",
   "411": "Clients",
   "706": "Prestations de services",
   "605": "Fournitures",

@@ -79,6 +79,10 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                     ))}
                   </select>
                 </Champ>
+                <label className="flex items-start gap-2 text-sm text-ink/70">
+                  <input type="checkbox" name="conditions" value="oui" className="mt-1 accent-desk" />
+                  <span>Documents demandés reçus, 80 000 F encaissés, lettre d&apos;engagement signée. Obligatoire pour un commercial.</span>
+                </label>
               </Formulaire>
             </article>
           )}
