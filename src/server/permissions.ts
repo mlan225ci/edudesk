@@ -154,6 +154,10 @@ export function peutArchiverClient(porteur: PorteurRoles) {
   return !estLectureSeule(porteur) && aLeRole(porteur, "CEO", "ADMINISTRATEUR", "RESPONSABLE_COMMERCIALE");
 }
 
+export function voitArchives(porteur: PorteurRoles) {
+  return aLeRole(porteur, "CEO", "ADMINISTRATEUR", "ADMINISTRATEUR_SYSTEME", "RESPONSABLE_COMMERCIALE");
+}
+
 export function voitEcoles(porteur: PorteurRoles) {
   const socialSeul =
     aLeRole(porteur, "COMMUNITY_MANAGER") &&
@@ -286,7 +290,7 @@ export function navigation(porteur: PorteurRoles, modules?: ModulesActifs, droit
   const commercial: Lien[] = [];
   if (oui("prospects", peutProspects(porteur))) commercial.push({ href: "/prospects", label: "Prospects", icone: "prospects" });
   if (oui("clients", true)) commercial.push({ href: "/clients", label: "Clients", icone: "clients" });
-  if (oui("clients", true) && peutArchiverClient(porteur)) commercial.push({ href: "/clients?archives=1", label: "Archives", icone: "archives", sous: true });
+  if (oui("clients", true) && voitArchives(porteur)) commercial.push({ href: "/clients?archives=1", label: "Archives", icone: "archives", sous: true });
   if (oui("partenaires", voitPartenaires(porteur))) commercial.push({ href: "/partenaires", label: "Partenaires", icone: "partenaires" });
 
   const operations: Lien[] = [];

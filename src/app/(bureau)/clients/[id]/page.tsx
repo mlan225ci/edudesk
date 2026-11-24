@@ -12,7 +12,7 @@ import { Journal } from "@/components/journal";
 import { lireJournal } from "@/server/historique";
 import { lireModules } from "@/server/modules";
 import { ouvrirGroupeClient } from "@/server/groupes-actions";
-import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient, peutHistorique, voitFinance } from "@/server/permissions";
+import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient, peutHistorique, voitArchives, voitFinance } from "@/server/permissions";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
 import { ListeDocuments, type DocumentVue } from "@/components/documents";
@@ -43,7 +43,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     },
   });
   if (!client) notFound();
-  if (client.archiveLe && !peutArchiverClient(user)) notFound();
+  if (client.archiveLe && !voitArchives(user)) notFound();
   if (user.role === "PARTENAIRE" && client.partenaireId !== user.partenaireId) notFound();
   if (
     aLeRole(user, "COMMERCIAL") &&

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatJour, nomComplet } from "@/lib/format";
 import { STATUTS, TON_STATUT } from "@/lib/labels";
 import { attribuerClient, creerClient } from "@/server/actions";
-import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient } from "@/server/permissions";
+import { aLeRole, filtreParRoles, peutArchiverClient, peutAttribuerClient, peutCreerClient, voitArchives } from "@/server/permissions";
 import { suppressionAutorisee } from "@/server/regles";
 import { requireUser } from "@/server/session";
 import { ChampsClient } from "@/components/champs-client";
@@ -22,9 +22,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const creation = peutCreerClient(user);
   const attribution = peutAttribuerClient(user);
   const archivage = peutArchiverClient(user);
+  const voirArchives = voitArchives(user);
   const suppression = await suppressionAutorisee(user);
   const suppressionLegere = !suppression && aLeRole(user, "RESPONSABLE_COMMERCIALE", "COMMERCIAL", "ASSISTANTE_ADMINISTRATIVE");
-  const archivesVisibles = archivage && archives === "1";
+  const archivesVisibles = voirArchives && archives === "1";
   const [clients, partenaires, procedures, responsables] = await Promise.all([
     prisma.client.findMany({
       where: {
@@ -77,7 +78,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         description={archivesVisibles ? "Fiches retirées de la liste. Les dossiers et les paiements sont conservés." : "Les personnes accompagnées. Un commercial ne voit que les clients qui lui sont confiés."}
         actions={
           <div className="flex flex-wrap gap-2">
-          {archivage ? (
+          {voirArchives ? (
             <Link href={archivesVisibles ? "/clients" : "/clients?archives=1"} className="bouton-second">
               <Archive size={16} /> {archivesVisibles ? "Clients actifs" : "Archives"}
             </Link>
